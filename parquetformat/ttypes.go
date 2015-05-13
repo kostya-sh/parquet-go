@@ -36,42 +36,42 @@ const (
 func (p Type) String() string {
 	switch p {
 	case Type_BOOLEAN:
-		return "Type_BOOLEAN"
+		return "BOOLEAN"
 	case Type_INT32:
-		return "Type_INT32"
+		return "INT32"
 	case Type_INT64:
-		return "Type_INT64"
+		return "INT64"
 	case Type_INT96:
-		return "Type_INT96"
+		return "INT96"
 	case Type_FLOAT:
-		return "Type_FLOAT"
+		return "FLOAT"
 	case Type_DOUBLE:
-		return "Type_DOUBLE"
+		return "DOUBLE"
 	case Type_BYTE_ARRAY:
-		return "Type_BYTE_ARRAY"
+		return "BYTE_ARRAY"
 	case Type_FIXED_LEN_BYTE_ARRAY:
-		return "Type_FIXED_LEN_BYTE_ARRAY"
+		return "FIXED_LEN_BYTE_ARRAY"
 	}
 	return "<UNSET>"
 }
 
 func TypeFromString(s string) (Type, error) {
 	switch s {
-	case "Type_BOOLEAN":
+	case "BOOLEAN":
 		return Type_BOOLEAN, nil
-	case "Type_INT32":
+	case "INT32":
 		return Type_INT32, nil
-	case "Type_INT64":
+	case "INT64":
 		return Type_INT64, nil
-	case "Type_INT96":
+	case "INT96":
 		return Type_INT96, nil
-	case "Type_FLOAT":
+	case "FLOAT":
 		return Type_FLOAT, nil
-	case "Type_DOUBLE":
+	case "DOUBLE":
 		return Type_DOUBLE, nil
-	case "Type_BYTE_ARRAY":
+	case "BYTE_ARRAY":
 		return Type_BYTE_ARRAY, nil
-	case "Type_FIXED_LEN_BYTE_ARRAY":
+	case "FIXED_LEN_BYTE_ARRAY":
 		return Type_FIXED_LEN_BYTE_ARRAY, nil
 	}
 	return Type(0), fmt.Errorf("not a valid Type string")
@@ -110,90 +110,90 @@ const (
 func (p ConvertedType) String() string {
 	switch p {
 	case ConvertedType_UTF8:
-		return "ConvertedType_UTF8"
+		return "UTF8"
 	case ConvertedType_MAP:
-		return "ConvertedType_MAP"
+		return "MAP"
 	case ConvertedType_MAP_KEY_VALUE:
-		return "ConvertedType_MAP_KEY_VALUE"
+		return "MAP_KEY_VALUE"
 	case ConvertedType_LIST:
-		return "ConvertedType_LIST"
+		return "LIST"
 	case ConvertedType_ENUM:
-		return "ConvertedType_ENUM"
+		return "ENUM"
 	case ConvertedType_DECIMAL:
-		return "ConvertedType_DECIMAL"
+		return "DECIMAL"
 	case ConvertedType_DATE:
-		return "ConvertedType_DATE"
+		return "DATE"
 	case ConvertedType_TIME_MILLIS:
-		return "ConvertedType_TIME_MILLIS"
+		return "TIME_MILLIS"
 	case ConvertedType_TIMESTAMP_MILLIS:
-		return "ConvertedType_TIMESTAMP_MILLIS"
+		return "TIMESTAMP_MILLIS"
 	case ConvertedType_UINT_8:
-		return "ConvertedType_UINT_8"
+		return "UINT_8"
 	case ConvertedType_UINT_16:
-		return "ConvertedType_UINT_16"
+		return "UINT_16"
 	case ConvertedType_UINT_32:
-		return "ConvertedType_UINT_32"
+		return "UINT_32"
 	case ConvertedType_UINT_64:
-		return "ConvertedType_UINT_64"
+		return "UINT_64"
 	case ConvertedType_INT_8:
-		return "ConvertedType_INT_8"
+		return "INT_8"
 	case ConvertedType_INT_16:
-		return "ConvertedType_INT_16"
+		return "INT_16"
 	case ConvertedType_INT_32:
-		return "ConvertedType_INT_32"
+		return "INT_32"
 	case ConvertedType_INT_64:
-		return "ConvertedType_INT_64"
+		return "INT_64"
 	case ConvertedType_JSON:
-		return "ConvertedType_JSON"
+		return "JSON"
 	case ConvertedType_BSON:
-		return "ConvertedType_BSON"
+		return "BSON"
 	case ConvertedType_INTERVAL:
-		return "ConvertedType_INTERVAL"
+		return "INTERVAL"
 	}
 	return "<UNSET>"
 }
 
 func ConvertedTypeFromString(s string) (ConvertedType, error) {
 	switch s {
-	case "ConvertedType_UTF8":
+	case "UTF8":
 		return ConvertedType_UTF8, nil
-	case "ConvertedType_MAP":
+	case "MAP":
 		return ConvertedType_MAP, nil
-	case "ConvertedType_MAP_KEY_VALUE":
+	case "MAP_KEY_VALUE":
 		return ConvertedType_MAP_KEY_VALUE, nil
-	case "ConvertedType_LIST":
+	case "LIST":
 		return ConvertedType_LIST, nil
-	case "ConvertedType_ENUM":
+	case "ENUM":
 		return ConvertedType_ENUM, nil
-	case "ConvertedType_DECIMAL":
+	case "DECIMAL":
 		return ConvertedType_DECIMAL, nil
-	case "ConvertedType_DATE":
+	case "DATE":
 		return ConvertedType_DATE, nil
-	case "ConvertedType_TIME_MILLIS":
+	case "TIME_MILLIS":
 		return ConvertedType_TIME_MILLIS, nil
-	case "ConvertedType_TIMESTAMP_MILLIS":
+	case "TIMESTAMP_MILLIS":
 		return ConvertedType_TIMESTAMP_MILLIS, nil
-	case "ConvertedType_UINT_8":
+	case "UINT_8":
 		return ConvertedType_UINT_8, nil
-	case "ConvertedType_UINT_16":
+	case "UINT_16":
 		return ConvertedType_UINT_16, nil
-	case "ConvertedType_UINT_32":
+	case "UINT_32":
 		return ConvertedType_UINT_32, nil
-	case "ConvertedType_UINT_64":
+	case "UINT_64":
 		return ConvertedType_UINT_64, nil
-	case "ConvertedType_INT_8":
+	case "INT_8":
 		return ConvertedType_INT_8, nil
-	case "ConvertedType_INT_16":
+	case "INT_16":
 		return ConvertedType_INT_16, nil
-	case "ConvertedType_INT_32":
+	case "INT_32":
 		return ConvertedType_INT_32, nil
-	case "ConvertedType_INT_64":
+	case "INT_64":
 		return ConvertedType_INT_64, nil
-	case "ConvertedType_JSON":
+	case "JSON":
 		return ConvertedType_JSON, nil
-	case "ConvertedType_BSON":
+	case "BSON":
 		return ConvertedType_BSON, nil
-	case "ConvertedType_INTERVAL":
+	case "INTERVAL":
 		return ConvertedType_INTERVAL, nil
 	}
 	return ConvertedType(0), fmt.Errorf("not a valid ConvertedType string")
@@ -213,22 +213,22 @@ const (
 func (p FieldRepetitionType) String() string {
 	switch p {
 	case FieldRepetitionType_REQUIRED:
-		return "FieldRepetitionType_REQUIRED"
+		return "REQUIRED"
 	case FieldRepetitionType_OPTIONAL:
-		return "FieldRepetitionType_OPTIONAL"
+		return "OPTIONAL"
 	case FieldRepetitionType_REPEATED:
-		return "FieldRepetitionType_REPEATED"
+		return "REPEATED"
 	}
 	return "<UNSET>"
 }
 
 func FieldRepetitionTypeFromString(s string) (FieldRepetitionType, error) {
 	switch s {
-	case "FieldRepetitionType_REQUIRED":
+	case "REQUIRED":
 		return FieldRepetitionType_REQUIRED, nil
-	case "FieldRepetitionType_OPTIONAL":
+	case "OPTIONAL":
 		return FieldRepetitionType_OPTIONAL, nil
-	case "FieldRepetitionType_REPEATED":
+	case "REPEATED":
 		return FieldRepetitionType_REPEATED, nil
 	}
 	return FieldRepetitionType(0), fmt.Errorf("not a valid FieldRepetitionType string")
@@ -255,42 +255,42 @@ const (
 func (p Encoding) String() string {
 	switch p {
 	case Encoding_PLAIN:
-		return "Encoding_PLAIN"
+		return "PLAIN"
 	case Encoding_PLAIN_DICTIONARY:
-		return "Encoding_PLAIN_DICTIONARY"
+		return "PLAIN_DICTIONARY"
 	case Encoding_RLE:
-		return "Encoding_RLE"
+		return "RLE"
 	case Encoding_BIT_PACKED:
-		return "Encoding_BIT_PACKED"
+		return "BIT_PACKED"
 	case Encoding_DELTA_BINARY_PACKED:
-		return "Encoding_DELTA_BINARY_PACKED"
+		return "DELTA_BINARY_PACKED"
 	case Encoding_DELTA_LENGTH_BYTE_ARRAY:
-		return "Encoding_DELTA_LENGTH_BYTE_ARRAY"
+		return "DELTA_LENGTH_BYTE_ARRAY"
 	case Encoding_DELTA_BYTE_ARRAY:
-		return "Encoding_DELTA_BYTE_ARRAY"
+		return "DELTA_BYTE_ARRAY"
 	case Encoding_RLE_DICTIONARY:
-		return "Encoding_RLE_DICTIONARY"
+		return "RLE_DICTIONARY"
 	}
 	return "<UNSET>"
 }
 
 func EncodingFromString(s string) (Encoding, error) {
 	switch s {
-	case "Encoding_PLAIN":
+	case "PLAIN":
 		return Encoding_PLAIN, nil
-	case "Encoding_PLAIN_DICTIONARY":
+	case "PLAIN_DICTIONARY":
 		return Encoding_PLAIN_DICTIONARY, nil
-	case "Encoding_RLE":
+	case "RLE":
 		return Encoding_RLE, nil
-	case "Encoding_BIT_PACKED":
+	case "BIT_PACKED":
 		return Encoding_BIT_PACKED, nil
-	case "Encoding_DELTA_BINARY_PACKED":
+	case "DELTA_BINARY_PACKED":
 		return Encoding_DELTA_BINARY_PACKED, nil
-	case "Encoding_DELTA_LENGTH_BYTE_ARRAY":
+	case "DELTA_LENGTH_BYTE_ARRAY":
 		return Encoding_DELTA_LENGTH_BYTE_ARRAY, nil
-	case "Encoding_DELTA_BYTE_ARRAY":
+	case "DELTA_BYTE_ARRAY":
 		return Encoding_DELTA_BYTE_ARRAY, nil
-	case "Encoding_RLE_DICTIONARY":
+	case "RLE_DICTIONARY":
 		return Encoding_RLE_DICTIONARY, nil
 	}
 	return Encoding(0), fmt.Errorf("not a valid Encoding string")
@@ -311,26 +311,26 @@ const (
 func (p CompressionCodec) String() string {
 	switch p {
 	case CompressionCodec_UNCOMPRESSED:
-		return "CompressionCodec_UNCOMPRESSED"
+		return "UNCOMPRESSED"
 	case CompressionCodec_SNAPPY:
-		return "CompressionCodec_SNAPPY"
+		return "SNAPPY"
 	case CompressionCodec_GZIP:
-		return "CompressionCodec_GZIP"
+		return "GZIP"
 	case CompressionCodec_LZO:
-		return "CompressionCodec_LZO"
+		return "LZO"
 	}
 	return "<UNSET>"
 }
 
 func CompressionCodecFromString(s string) (CompressionCodec, error) {
 	switch s {
-	case "CompressionCodec_UNCOMPRESSED":
+	case "UNCOMPRESSED":
 		return CompressionCodec_UNCOMPRESSED, nil
-	case "CompressionCodec_SNAPPY":
+	case "SNAPPY":
 		return CompressionCodec_SNAPPY, nil
-	case "CompressionCodec_GZIP":
+	case "GZIP":
 		return CompressionCodec_GZIP, nil
-	case "CompressionCodec_LZO":
+	case "LZO":
 		return CompressionCodec_LZO, nil
 	}
 	return CompressionCodec(0), fmt.Errorf("not a valid CompressionCodec string")
@@ -350,26 +350,26 @@ const (
 func (p PageType) String() string {
 	switch p {
 	case PageType_DATA_PAGE:
-		return "PageType_DATA_PAGE"
+		return "DATA_PAGE"
 	case PageType_INDEX_PAGE:
-		return "PageType_INDEX_PAGE"
+		return "INDEX_PAGE"
 	case PageType_DICTIONARY_PAGE:
-		return "PageType_DICTIONARY_PAGE"
+		return "DICTIONARY_PAGE"
 	case PageType_DATA_PAGE_V2:
-		return "PageType_DATA_PAGE_V2"
+		return "DATA_PAGE_V2"
 	}
 	return "<UNSET>"
 }
 
 func PageTypeFromString(s string) (PageType, error) {
 	switch s {
-	case "PageType_DATA_PAGE":
+	case "DATA_PAGE":
 		return PageType_DATA_PAGE, nil
-	case "PageType_INDEX_PAGE":
+	case "INDEX_PAGE":
 		return PageType_INDEX_PAGE, nil
-	case "PageType_DICTIONARY_PAGE":
+	case "DICTIONARY_PAGE":
 		return PageType_DICTIONARY_PAGE, nil
-	case "PageType_DATA_PAGE_V2":
+	case "DATA_PAGE_V2":
 		return PageType_DATA_PAGE_V2, nil
 	}
 	return PageType(0), fmt.Errorf("not a valid PageType string")
