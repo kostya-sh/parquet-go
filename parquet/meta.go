@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 
-	"git-wip-us.apache.org/repos/asf/thrift.git/lib/go/thrift"
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
@@ -65,10 +64,8 @@ func ReadFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error seeking to file metadata: %s", err)
 	}
-	var ttransport = thrift.NewStreamTransportR(r)
-	var tprotocol = thrift.NewTCompactProtocol(ttransport)
 	var meta parquetformat.FileMetaData
-	err = meta.Read(tprotocol)
+	err = meta.Read(io.LimitReader(r, int64(footerLength)))
 	if err != nil {
 		return nil, fmt.Errorf("Error reading file metadata: %s", err)
 	}

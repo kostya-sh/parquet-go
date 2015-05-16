@@ -8,7 +8,4 @@ package parquetformat
 
 // 2. Run thrift compiler
 //
-// TODO: review thrigt_import after
-// https://issues.apache.org/jira/browse/THRIFT-3131 is fixed
-
-//go:generate thrift --out .. --gen go:package=$GOPACKAGE,thrift_import=git-wip-us.apache.org/repos/asf/thrift.git/lib/go/thrift parquet.thrift
+//go:generate thrift --out .. --gen go:package=$GOPACKAGE,private_thrift=true parquet.thrift

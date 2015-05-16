@@ -6,7 +6,7 @@ package parquetformat
 import (
 	"bytes"
 	"fmt"
-	"git-wip-us.apache.org/repos/asf/thrift.git/lib/go/thrift"
+	"git.apache.org/thrift.git/lib/go/thrift"
 )
 
 // (needed to ensure safety because of naive import list construction.)
