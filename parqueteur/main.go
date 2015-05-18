@@ -23,6 +23,7 @@ type Command struct {
 
 var commands = []*Command{
 	cmdMeta,
+	cmdSchema,
 }
 
 func usage() {
