@@ -15,13 +15,13 @@ type Schema interface {
 	MarshalDL(w io.Writer) error
 }
 
+// TODO: better name
 type schemaSomething interface {
 	create(schema []*parquetformat.SchemaElement, start int) (next int, err error)
 
 	marshalDL(w io.Writer, indent string) error
 }
 
-// TODO: implement Schema
 type group struct {
 	schemaElement *parquetformat.SchemaElement
 	root          bool
@@ -52,6 +52,7 @@ func (g *group) create(schema []*parquetformat.SchemaElement, start int) (int, e
 		if s.RepetitionType == nil {
 			return 0, fmt.Errorf("schema[%d].RepetitionType = nil", start)
 		}
+		// TODO: validate ConvertedType (nil, MAP, LIST, MAP_KEY_VALUE and structure)
 	} else {
 		// TODO: check other fields = null ?
 	}
@@ -131,14 +132,34 @@ func (p *primitive) create(schema []*parquetformat.SchemaElement, start int) (in
 		return 0, fmt.Errorf("schema[%d].RepetitionType = nil", start)
 	}
 
-	if *s.Type == parquetformat.Type_FIXED_LEN_BYTE_ARRAY {
+	t := *s.Type
+
+	if t == parquetformat.Type_FIXED_LEN_BYTE_ARRAY {
 		if s.TypeLength == nil {
 			return 0, fmt.Errorf("schema[%d].TypeLength = nil for type FIXED_LEN_BYTE_ARRAY", start)
 			// TODO: check length is positive
 		}
 	}
 
-	// TODO: check if converted type == DECIMAL then Precision != nil and Scale != nil
+	if s.ConvertedType != nil {
+		// validate ConvertedType
+		ct := *s.ConvertedType
+		switch {
+		case (ct == parquetformat.ConvertedType_UTF8 && t != parquetformat.Type_BYTE_ARRAY) ||
+			(ct == parquetformat.ConvertedType_MAP) ||
+			(ct == parquetformat.ConvertedType_MAP_KEY_VALUE) ||
+			(ct == parquetformat.ConvertedType_LIST):
+			return 0, fmt.Errorf("%s field %s cannot be annotated with %s", t, s.Name, ct)
+		}
+		// TODO: validate U[INT]{8,16,32,64}
+		// TODO: validate DECIMAL
+		// TODO: validate DATE
+		// TODO: validate TIME_MILLIS
+		// TODO: validate TIMESTAMP_MILLIS
+		// TODO: validate INTERVAL
+		// TODO: validate JSON
+		// TODO: validate BSON
+	}
 
 	p.schemaElement = s
 	return start + 1, nil
@@ -185,8 +206,8 @@ func SchemaFromFileMetaData(meta parquetformat.FileMetaData) (Schema, error) {
 		return nil, err
 	}
 	if end != len(meta.Schema) {
-		return nil, fmt.Errorf("Only %d SchemaElement out of %d have been used",
-			end-1, len(meta.Schema))
+		return nil, fmt.Errorf("Only %d SchemaElement(s) out of %d have been used",
+			end, len(meta.Schema))
 	}
 	return &root, nil
 }
