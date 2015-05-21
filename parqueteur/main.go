@@ -27,14 +27,13 @@ var commands = []*Command{
 }
 
 func usage() {
-	fmt.Println("Usage: parqueteur command [options] [parquetfile]")
-	fmt.Println("")
+	fmt.Printf(os.Stderr, "Usage: parqueteur command [options] [parquetfile]\n\n")
 
-	fmt.Println("Supported commands:")
+	fmt.Printf(os.Stderr, "Supported commands:\n")
 	for _, cmd := range commands {
-		fmt.Println("")
-		fmt.Printf(" %s - %s\n", cmd.Name, cmd.Help)
-		fmt.Printf(" Options:\n")
+		fmt.Printf(os.Stderr, "\n")
+		fmt.Printf(os.Stderr, " %s - %s\n", cmd.Name, cmd.Help)
+		fmt.Printf(os.Stderr, " Options:\n")
 		cmd.Flag.PrintDefaults()
 	}
 
@@ -42,19 +41,21 @@ func usage() {
 }
 
 func main() {
-	flag.Parse()
-
-	args := flag.Args()
+	args := os.Args[1:]
 	if len(args) < 1 {
 		usage()
 	}
 
 	for _, cmd := range commands {
 		if cmd.Name == args[0] {
-			cmd.Flag.Parse(args[1:])
-			err := cmd.Run(cmd, cmd.Flag.Args())
+			err := cmd.Flag.Parse(args[1:])
 			if err != nil {
-				fmt.Printf("Error: %s\n", err)
+				usage()
+			}
+
+			err = cmd.Run(cmd, cmd.Flag.Args())
+			if err != nil {
+				fmt.Printf(os.Stderr, "Error: %s\n", err)
 				os.Exit(1)
 			}
 			os.Exit(0)
