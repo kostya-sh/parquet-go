@@ -44,7 +44,8 @@ func runMeta(cmd *Command, args []string) error {
 		}
 		fmt.Println(string(b))
 	} else {
-		fmt.Println("%+v", m)
+		// TODO: implement
+		fmt.Printf("%+v\n", m)
 	}
 	return nil
 }
