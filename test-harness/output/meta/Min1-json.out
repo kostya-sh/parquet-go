@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "schema": [
+    {
+      "name": "models.Min",
+      "num_children": 1
+    },
+    {
+      "type": "BOOLEAN",
+      "repetition_type": "REQUIRED",
+      "name": "f"
+    }
+  ],
+  "num_rows": 1,
+  "row_groups": [
+    {
+      "columns": [
+        {
+          "file_offset": 4,
+          "meta_data": {
+            "type": "BOOLEAN",
+            "encodings": [
+              "PLAIN",
+              "BIT_PACKED"
+            ],
+            "path_in_schema": [
+              "f"
+            ],
+            "codec": "UNCOMPRESSED",
+            "num_values": 1,
+            "total_uncompressed_size": 28,
+            "total_compressed_size": 28,
+            "data_page_offset": 4,
+            "statistics": {
+              "max": "AQ==",
+              "min": "AQ==",
+              "null_count": 0
+            }
+          }
+        }
+      ],
+      "total_byte_size": 28,
+      "num_rows": 1
+    }
+  ],
+  "key_value_metadata": [
+    {
+      "key": "parquet.avro.schema",
+      "value": "{\"type\":\"record\",\"name\":\"Min\",\"namespace\":\"models\",\"fields\":[{\"name\":\"f\",\"type\":\"boolean\"}]}"
+    }
+  ],
+  "created_by": "parquet-mr (build 6aa21f8776625b5fa6b18059cfebe7549f2e00cb)"
+}

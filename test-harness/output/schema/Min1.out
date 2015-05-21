@@ -1,0 +1,3 @@
+message models.Min {
+  required boolean f;
+}
