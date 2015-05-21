@@ -79,6 +79,19 @@ func TypeFromString(s string) (Type, error) {
 
 func TypePtr(v Type) *Type { return &v }
 
+func (p Type) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *Type) UnmarshalText(text []byte) error {
+	q, err := TypeFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
+
 //Common types used by frameworks(e.g. hive, pig) using parquet.  This helps map
 //between types in those frameworks to the base types in parquet.  This is only
 //metadata and not needed to read or write the data.
@@ -201,6 +214,19 @@ func ConvertedTypeFromString(s string) (ConvertedType, error) {
 
 func ConvertedTypePtr(v ConvertedType) *ConvertedType { return &v }
 
+func (p ConvertedType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *ConvertedType) UnmarshalText(text []byte) error {
+	q, err := ConvertedTypeFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
+
 //Representation of Schemas
 type FieldRepetitionType int64
 
@@ -235,6 +261,19 @@ func FieldRepetitionTypeFromString(s string) (FieldRepetitionType, error) {
 }
 
 func FieldRepetitionTypePtr(v FieldRepetitionType) *FieldRepetitionType { return &v }
+
+func (p FieldRepetitionType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *FieldRepetitionType) UnmarshalText(text []byte) error {
+	q, err := FieldRepetitionTypeFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
 
 //Encodings supported by Parquet.  Not all encodings are valid for all types.  These
 //enums are also used to specify the encoding of definition and repetition levels.
@@ -298,6 +337,19 @@ func EncodingFromString(s string) (Encoding, error) {
 
 func EncodingPtr(v Encoding) *Encoding { return &v }
 
+func (p Encoding) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *Encoding) UnmarshalText(text []byte) error {
+	q, err := EncodingFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
+
 //Supported compression algorithms.
 type CompressionCodec int64
 
@@ -338,6 +390,19 @@ func CompressionCodecFromString(s string) (CompressionCodec, error) {
 
 func CompressionCodecPtr(v CompressionCodec) *CompressionCodec { return &v }
 
+func (p CompressionCodec) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *CompressionCodec) UnmarshalText(text []byte) error {
+	q, err := CompressionCodecFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
+
 type PageType int64
 
 const (
@@ -376,6 +441,19 @@ func PageTypeFromString(s string) (PageType, error) {
 }
 
 func PageTypePtr(v PageType) *PageType { return &v }
+
+func (p PageType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *PageType) UnmarshalText(text []byte) error {
+	q, err := PageTypeFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
 
 // Statistics per row group and per page
 // All fields are optional.

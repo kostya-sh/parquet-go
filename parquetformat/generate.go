@@ -8,4 +8,4 @@ package parquetformat
 
 // 2. Run thrift compiler
 //
-//go:generate thrift --out .. --gen go:package=$GOPACKAGE,private_thrift=true parquet.thrift
+//go:generate thrift --out .. --gen go:package=$GOPACKAGE,read_write_private parquet.thrift
