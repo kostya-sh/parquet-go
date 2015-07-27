@@ -24,6 +24,7 @@ type Command struct {
 var commands = []*Command{
 	cmdMeta,
 	cmdSchema,
+	cmdDump,
 }
 
 func usage() {
