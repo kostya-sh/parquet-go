@@ -7,7 +7,7 @@ import (
 )
 
 func newProtocol(r io.Reader) *thrift.TCompactProtocol {
-	ttransport := thrift.NewStreamTransportR(r)
+	ttransport := &thrift.StreamTransport{Reader: r}
 	return thrift.NewTCompactProtocol(ttransport)
 }
 
