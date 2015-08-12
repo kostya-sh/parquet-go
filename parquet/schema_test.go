@@ -107,7 +107,7 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 	meta := createFileMetaData(
 		&pf.SchemaElement{
 			Name:        "test.Message",
-			NumChildren: thrift.Int32Ptr(9),
+			NumChildren: thrift.Int32Ptr(10),
 		},
 		&pf.SchemaElement{
 			Type:           typeBoolean,
@@ -156,9 +156,19 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 			Name:           "RequiredString",
 			ConvertedType:  ctUTF8,
 		},
+		&pf.SchemaElement{
+			RepetitionType: frtRequired,
+			Name:           "RequiredGroup",
+			NumChildren:    thrift.Int32Ptr(1),
+		},
+		&pf.SchemaElement{
+			Type:           typeInt32,
+			RepetitionType: frtOptional,
+			Name:           "OptionalInt32",
+		},
 	)
 
-	expected := `message test.Message {
+	want := `message test.Message {
   required boolean RequiredBoolean;
   optional int32 OptionalInt32;
   repeated int64 RepeatedInt64;
@@ -168,6 +178,9 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
   optional byte_array OptionalByteArray;
   optional fixed_len_byte_array(10) OptionalFixedLenByteArray;
   required byte_array RequiredString (UTF8);
+  required group RequiredGroup {
+    optional int32 OptionalInt32;
+  }
 }
 `
 
@@ -181,8 +194,94 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpcted error: %s", err)
 	}
-	actual := buf.String()
-	if actual != expected {
-		t.Errorf("Error in create or marshal. Actual schema: \n%s\nExpected:\n%s", actual, expected)
+	got := buf.String()
+	if got != want {
+		t.Errorf("MarshalDL. got: \n%s\nwant:\n%s", got, want)
 	}
+}
+
+func TestMaxLevelsOfDremelPaperSchema(t *testing.T) {
+	meta := createFileMetaData(
+		&pf.SchemaElement{
+			Name:        "Document",
+			NumChildren: thrift.Int32Ptr(3),
+		},
+		&pf.SchemaElement{
+			Name:           "DocId",
+			Type:           typeInt64,
+			RepetitionType: frtRequired,
+		},
+		&pf.SchemaElement{
+			Name:           "Links",
+			RepetitionType: frtOptional,
+			NumChildren:    thrift.Int32Ptr(2),
+		},
+		&pf.SchemaElement{
+			Name:           "Backward",
+			Type:           typeInt64,
+			RepetitionType: frtRepeated,
+		},
+		&pf.SchemaElement{
+			Name:           "Forward",
+			Type:           typeInt64,
+			RepetitionType: frtRepeated,
+		},
+		&pf.SchemaElement{
+			Name:           "Name",
+			RepetitionType: frtRepeated,
+			NumChildren:    thrift.Int32Ptr(2),
+		},
+		&pf.SchemaElement{
+			Name:           "Language",
+			RepetitionType: frtRepeated,
+			NumChildren:    thrift.Int32Ptr(2),
+		},
+		&pf.SchemaElement{
+			Name:           "Code",
+			Type:           typeByteArray,
+			RepetitionType: frtRequired,
+		},
+		&pf.SchemaElement{
+			Name:           "Country",
+			Type:           typeByteArray,
+			RepetitionType: frtOptional,
+		},
+		&pf.SchemaElement{
+			Name:           "Url",
+			Type:           typeByteArray,
+			RepetitionType: frtOptional,
+		},
+	)
+
+	s, err := SchemaFromFileMetaData(meta)
+	if err != nil {
+		t.Fatalf("Unexpcted error: %s", err)
+	}
+
+	checkMaxLevels := func(path []string, wantD int, wantR int) {
+		d, r := s.maxLevels(path)
+		if d != wantD || r != wantR {
+			t.Errorf("Wrong max levels for %v: got (D:%d, R:%d), want (D:%d, R:%d)", path, d, r, wantD, wantR)
+		}
+	}
+
+	// required non-nested field
+	checkMaxLevels([]string{"DocId"}, 0, 0)
+
+	// optional/repeated
+	checkMaxLevels([]string{"Links", "Forward"}, 2, 1)
+	checkMaxLevels([]string{"Links", "Backward"}, 2, 1)
+
+	// repeated/repeated/required
+	checkMaxLevels([]string{"Name", "Language", "Code"}, 2, 2)
+
+	// repeated/repeated/optional
+	checkMaxLevels([]string{"Name", "Language", "Country"}, 3, 2)
+
+	// repeated/optional
+	checkMaxLevels([]string{"Name", "Url"}, 2, 1)
+
+	// not a field
+	checkMaxLevels([]string{"Links"}, -1, -1)
+	checkMaxLevels([]string{"Name", "UnknownField"}, -1, -1)
 }

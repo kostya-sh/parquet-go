@@ -1,6 +1,7 @@
 package parquet
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"strings"
@@ -13,21 +14,31 @@ type Schema interface {
 	// MarshalDL writes schema to a given io.Writer using textual format similar
 	// to that described in the Dremel paper and used by parquet-mr project.
 	MarshalDL(w io.Writer) error
+
+	// maxLevels returns maximum definition and repetition levels for a given
+	// column path
+	maxLevels(path []string) (definition int, repetition int)
 }
 
-// TODO: better name
-type schemaSomething interface {
+type schemaElement interface {
 	create(schema []*parquetformat.SchemaElement, start int) (next int, err error)
 
-	marshalDL(w io.Writer, indent string) error
+	marshalDL(w io.Writer, indent string)
 }
 
+// root of the schema
+type message struct {
+	group
+	maxLevelsByPath map[string][2]int
+}
+
+// group of fields
 type group struct {
 	schemaElement *parquetformat.SchemaElement
-	root          bool
-	children      []schemaSomething
+	children      []schemaElement
 }
 
+// primitive field
 type primitive struct {
 	schemaElement *parquetformat.SchemaElement
 }
@@ -58,8 +69,7 @@ func (g *group) create(schema []*parquetformat.SchemaElement, start int) (int, e
 	}
 
 	g.schemaElement = s // TODO: deep copy?
-	g.children = make([]schemaSomething, *s.NumChildren, *s.NumChildren)
-	g.root = start == 0
+	g.children = make([]schemaElement, *s.NumChildren, *s.NumChildren)
 
 	i := start + 1
 	var err error
@@ -88,39 +98,80 @@ func (g *group) create(schema []*parquetformat.SchemaElement, start int) (int, e
 	return i, nil
 }
 
-// TODO: handle errors
-func (g *group) marshalDL(w io.Writer, indent string) error {
-	var s = g.schemaElement
-
-	fmt.Fprint(w, indent)
-	if g.root {
-		fmt.Fprintf(w, "message")
-		if s.Name != "" {
-			fmt.Fprintf(w, " %s", s.Name)
-		}
-		if s.ConvertedType != nil {
-			fmt.Fprintf(w, " (%s)", s.ConvertedType)
-		}
-	} else {
-		fmt.Fprint(w, strings.ToLower(s.RepetitionType.String()))
-		fmt.Fprint(w, " group ")
-		fmt.Fprint(w, s.Name)
-		if s.ConvertedType != nil {
-			fmt.Fprintf(w, " (%s)", s.ConvertedType)
-		}
-		if s.FieldID != nil {
-			fmt.Fprintf(w, " = %d", *s.FieldID)
-		}
-	}
-
+func (g *group) marshalChildren(w io.Writer, indent string) {
 	fmt.Fprintln(w, " {")
 	for _, child := range g.children {
 		child.marshalDL(w, indent+"  ")
 	}
 	fmt.Fprint(w, indent)
 	fmt.Fprintln(w, "}")
+}
 
-	return nil
+func (g *group) marshalDL(w io.Writer, indent string) {
+	var s = g.schemaElement
+
+	fmt.Fprint(w, indent)
+	fmt.Fprint(w, strings.ToLower(s.RepetitionType.String()))
+	fmt.Fprint(w, " group ")
+	fmt.Fprint(w, s.Name)
+	if s.ConvertedType != nil {
+		fmt.Fprintf(w, " (%s)", s.ConvertedType)
+	}
+	if s.FieldID != nil {
+		fmt.Fprintf(w, " = %d", *s.FieldID)
+	}
+
+	g.marshalChildren(w, indent)
+}
+
+func (g *group) calcMaxLevels() map[string][2]int {
+	lvls := make(map[string][2]int)
+	for _, child := range g.children {
+		switch c := child.(type) {
+		case *primitive:
+			s := c.schemaElement
+			d := 0
+			r := 0
+			if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
+				d = 1
+			}
+			if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
+				r = 1
+			}
+			lvls[s.Name] = [...]int{d, r}
+		case *group:
+			s := c.schemaElement
+			for k, v := range c.calcMaxLevels() {
+				d := v[0]
+				if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
+					d++
+				}
+				r := v[1]
+				if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
+					r++
+				}
+				lvls[s.Name+"."+k] = [...]int{d, r}
+			}
+		default:
+			panic("unexpected child type")
+		}
+	}
+	return lvls
+}
+
+func (m *message) marshalDL(w io.Writer, indent string) {
+	var s = m.schemaElement
+
+	fmt.Fprint(w, indent)
+	fmt.Fprintf(w, "message")
+	if s.Name != "" {
+		fmt.Fprintf(w, " %s", s.Name)
+	}
+	if s.ConvertedType != nil {
+		fmt.Fprintf(w, " (%s)", s.ConvertedType)
+	}
+
+	m.group.marshalChildren(w, indent)
 }
 
 func (p *primitive) create(schema []*parquetformat.SchemaElement, start int) (int, error) {
@@ -165,8 +216,7 @@ func (p *primitive) create(schema []*parquetformat.SchemaElement, start int) (in
 	return start + 1, nil
 }
 
-// TODO: handle errors
-func (p *primitive) marshalDL(w io.Writer, indent string) error {
+func (p *primitive) marshalDL(w io.Writer, indent string) {
 	s := p.schemaElement
 
 	fmt.Fprint(w, indent)
@@ -191,17 +241,26 @@ func (p *primitive) marshalDL(w io.Writer, indent string) error {
 	}
 
 	fmt.Fprintln(w, ";")
-
-	return nil
 }
 
-func (g *group) MarshalDL(w io.Writer) error {
-	return g.marshalDL(w, "")
+func (m *message) MarshalDL(w io.Writer) error {
+	b := bufio.NewWriter(w)
+	m.marshalDL(w, "")
+	return b.Flush()
+}
+
+func (m *message) maxLevels(path []string) (definition int, repetition int) {
+	p := strings.Join(path, ".")
+	lvls, ok := m.maxLevelsByPath[p]
+	if !ok {
+		return -1, -1
+	}
+	return lvls[0], lvls[1]
 }
 
 func SchemaFromFileMetaData(meta parquetformat.FileMetaData) (Schema, error) {
-	root := group{}
-	end, err := root.create(meta.Schema, 0)
+	m := message{}
+	end, err := m.group.create(meta.Schema, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -209,5 +268,7 @@ func SchemaFromFileMetaData(meta parquetformat.FileMetaData) (Schema, error) {
 		return nil, fmt.Errorf("Only %d SchemaElement(s) out of %d have been used",
 			end, len(meta.Schema))
 	}
-	return &root, nil
+	m.maxLevelsByPath = m.group.calcMaxLevels()
+
+	return &m, nil
 }
