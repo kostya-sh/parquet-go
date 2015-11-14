@@ -4,7 +4,10 @@ import "testing"
 
 // Single RLE run: 1-bit per value, 10 x 0
 func TestSinlgeRLERun_10x0_1bit(t *testing.T) {
-	d := newRLEDecoder([]byte{0x14, 0x00}, 1)
+	d, err := newRLEDecoder([]byte{0x14, 0x00}, 1)
+	if err != nil {
+		t.Error(err)
+	}
 
 	for i := 0; i < 10; i++ {
 		if !d.hasNext() {
@@ -22,8 +25,10 @@ func TestSinlgeRLERun_10x0_1bit(t *testing.T) {
 
 // Single RLE run: 20-bits per value, 300x1
 func TestSinlgeRLERun_300x1_20bit(t *testing.T) {
-	d := newRLEDecoder([]byte{0xD8, 0x04, 0x01, 0x00, 0x00}, 20)
-
+	d, err := newRLEDecoder([]byte{0xD8, 0x04, 0x01, 0x00, 0x00}, 20)
+	if err != nil {
+		t.Error(err)
+	}
 	for i := 0; i < 300; i++ {
 		if !d.hasNext() {
 			t.Fatalf("want 300 values, got %d", i)

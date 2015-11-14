@@ -2,6 +2,7 @@ package parquet
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 )
@@ -36,14 +37,23 @@ type rleDecoder struct {
 	//header  uint32 // uint32 is enough because parquet-mr uses java int
 }
 
-func newRLEDecoder(data []byte, width int) *rleDecoder {
-	// TODO: validate width
+var (
+	ErrInvalidBitWidth = errors.New("bitWidth but be >=0 and <= 32")
+)
+
+func newRLEDecoder(data []byte, bitWidth int) (*rleDecoder, error) {
+
+	if bitWidth < 0 || bitWidth > 32 {
+		return nil, ErrInvalidBitWidth
+	}
+
 	d := rleDecoder{
 		data:  data,
-		width: width,
+		width: bitWidth,
 	}
 	d.readRunHeader()
-	return &d
+
+	return &d, nil
 }
 
 func (d *rleDecoder) readRLERunValue() {

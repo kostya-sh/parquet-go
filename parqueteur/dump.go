@@ -40,22 +40,22 @@ func runDump(cmd *Command, args []string) error {
 	}
 
 	c := 0 // hardcode just the first column for now
-	schema := m.Schema[c+1]
+	//schema := m.Schema[c+1]
 	for _, rg := range m.RowGroups {
 		cc := rg.Columns[c]
 		if strings.Join(cc.MetaData.PathInSchema, ".") != dumpColumn {
 			return fmt.Errorf("Unable to dump column '%s'", dumpColumn)
 		}
-		cr, err := parquet.NewBooleanColumnChunkReader(r, schema, cc)
-		if err != nil {
-			return err
-		}
-		for cr.Next() {
-			fmt.Println(cr.Boolean())
-		}
-		if cr.Err() != nil {
-			return cr.Err()
-		}
+		// cr, err := parquet.NewBooleanColumnChunkReader(r, schema, cc)
+		// if err != nil {
+		// 	return err
+		// }
+		// for cr.Next() {
+		// 	fmt.Println(cr.Boolean())
+		// }
+		// if cr.Err() != nil {
+		// 	return cr.Err()
+		// }
 	}
 
 	return nil

@@ -255,7 +255,7 @@ func TestMaxLevelsOfDremelPaperSchema(t *testing.T) {
 
 	s, err := SchemaFromFileMetaData(meta)
 	if err != nil {
-		t.Fatalf("Unexpcted error: %s", err)
+		t.Fatalf("Unexpected error: %s", err)
 	}
 
 	checkMaxLevels := func(path []string, wantD int, wantR int) {

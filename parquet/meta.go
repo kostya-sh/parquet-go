@@ -11,6 +11,10 @@ import (
 
 var magic = []byte{'P', 'A', 'R', '1'}
 
+const (
+	MAGIC_SIZE = 4
+)
+
 // ReadFileMetaData reads parquetformat.FileMetaData object from r that provides
 // read interface to data in parquet format.
 //
@@ -22,7 +26,7 @@ func ReadFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
 		return nil, fmt.Errorf("Error seeking to header: %s", err)
 	}
 
-	buf := make([]byte, 4, 4)
+	buf := make([]byte, MAGIC_SIZE, MAGIC_SIZE)
 	// read and validate header
 	_, err = io.ReadFull(r, buf)
 	if err != nil {
@@ -33,7 +37,7 @@ func ReadFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
 	}
 
 	// read and validate footer
-	_, err = r.Seek(-4, 2)
+	_, err = r.Seek(-MAGIC_SIZE, 2)
 	if err != nil {
 		return nil, fmt.Errorf("Error seeking to footer: %s", err)
 	}
