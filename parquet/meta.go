@@ -5,14 +5,18 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
-var magic = []byte{'P', 'A', 'R', '1'}
+var (
+	PARQUET_MAGIC = []byte{'P', 'A', 'R', '1'}
+)
 
 const (
-	MAGIC_SIZE = 4
+	FOOTER_SIZE = 8 // bytes
+	MAGIC_SIZE  = 4 // bytes
 )
 
 // ReadFileMetaData reads parquetformat.FileMetaData object from r that provides
@@ -20,8 +24,10 @@ const (
 //
 // Parquet format is described here:
 // https://github.com/apache/parquet-format/blob/master/README.md
+// Note that the File Metadata is at the END of the file.
+//
 func ReadFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
-	_, err := r.Seek(0, 0)
+	_, err := r.Seek(0, os.SEEK_SET)
 	if err != nil {
 		return nil, fmt.Errorf("Error seeking to header: %s", err)
 	}
@@ -32,12 +38,12 @@ func ReadFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error reading header: %s", err)
 	}
-	if !bytes.Equal(buf, magic) {
+	if !bytes.Equal(buf, PARQUET_MAGIC) {
 		return nil, fmt.Errorf("Not a parquet file (invalid header)")
 	}
 
 	// read and validate footer
-	_, err = r.Seek(-MAGIC_SIZE, 2)
+	_, err = r.Seek(-MAGIC_SIZE, os.SEEK_END)
 	if err != nil {
 		return nil, fmt.Errorf("Error seeking to footer: %s", err)
 	}
@@ -45,12 +51,11 @@ func ReadFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error reading footer: %s", err)
 	}
-	if !bytes.Equal(buf, magic) {
+	if !bytes.Equal(buf, PARQUET_MAGIC) {
 		return nil, fmt.Errorf("Not a parquet file (invalid footer)")
 	}
 
-	// read footer length
-	_, err = r.Seek(-8, 2)
+	_, err = r.Seek(-FOOTER_SIZE, os.SEEK_END)
 	if err != nil {
 		return nil, fmt.Errorf("Error seeking to footer length: %s", err)
 	}
@@ -64,7 +69,7 @@ func ReadFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
 	}
 
 	// read file metadata
-	_, err = r.Seek(-8-int64(footerLength), 2)
+	_, err = r.Seek(-FOOTER_SIZE-int64(footerLength), os.SEEK_END)
 	if err != nil {
 		return nil, fmt.Errorf("Error seeking to file metadata: %s", err)
 	}
