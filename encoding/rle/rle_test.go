@@ -1,10 +1,13 @@
 package rle
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 // Single RLE run: 1-bit per value, 10 x 0
 func TestSinlgeRLERun_10x0_1bit(t *testing.T) {
-	d, err := new([]byte{0x14, 0x00}, 1)
+	d, err := NewDecoder(bytes.NewBuffer([]byte{0x14, 0x00}), 1)
 	if err != nil {
 		t.Error(err)
 	}
@@ -25,7 +28,7 @@ func TestSinlgeRLERun_10x0_1bit(t *testing.T) {
 
 // Single RLE run: 20-bits per value, 300x1
 func TestSinlgeRLERun_300x1_20bit(t *testing.T) {
-	d, err := new([]byte{0xD8, 0x04, 0x01, 0x00, 0x00}, 20)
+	d, err := NewDecoder(bytes.NewBuffer([]byte{0xD8, 0x04, 0x01, 0x00, 0x00}), 20)
 	if err != nil {
 		t.Error(err)
 	}

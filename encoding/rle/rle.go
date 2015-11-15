@@ -1,9 +1,10 @@
 package rle
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
-	"fmt"
+	"io"
 	"math"
 )
 
@@ -33,12 +34,16 @@ import (
 //    literal-indicator := varint_encode( number_of_groups << 1 | 1)
 //    repeated-indicator := varint_encode( number_of_repetitions << 1 )
 //
+//  https://github.com/cloudera/Impala/blob/cdh5-trunk/be/src/util/rle-encoding.h
 type Decoder struct {
-	data  []byte
-	width int
-	e     error
-	i     int
-	eod   bool
+	r        *bufio.Reader
+	bitWidth int
+	e        error
+	i        int
+	eod      bool
+
+	literalCount uint32
+	repeatCount  uint32
 
 	// rle
 	rleCount uint32
@@ -47,84 +52,89 @@ type Decoder struct {
 }
 
 var (
-	ErrInvalidBitWidth = errors.New("bitWidth but be >=0 and <= 32")
+	ErrInvalidBitWidth = errors.New("bitWidth must be >=0 and <= 64")
 )
 
-func new(data []byte, bitWidth int) (*Decoder, error) {
+func NewDecoder(r io.Reader, bitWidth int) (*Decoder, error) {
 
 	if bitWidth < 0 || bitWidth > math.MaxInt64 {
 		return nil, ErrInvalidBitWidth
 	}
 
-	d := Decoder{
-		data:  data,
-		width: bitWidth,
-	}
-	d.readRunHeader()
+	d := &Decoder{r: bufio.NewReader(r), bitWidth: bitWidth}
 
-	return &d, nil
+	d.nextHeader()
+
+	return d, nil
 }
 
-func (d *Decoder) readRLERunValue() {
-	byteWidth := (d.width + 7) / 8 // TODO: remember this in d
-	n := d.i + byteWidth
-	if n > len(d.data) {
-		d.e = fmt.Errorf("cannot read RLE run value (no more data)")
+func (d *Decoder) nextValue() {
+	byteWidth := (d.bitWidth + 7) / 8 // TODO: remember this in d
+
+	buff, err := d.r.Peek(byteWidth)
+	if err != nil {
+		d.e = err
 		return
 	}
+
 	switch byteWidth {
 	case 1:
-		d.rleValue = int32(d.data[d.i])
+		d.rleValue = int32(buff[0])
 	case 2:
-		d.rleValue = int32(binary.LittleEndian.Uint16(d.data[d.i:n]))
+		d.rleValue = int32(binary.LittleEndian.Uint16(buff))
 	case 3:
-		b3 := d.data[d.i]
-		b2 := d.data[d.i+1]
-		b1 := d.data[d.i+2]
+		b3 := buff[0]
+		b2 := buff[1]
+		b1 := buff[2]
 		d.rleValue = int32(b3) + int32(b2)<<8 + int32(b1)<<16
 	case 4:
-		d.rleValue = int32(binary.LittleEndian.Uint32(d.data[d.i:n]))
+		d.rleValue = int32(binary.LittleEndian.Uint32(buff))
 	default:
 		panic("should not happen")
 	}
-	d.i = n
+
+	if discarded, err := d.r.Discard(byteWidth); err != nil {
+		d.e = err
+		return
+	} else if discarded != byteWidth {
+		panic("should discard the same amount that was read")
+	}
 }
 
-func (d *rleDecoder) readRunHeader() {
-	if d.i >= len(d.data) {
-		d.eod = true
+func (d *Decoder) nextHeader() {
+	indicatorValue, err := binary.ReadUvarint(d.r)
+
+	if err != nil {
+		d.e = err
 		return
 	}
 
-	h, n := binary.Uvarint(d.data[d.i:])
-	if n <= 0 || h > math.MaxUint32 {
-		d.e = fmt.Errorf("failed to read RLE run header at pos %d. Uvarint result: (%d, %d)", d.i, h, n)
-	}
-	d.i += n
-	if h&1 == 1 {
-		// bit packed run
-		panic("nyi")
+	var isLiteral bool = (indicatorValue & 1) == 1
+
+	if isLiteral {
+		d.literalCount = uint32(indicatorValue>>1) * 8
 	} else {
-		d.rleCount = uint32(h >> 1)
-		d.readRLERunValue()
+		d.repeatCount = uint32(indicatorValue >> 1)
 	}
+
+	d.nextValue()
 }
 
-func (d *rleDecoder) nextInt32() int32 {
-	if d.rleCount > 0 {
-		d.rleCount--
-		if d.rleCount == 0 {
-			d.readRunHeader()
+func (d *Decoder) nextInt32() int32 {
+	if d.repeatCount > 0 {
+		d.repeatCount--
+		if d.repeatCount == 0 {
+			d.nextHeader()
 		}
 		return d.rleValue
 	}
 	panic("nyi")
 }
 
-func (d *rleDecoder) hasNext() bool {
+func (d *Decoder) hasNext() bool {
 	return !d.eod && d.e == nil
 }
 
-func (d *rleDecoder) err() error {
+func (d *Decoder) err() error {
 	return d.e
 }
