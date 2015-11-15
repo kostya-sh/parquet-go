@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
-	"strings"
 
 	"github.com/kostya-sh/parquet-go/parquet"
 )
@@ -23,6 +23,9 @@ func init() {
 	cmdDump.Flag.StringVar(&dumpColumn, "c", "", "dump content of the named `column`")
 }
 
+// read The file metadata
+// read the column metadata
+// read the offset of the column
 func runDump(cmd *Command, args []string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("No files")
@@ -39,23 +42,32 @@ func runDump(cmd *Command, args []string) error {
 		return err
 	}
 
-	c := 0 // hardcode just the first column for now
-	//schema := m.Schema[c+1]
-	for _, rg := range m.RowGroups {
-		cc := rg.Columns[c]
-		if strings.Join(cc.MetaData.PathInSchema, ".") != dumpColumn {
-			return fmt.Errorf("Unable to dump column '%s'", dumpColumn)
+	//c := 0 // hardcode just the first column for now
+	//	schema := m.Schema[c+1]
+
+	// dump columns names
+	newSchema, err := parquet.SchemaFromFileMetaData(*m)
+	if err != nil {
+		return err
+	}
+
+	newSchema.MarshalDL(os.Stdout)
+
+	for rowIdx, rg := range m.RowGroups {
+		log.Printf("rowGroup: %d:%s\n", rowIdx, rg)
+
+		for _, chunk := range rg.Columns {
+
+			scanner := parquet.NewColumnScanner(r, chunk)
+
+			for scanner.Scan() {
+
+			}
+
+			if err := scanner.Err(); err != nil {
+				fmt.Printf("Invalid input: %s", err)
+			}
 		}
-		// cr, err := parquet.NewBooleanColumnChunkReader(r, schema, cc)
-		// if err != nil {
-		// 	return err
-		// }
-		// for cr.Next() {
-		// 	fmt.Println(cr.Boolean())
-		// }
-		// if cr.Err() != nil {
-		// 	return cr.Err()
-		// }
 	}
 
 	return nil
