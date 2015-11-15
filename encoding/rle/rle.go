@@ -1,4 +1,4 @@
-package parquet
+package rle
 
 import (
 	"encoding/binary"
@@ -24,7 +24,16 @@ import (
 // rle-header := varint-encode( (number of times repeated) << 1)
 // repeated-value := value that is repeated, using a fixed-width of round-up-to-next-byte(bit-width)
 
-type rleDecoder struct {
+// Taken from https://github.com/apache/parquet-cpp/blob/master/src/impala/rle-encoding.h:
+// The encoding is:
+//    encoded-block := run*
+//    run := literal-run | repeated-run
+//    literal-run := literal-indicator < literal bytes >
+//    repeated-run := repeated-indicator < repeated value. padded to byte boundary >
+//    literal-indicator := varint_encode( number_of_groups << 1 | 1)
+//    repeated-indicator := varint_encode( number_of_repetitions << 1 )
+//
+type Decoder struct {
 	data  []byte
 	width int
 	e     error
@@ -41,13 +50,13 @@ var (
 	ErrInvalidBitWidth = errors.New("bitWidth but be >=0 and <= 32")
 )
 
-func newRLEDecoder(data []byte, bitWidth int) (*rleDecoder, error) {
+func new(data []byte, bitWidth int) (*Decoder, error) {
 
-	if bitWidth < 0 || bitWidth > 32 {
+	if bitWidth < 0 || bitWidth > math.MaxInt64 {
 		return nil, ErrInvalidBitWidth
 	}
 
-	d := rleDecoder{
+	d := Decoder{
 		data:  data,
 		width: bitWidth,
 	}
@@ -56,7 +65,7 @@ func newRLEDecoder(data []byte, bitWidth int) (*rleDecoder, error) {
 	return &d, nil
 }
 
-func (d *rleDecoder) readRLERunValue() {
+func (d *Decoder) readRLERunValue() {
 	byteWidth := (d.width + 7) / 8 // TODO: remember this in d
 	n := d.i + byteWidth
 	if n > len(d.data) {
