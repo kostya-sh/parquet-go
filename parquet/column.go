@@ -1,17 +1,21 @@
 package parquet
 
 import (
+	"compress/gzip"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
+	"github.com/golang/snappy"
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
 var Config = struct {
 	Debug bool
 }{
-	Debug: true,
+	Debug: false,
 }
 
 // Scanner provides a convenient interface for reading data such as
@@ -19,18 +23,23 @@ var Config = struct {
 
 // ColumnScanner implements the logic to deserialize columns in the parquet format
 type ColumnScanner struct {
-	r     io.ReadSeeker // The reader provided by the client.
-	chunk *parquetformat.ColumnChunk
-	err   error
+	rs             io.ReadSeeker // The reader provided by the client.
+	r              io.Reader
+	chunk          *parquetformat.ColumnChunk
+	schema         *parquetformat.SchemaElement
+	totalPagesRead int64 // number of pages read in this chunk
+	totalBytesRead int64
+	err            error
 }
 
 // NewColumnScanner returns a ColumnScanner that reads from r
 // and interprets the stream as described in the ColumnChunk parquet format
-func NewColumnScanner(r io.ReadSeeker, chunk *parquetformat.ColumnChunk) *ColumnScanner {
-	return &ColumnScanner{r, chunk, nil}
+func NewColumnScanner(rs io.ReadSeeker, chunk *parquetformat.ColumnChunk, schema *parquetformat.SchemaElement) *ColumnScanner {
+	return &ColumnScanner{rs, nil, chunk, schema, 0, 0, nil}
 }
 
 // setErr records the first error encountered.
+// it will not overwrite the existing error unless is nil or is io.EOF
 func (s *ColumnScanner) setErr(err error) {
 	if s.err == nil || s.err == io.EOF {
 		s.err = err
@@ -45,11 +54,16 @@ func (s *ColumnScanner) Err() error {
 }
 
 func (s *ColumnScanner) Scan() bool {
+	if s.totalPagesRead == 0 {
+		_, err := s.rs.Seek(s.chunk.MetaData.DataPageOffset, os.SEEK_SET)
+		if err != nil {
+			s.setErr(err)
+			return false
+		}
 
-	_, err := s.r.Seek(s.chunk.MetaData.DataPageOffset, os.SEEK_SET)
-	if err != nil {
-		s.setErr(err)
-		return false
+		// substitute the original reader with a limited one to get io.EOF
+		// when the chunk is read
+		s.r = io.LimitReader(s.rs, s.chunk.MetaData.TotalCompressedSize)
 	}
 
 	for {
@@ -57,15 +71,27 @@ func (s *ColumnScanner) Scan() bool {
 			s.setErr(err)
 			return false
 		}
+
+		s.totalPagesRead++
+		break
 	}
+
+	return true
 }
 
 func (s *ColumnScanner) nextPage() (err error) {
 	r := s.r
 
+	if s.totalBytesRead >= s.chunk.MetaData.TotalCompressedSize {
+		return io.EOF
+	}
+
 	var header parquetformat.PageHeader
 	err = header.Read(r)
 	if err != nil {
+		if strings.HasSuffix(err.Error(), "EOF") { // FIXME: find a better way to detect io.EOF
+			return io.EOF
+		}
 		return err
 	}
 
@@ -74,6 +100,7 @@ func (s *ColumnScanner) nextPage() (err error) {
 		log.Printf("\t\tUncompressed:%d\n", header.UncompressedPageSize)
 		log.Printf("\t\tCompressed:%d\n", header.CompressedPageSize)
 		log.Printf("\t\tCRC:%d\n", header.Crc)
+
 		switch header.Type {
 		case parquetformat.PageType_DATA_PAGE:
 			log.Printf("\t\tDataPage:%s\n", header.DataPageHeader)
@@ -85,14 +112,78 @@ func (s *ColumnScanner) nextPage() (err error) {
 
 		case parquetformat.PageType_INDEX_PAGE:
 			log.Printf("\t\tIndexPage:%s\n", header.IndexPageHeader)
+
 		case parquetformat.PageType_DICTIONARY_PAGE:
 			log.Printf("\t\tDictionaryPage:%s\n", header.DictionaryPageHeader)
+
 		case parquetformat.PageType_DATA_PAGE_V2:
 			log.Printf("\t\tDataPageV2:%s\n", header.DataPageHeaderV2)
 		default:
 			panic("Unsupported PageHeader.Type")
 		}
 	}
+
+	// handle compressed data
+	// setup codec
+	switch s.chunk.MetaData.Codec {
+	case parquetformat.CompressionCodec_GZIP:
+		r, err := gzip.NewReader(s.r)
+		if err != nil {
+			return err
+		}
+		s.r = r
+	case parquetformat.CompressionCodec_LZO:
+		// https://github.com/rasky/go-lzo/blob/master/decompress.go#L149			s.r = r
+		panic("NYI")
+
+	case parquetformat.CompressionCodec_SNAPPY:
+		s.r = snappy.NewReader(s.r)
+	case parquetformat.CompressionCodec_UNCOMPRESSED:
+		// use the limit reader
+	}
+
+	switch header.Type {
+	case parquetformat.PageType_DATA_PAGE:
+		if !header.IsSetDataPageHeader() {
+			panic("unexpected DataPageHeader was not set")
+		}
+
+		// n := header.DataPageHeader.NumValues
+		// // read definition levels.
+		// rle.NewDecoder(}, 1)
+
+		// read repetition levels.
+
+		log.Println("encoding:", header.DataPageHeader.Encoding)
+
+		switch header.DataPageHeader.Encoding {
+		case parquetformat.Encoding_BIT_PACKED:
+		case parquetformat.Encoding_DELTA_BINARY_PACKED:
+		case parquetformat.Encoding_DELTA_BYTE_ARRAY:
+		case parquetformat.Encoding_DELTA_LENGTH_BYTE_ARRAY:
+		case parquetformat.Encoding_PLAIN:
+		case parquetformat.Encoding_PLAIN_DICTIONARY:
+		case parquetformat.Encoding_RLE:
+		case parquetformat.Encoding_RLE_DICTIONARY:
+
+		default:
+			panic("Not supported")
+		}
+
+	case parquetformat.PageType_INDEX_PAGE:
+	case parquetformat.PageType_DICTIONARY_PAGE:
+	case parquetformat.PageType_DATA_PAGE_V2:
+
+	default:
+		panic("parquet.ColumnScanner: unknown PageHeader.PageType")
+	}
+
+	var bytesRead = int64(0)
+	if bytesRead, err = io.CopyN(ioutil.Discard, s.r, int64(header.CompressedPageSize)); err != nil {
+		return err
+	}
+	s.totalBytesRead += bytesRead
+
 	// while (true) {
 	//     int bytes_read = 0;
 	//     const uint8_t* buffer = stream_->Peek(DATA_PAGE_SIZE, &bytes_read);

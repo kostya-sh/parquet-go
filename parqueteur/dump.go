@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/kostya-sh/parquet-go/parquet"
@@ -42,9 +41,6 @@ func runDump(cmd *Command, args []string) error {
 		return err
 	}
 
-	//c := 0 // hardcode just the first column for now
-	//	schema := m.Schema[c+1]
-
 	// dump columns names
 	newSchema, err := parquet.SchemaFromFileMetaData(*m)
 	if err != nil {
@@ -54,11 +50,12 @@ func runDump(cmd *Command, args []string) error {
 	newSchema.MarshalDL(os.Stdout)
 
 	for rowIdx, rg := range m.RowGroups {
-		log.Printf("rowGroup: %d:%s\n", rowIdx, rg)
+
+		schema := m.Schema[rowIdx]
 
 		for _, chunk := range rg.Columns {
 
-			scanner := parquet.NewColumnScanner(r, chunk)
+			scanner := parquet.NewColumnScanner(r, chunk, schema)
 
 			for scanner.Scan() {
 
