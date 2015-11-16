@@ -110,6 +110,15 @@ func (d *Decoder) setErr(err error) {
 	}
 }
 
+// Value returns the current value decoded
+func (d *Decoder) Value() int64 {
+	return d.value
+}
+
+// Err returns the first non-EOF error that was encountered by the Decoder.
 func (d *Decoder) Err() error {
+	if d.err == io.EOF {
+		return nil
+	}
 	return d.err
 }
