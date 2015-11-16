@@ -2,6 +2,7 @@ package bitpacking
 
 import (
 	"bytes"
+	"io"
 	"strconv"
 	"strings"
 	"testing"
@@ -13,7 +14,7 @@ func check(t *testing.T, err error) {
 	}
 }
 
-func binary(values ...string) (out []byte) {
+func bin(values ...string) (out []byte) {
 	for _, v := range values {
 		v = strings.Replace(v, " ", "", -1)
 
@@ -28,36 +29,36 @@ func binary(values ...string) (out []byte) {
 	return
 }
 
-func TestEncodingRange1Bit(t *testing.T) {
-	testcases := []struct {
-		bitWidth int
-		input    []int64
-		output   []byte
-	}{
-		// with one bit you can encode 2 values
-		{1, []int64{1}, binary("1")},
-		{1, []int64{1, 1}, binary("11")},
-		{1, []int64{1, 1, 1}, binary("111")},
-		{1, []int64{0, 1, 1, 1}, binary("1110")},
-		{1, []int64{1, 0, 1, 1, 1}, binary("11101")},
+var testcases = []struct {
+	bitWidth int
+	input    []int64
+	output   []byte
+}{
+	// with one bit you can encode 2 values
+	{1, []int64{1}, bin("1")},
+	{1, []int64{1, 1}, bin("11")},
+	{1, []int64{1, 1, 1}, bin("111")},
+	{1, []int64{0, 1, 1, 1}, bin("1110")},
+	{1, []int64{1, 0, 1, 1, 1}, bin("11101")},
 
-		{1, []int64{1, 1, 1, 1,
-			1, 1, 1, 1, 1}, binary("1111 1111", "1")},
+	{1, []int64{1, 1, 1, 1,
+		1, 1, 1, 1, 1}, bin("1111 1111", "1")},
 
-		// with two bit you can encode 4 values
-		{2, []int64{0, 1, 2, 3}, binary("11 10 01 00")},
-		{2, []int64{0, 1, 2, 3,
-			0, 3, 3, 3}, binary("11 10 01 00", "11 11 11 00")},
+	// with two bit you can encode 4 values
+	{2, []int64{0, 1, 2, 3}, bin("11 10 01 00")},
+	{2, []int64{0, 1, 2, 3,
+		0, 3, 3, 3}, bin("11 10 01 00", "11 11 11 00")},
 
-		// sample documentation case
-		{3, []int64{0, 1, 2, 3, 4, 5, 6, 7},
-			binary("10001000", "11000110", "11111010")},
+	// sample documentation case
+	{3, []int64{0, 1, 2, 3, 4, 5, 6, 7},
+		bin("10001000", "11000110", "11111010")},
 
-		{8, []int64{0, 1, 2, 4, 8, 16, 32, 64, 128},
-			binary("0", "1", "10", "100", "1000",
-				"1 0000", "10 0000", "100 0000", "1000 0000")},
-	}
+	{8, []int64{0, 1, 2, 4, 8, 16, 32, 64, 128},
+		bin("0", "1", "10", "100", "1000",
+			"1 0000", "10 0000", "100 0000", "1000 0000")},
+}
 
+func TestEncoding(t *testing.T) {
 	for idx, tc := range testcases {
 		var w bytes.Buffer
 		enc := NewEncoder(&w, tc.bitWidth)
@@ -73,6 +74,49 @@ func TestEncodingRange1Bit(t *testing.T) {
 
 		if bytes.Equal(w.Bytes(), tc.output) == false {
 			t.Fatalf("%d: %#v != %#v", idx, w.Bytes(), tc.output)
+		}
+	}
+}
+
+func encode(t *testing.T, bitWidth int, values []int64) io.Reader {
+	var w bytes.Buffer
+
+	enc := NewEncoder(&w, bitWidth)
+
+	for _, value := range values {
+		if err := enc.Write(value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := enc.Flush(); err != nil {
+		t.Fatal(err)
+	}
+
+	return &w
+}
+
+func TestDecoding(t *testing.T) {
+	for idx, tc := range testcases {
+		dec := NewDecoder(encode(t, tc.bitWidth, tc.input), tc.bitWidth)
+		i := 0
+		for dec.Scan() {
+			if i >= len(tc.input) {
+				break
+			}
+
+			if dec.value != tc.input[i] {
+				t.Fatalf("%d: got %d: expected %d", idx, dec.value, tc.input[i])
+			}
+
+			i++
+		}
+
+		if i < len(tc.input) {
+			t.Fatalf("%d: got too few values", idx)
+		}
+
+		if err := dec.Err(); err != nil && err != io.EOF {
+			t.Fatalf("%d: got unexpected error %s", idx, err)
 		}
 	}
 }
