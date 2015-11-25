@@ -24,16 +24,18 @@ import (
 // repeated-value := value that is repeated, using a fixed-width of round-up-to-next-byte(bit-width)
 
 type rleDecoder struct {
-	data  []byte
 	width int
-	e     error
-	i     int
-	eod   bool
+
+	data []byte
+	pos  int
+	e    error
+	eod  bool
 
 	// rle
 	rleCount uint32
 	rleValue int32
-	//header  uint32 // uint32 is enough because parquet-mr uses java int
+
+	// bit-packed
 }
 
 func newRLEDecoder(data []byte, width int) *rleDecoder {
@@ -48,40 +50,41 @@ func newRLEDecoder(data []byte, width int) *rleDecoder {
 
 func (d *rleDecoder) readRLERunValue() {
 	byteWidth := (d.width + 7) / 8 // TODO: remember this in d
-	n := d.i + byteWidth
+	n := d.pos + byteWidth
 	if n > len(d.data) {
-		d.e = fmt.Errorf("cannot read RLE run value (no more data)")
+		d.e = fmt.Errorf("cannot read RLE run value (not enough data)")
 		return
 	}
 	switch byteWidth {
 	case 1:
-		d.rleValue = int32(d.data[d.i])
+		d.rleValue = int32(d.data[d.pos])
 	case 2:
-		d.rleValue = int32(binary.LittleEndian.Uint16(d.data[d.i:n]))
+		d.rleValue = int32(binary.LittleEndian.Uint16(d.data[d.pos:n]))
 	case 3:
-		b3 := d.data[d.i]
-		b2 := d.data[d.i+1]
-		b1 := d.data[d.i+2]
+		b3 := d.data[d.pos]
+		b2 := d.data[d.pos+1]
+		b1 := d.data[d.pos+2]
 		d.rleValue = int32(b3) + int32(b2)<<8 + int32(b1)<<16
 	case 4:
-		d.rleValue = int32(binary.LittleEndian.Uint32(d.data[d.i:n]))
+		d.rleValue = int32(binary.LittleEndian.Uint32(d.data[d.pos:n]))
 	default:
 		panic("should not happen")
 	}
-	d.i = n
+	d.pos = n
 }
 
 func (d *rleDecoder) readRunHeader() {
-	if d.i >= len(d.data) {
+	if d.pos >= len(d.data) {
 		d.eod = true
 		return
 	}
 
-	h, n := binary.Uvarint(d.data[d.i:])
+	h, n := binary.Uvarint(d.data[d.pos:])
 	if n <= 0 || h > math.MaxUint32 {
-		d.e = fmt.Errorf("failed to read RLE run header at pos %d. Uvarint result: (%d, %d)", d.i, h, n)
+		d.e = fmt.Errorf("failed to read RLE run header at pos %d. Uvarint result: (%d, %d)", d.pos, h, n)
+		return
 	}
-	d.i += n
+	d.pos += n
 	if h&1 == 1 {
 		// bit packed run
 		panic("nyi")
@@ -92,14 +95,17 @@ func (d *rleDecoder) readRunHeader() {
 }
 
 func (d *rleDecoder) nextInt32() int32 {
+	var next int32
 	if d.rleCount > 0 {
+		next = d.rleValue
 		d.rleCount--
 		if d.rleCount == 0 {
 			d.readRunHeader()
 		}
-		return d.rleValue
+	} else {
+		panic("nyi")
 	}
-	panic("nyi")
+	return next
 }
 
 func (d *rleDecoder) hasNext() bool {
