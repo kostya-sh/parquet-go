@@ -8,17 +8,13 @@ import (
 
 // Implementation of RLE/Bit-Packing Hybrid encoding
 
-// <encoded-data> part of the following spec:
-//
-// rle-bit-packed-hybrid: <length> <encoded-data>
-// length := length of the <encoded-data> in bytes stored as 4 bytes little endian
 // encoded-data := <run>*
 // run := <bit-packed-run> | <rle-run>
 // bit-packed-run := <bit-packed-header> <bit-packed-values>
 // bit-packed-header := varint-encode(<bit-pack-count> << 1 | 1)
-// // we always bit-pack a multiple of 8 values at a time, so we only store the number of values / 8
+//  (we always bit-pack a multiple of 8 values at a time, so we only store the number of values / 8)
 // bit-pack-count := (number of values in this run) / 8
-// bit-packed-values := *see 1 below*
+// bit-packed-values := bit packed values
 // rle-run := <rle-header> <repeated-value>
 // rle-header := varint-encode( (number of times repeated) << 1)
 // repeated-value := value that is repeated, using a fixed-width of round-up-to-next-byte(bit-width)
@@ -36,10 +32,15 @@ type rleDecoder struct {
 	rleValue int32
 
 	// bit-packed
+	bpCount  uint32
+	bpRunPos uint8
+	bpRun    [8]int32
 }
 
-func newRLEDecoder(data []byte, width int) *rleDecoder {
-	// TODO: validate width
+func newRLEDecoder(width int, data []byte) *rleDecoder {
+	if width <= 0 || width > 32 {
+		panic("invalid width value")
+	}
 	d := rleDecoder{
 		data:  data,
 		width: width,
@@ -73,6 +74,17 @@ func (d *rleDecoder) readRLERunValue() {
 	d.pos = n
 }
 
+func (d *rleDecoder) readBitPackedRun() {
+	n := d.pos + d.width
+	if n > len(d.data) {
+		d.e = fmt.Errorf("cannot read bit-packed run (not enough data)")
+		return
+	}
+	// TODO: remember unpack func in d
+	d.bpRun = unpack8Int32FuncForWidth(d.width)(d.data[d.pos:n])
+	d.pos = n
+}
+
 func (d *rleDecoder) readRunHeader() {
 	if d.pos >= len(d.data) {
 		d.eod = true
@@ -86,8 +98,8 @@ func (d *rleDecoder) readRunHeader() {
 	}
 	d.pos += n
 	if h&1 == 1 {
-		// bit packed run
-		panic("nyi")
+		d.bpCount = uint32(h >> 1)
+		d.bpRunPos = 0
 	} else {
 		d.rleCount = uint32(h >> 1)
 		d.readRLERunValue()
@@ -99,11 +111,18 @@ func (d *rleDecoder) nextInt32() int32 {
 	if d.rleCount > 0 {
 		next = d.rleValue
 		d.rleCount--
-		if d.rleCount == 0 {
-			d.readRunHeader()
+	} else if d.bpCount > 0 || d.bpRunPos > 0 {
+		if d.bpRunPos == 0 {
+			d.readBitPackedRun()
+			d.bpCount--
 		}
+		next = d.bpRun[d.bpRunPos]
+		d.bpRunPos = (d.bpRunPos + 1) % 8
 	} else {
-		panic("nyi")
+		panic("should not happen")
+	}
+	if d.rleCount == 0 && d.bpCount == 0 && d.bpRunPos == 0 {
+		d.readRunHeader()
 	}
 	return next
 }
