@@ -104,11 +104,11 @@ enum ConvertedType {
 
   /**
    * A date/time combination
-   * 
+   *
    * Date and time recorded as milliseconds since the Unix epoch.  Recorded as
    * a physical type of INT64.
    */
-  TIMESTAMP_MILLIS = 9; 
+  TIMESTAMP_MILLIS = 9;
 
   /**
    * A date/time combination
@@ -119,11 +119,11 @@ enum ConvertedType {
   TIMESTAMP_MICROS = 10;
 
 
-  /** 
-   * An unsigned integer value.  
-   * 
-   * The number describes the maximum number of meainful data bits in 
-   * the stored value. 8, 16 and 32 bit values are stored using the 
+  /**
+   * An unsigned integer value.
+   *
+   * The number describes the maximum number of meainful data bits in
+   * the stored value. 8, 16 and 32 bit values are stored using the
    * INT32 physical type.  64 bit values are stored using the INT64
    * physical type.
    *
@@ -215,14 +215,14 @@ struct SchemaElement {
   /** Data type for this field. Not set if the current element is a non-leaf node */
   1: optional Type type;
 
-  /** If type is FIXED_LEN_BYTE_ARRAY, this is the byte length of the vales.
+  /** If type is FIXED_LEN_BYTE_ARRAY, this is the byte length of the values.
    * Otherwise, if specified, this is the maximum bit length to store any of the values.
    * (e.g. a low cardinality INT col could have this set to 3).  Note that this is
    * in the schema, and therefore fixed for the entire file.
    */
   2: optional i32 type_length;
 
-  /** repetition of the field. The root of the schema does not have a repetition_type.
+  /** Repetition of the field. The root of the schema does not have a repetition_type.
    * All other nodes must have one */
   3: optional FieldRepetitionType repetition_type;
 
@@ -236,8 +236,8 @@ struct SchemaElement {
    */
   5: optional i32 num_children;
 
-  /** When the schema is the result of a conversion from another model
-   * Used to record the original type to help with cross conversion.
+  /** When the schema is the result of a conversion from another model this field is
+   * used to record the original type to help with cross conversion.
    */
   6: optional ConvertedType converted_type;
 
@@ -413,7 +413,7 @@ struct PageHeader {
    **/
   4: optional i32 crc
 
-  // Headers for page specific data.  One only will be set.
+  // Headers for page specific data. Only one will be set.
   5: optional DataPageHeader data_page_header;
   6: optional IndexPageHeader index_page_header;
   7: optional DictionaryPageHeader dictionary_page_header;
@@ -444,17 +444,17 @@ struct SortingColumn {
 }
 
 /**
- * statistics of a given page type and encoding
+ * Statistics of a given page type and encoding
  */
 struct PageEncodingStats {
 
-  /** the page type (data/dic/...) **/
+  /** The page type (data/dict/...) **/
   1: required PageType page_type;
 
-  /** encoding of the page **/
+  /** Encoding of the page **/
   2: required Encoding encoding;
 
-  /** number of pages of this type with this encoding **/
+  /** Number of pages of this type with this encoding **/
   3: required i32 count;
 
 }

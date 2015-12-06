@@ -158,14 +158,16 @@ func (g *group) create(schema []*parquetformat.SchemaElement, start int) (int, e
 	}
 
 	var e = schema[start]
+
 	if e.NumChildren == nil {
-		return 0, fmt.Errorf("NumChildren must be defined in schema[%d]", start)
+		return 0, fmt.Errorf("error: NumChildren not defined in schema[%d]", start)
 	}
+
 	if *e.NumChildren <= 0 {
-		return 0, fmt.Errorf("Invalid NumChildren value in schema[%d]: %d", start, *e.NumChildren)
+		return 0, fmt.Errorf("invalid NumChildren value in schema[%d]: %d", start, *e.NumChildren)
 	}
 	if e.Type != nil {
-		return 0, fmt.Errorf("Not null type (%s) in schema[%d]", e.Type, start)
+		return 0, fmt.Errorf("not null type (%s) in schema[%d]", e.Type, start)
 	}
 	if start != 0 {
 		// TODO: check Name is not empty
@@ -280,7 +282,7 @@ func SchemaFromFileMetaData(meta parquetformat.FileMetaData) (Schema, error) {
 		return nil, err
 	}
 	if end != len(meta.Schema) {
-		return nil, fmt.Errorf("Only %d SchemaElement(s) out of %d have been used",
+		return nil, fmt.Errorf("only %d SchemaElement(s) out of %d have been used",
 			end, len(meta.Schema))
 	}
 	m.maxLevelsByPath = m.group.calcMaxLevels()

@@ -16,8 +16,19 @@ var testcases = []struct {
 }
 
 func TestDecoder(t *testing.T) {
+
 	for idx, tc := range testcases {
 		b := make([]byte, 9)
+		var w bytes.Buffer
+
+		enc := NewHybridBitPackingRLEEncoder(&w)
+
+		renc := Encoder(enc)
+		for i := 0; i < 100; i++ {
+			renc.Encode(10)
+		}
+
+		renc.Flush()
 
 		j := binary.PutUvarint(b, uint64(tc.count<<1))
 

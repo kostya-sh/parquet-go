@@ -6,6 +6,10 @@ import (
 	"io"
 )
 
+type RLEWriter interface {
+	Write(count uint64, value int64) error
+}
+
 // Decoder is a simple RLE decoder
 type Decoder struct {
 	r         *bufio.Reader
@@ -73,32 +77,30 @@ func (d *Decoder) Err() error {
 
 // An Encoder serializes data in the RLE format.
 type Encoder struct {
-	w      io.Writer // where to send the data
-	buffer []int64   // last seen values
-	err    error
+	w     RLEWriter // where to send the data
+	value int64     // last seen values
+	count uint64    // how many times we have seen the value
 }
 
-func NewEncoder(w io.Writer) *Encoder {
-	return &Encoder{w, make([]int64, 8), nil}
+func NewEncoder(w RLEWriter) *Encoder {
+	return &Encoder{w: w}
 }
 
 func (e *Encoder) Encode(value int64) error {
-	if len(e.buffer) > 0 {
-		lastSeenValue := e.buffer[len(e.buffer)-1]
-		if value == lastSeenValue {
-			return nil
-		} else {
-
+	if value != e.value {
+		if err := e.Flush(); err != nil {
+			return err
 		}
+		e.value = value
+		e.count = 1
 	} else {
-		e.buffer[0] = value
+		e.count++
 	}
 
 	return nil
 }
 
-func (e *Encoder) Flush() error {
-	// encode
-
-	return nil
+// Flush writes the current running value in the underlying writer
+func (e *Encoder) Flush() (err error) {
+	return e.w.Write(e.count, e.value)
 }

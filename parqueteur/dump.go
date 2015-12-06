@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/kostya-sh/parquet-go/parquet"
@@ -27,7 +28,7 @@ func init() {
 // read the offset of the column
 func runDump(cmd *Command, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("No files")
+		return fmt.Errorf("%s: no files", args[0])
 	}
 
 	r, err := os.Open(args[0])
@@ -49,20 +50,22 @@ func runDump(cmd *Command, args []string) error {
 
 	newSchema.MarshalDL(os.Stdout)
 
-	for rowIdx, rg := range m.RowGroups {
+	for _, rg := range m.GetRowGroups() {
 
-		schema := m.Schema[rowIdx]
+		for c, chunk := range rg.Columns {
 
-		for _, chunk := range rg.Columns {
+			log.Println(chunk.MetaData.GetPathInSchema(), chunk.MetaData.GetType(), chunk.MetaData.GetNumValues())
 
-			scanner := parquet.NewColumnScanner(r, chunk, schema)
+			log.Println(chunk.MetaData.GetEncodings())
+
+			scanner := parquet.NewColumnScanner(r, chunk, m.Schema[c+1])
 
 			for scanner.Scan() {
 
 			}
 
 			if err := scanner.Err(); err != nil {
-				fmt.Printf("Invalid input: %s", err)
+				fmt.Printf("%s: invalid input: %s\n", os.Args[0], err)
 			}
 		}
 	}

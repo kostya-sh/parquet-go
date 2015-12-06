@@ -1,31 +1,33 @@
 package parquet
 
 import (
+	"bufio"
 	"compress/gzip"
+	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/golang/snappy"
+	"github.com/kostya-sh/parquet-go/encoding/bitpacking"
+	"github.com/kostya-sh/parquet-go/encoding/rle"
+	"github.com/kostya-sh/parquet-go/parquet/encoding"
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
 var Config = struct {
 	Debug bool
 }{
-	Debug: false,
+	Debug: true,
 }
-
-// Scanner provides a convenient interface for reading data such as
-// a file of newline-delimited lines of text.
 
 // ColumnScanner implements the logic to deserialize columns in the parquet format
 type ColumnScanner struct {
 	rs             io.ReadSeeker // The reader provided by the client.
 	r              io.Reader
 	chunk          *parquetformat.ColumnChunk
+	meta           *parquetformat.ColumnMetaData
 	schema         *parquetformat.SchemaElement
 	totalPagesRead int64 // number of pages read in this chunk
 	totalBytesRead int64
@@ -35,7 +37,7 @@ type ColumnScanner struct {
 // NewColumnScanner returns a ColumnScanner that reads from r
 // and interprets the stream as described in the ColumnChunk parquet format
 func NewColumnScanner(rs io.ReadSeeker, chunk *parquetformat.ColumnChunk, schema *parquetformat.SchemaElement) *ColumnScanner {
-	return &ColumnScanner{rs, nil, chunk, schema, 0, 0, nil}
+	return &ColumnScanner{rs, nil, chunk, chunk.MetaData, schema, 0, 0, nil}
 }
 
 // setErr records the first error encountered.
@@ -54,8 +56,18 @@ func (s *ColumnScanner) Err() error {
 }
 
 func (s *ColumnScanner) Scan() bool {
+	log.Println(s.meta)
+
 	if s.totalPagesRead == 0 {
-		_, err := s.rs.Seek(s.chunk.MetaData.DataPageOffset, os.SEEK_SET)
+		columnStart := s.meta.DataPageOffset
+
+		if s.meta.IsSetDictionaryPageOffset() {
+			if columnStart > s.meta.GetDictionaryPageOffset() {
+				columnStart = s.meta.GetDictionaryPageOffset()
+			}
+		}
+
+		_, err := s.rs.Seek(columnStart, os.SEEK_SET)
 		if err != nil {
 			s.setErr(err)
 			return false
@@ -63,12 +75,15 @@ func (s *ColumnScanner) Scan() bool {
 
 		// substitute the original reader with a limited one to get io.EOF
 		// when the chunk is read
-		s.r = io.LimitReader(s.rs, s.chunk.MetaData.TotalCompressedSize)
+		s.r = io.LimitReader(s.rs, s.meta.TotalCompressedSize)
 	}
 
 	for {
 		if err := s.nextPage(); err != nil {
 			s.setErr(err)
+			if err == io.EOF {
+				log.Printf("columnScanner: %s (%s): total pages read: %d", s.meta.GetPathInSchema(), s.meta.Type, s.totalPagesRead)
+			}
 			return false
 		}
 
@@ -76,13 +91,15 @@ func (s *ColumnScanner) Scan() bool {
 		break
 	}
 
+	log.Printf("columnScanner: %s (%s): total pages read: %d", s.meta.GetPathInSchema(), s.meta.Type, s.totalPagesRead)
 	return true
 }
 
 func (s *ColumnScanner) nextPage() (err error) {
+
 	r := s.r
 
-	if s.totalBytesRead >= s.chunk.MetaData.TotalCompressedSize {
+	if s.totalBytesRead >= s.meta.TotalCompressedSize {
 		return io.EOF
 	}
 
@@ -92,7 +109,7 @@ func (s *ColumnScanner) nextPage() (err error) {
 		if strings.HasSuffix(err.Error(), "EOF") { // FIXME: find a better way to detect io.EOF
 			return io.EOF
 		}
-		return err
+		return fmt.Errorf("could not read: %s %d %d", err, s.totalBytesRead, s.meta.TotalCompressedSize)
 	}
 
 	if Config.Debug {
@@ -125,36 +142,86 @@ func (s *ColumnScanner) nextPage() (err error) {
 
 	// handle compressed data
 	// setup codec
-	switch s.chunk.MetaData.Codec {
+	switch s.meta.Codec {
 	case parquetformat.CompressionCodec_GZIP:
-		r, err := gzip.NewReader(s.r)
+		r, err = gzip.NewReader(r)
 		if err != nil {
 			return err
 		}
-		s.r = r
 	case parquetformat.CompressionCodec_LZO:
 		// https://github.com/rasky/go-lzo/blob/master/decompress.go#L149			s.r = r
 		panic("NYI")
 
 	case parquetformat.CompressionCodec_SNAPPY:
-		s.r = snappy.NewReader(s.r)
+		r = snappy.NewReader(r)
 	case parquetformat.CompressionCodec_UNCOMPRESSED:
 		// use the limit reader
 	}
 
+	// this is important so that the decoder use the same ByteReader
+	rb := bufio.NewReader(r)
+
 	switch header.Type {
+	case parquetformat.PageType_INDEX_PAGE:
+	case parquetformat.PageType_DICTIONARY_PAGE:
+		dict := header.GetDictionaryPageHeader()
+		if dict == nil {
+			panic("dict nil")
+		}
+
+		log.Println("\t: dictionary.page count:", dict.GetNumValues())
+
+	case parquetformat.PageType_DATA_PAGE_V2:
+
 	case parquetformat.PageType_DATA_PAGE:
 		if !header.IsSetDataPageHeader() {
 			panic("unexpected DataPageHeader was not set")
 		}
 
-		// n := header.DataPageHeader.NumValues
-		// // read definition levels.
-		// rle.NewDecoder(}, 1)
+		count := header.DataPageHeader.GetNumValues()
 
-		// read repetition levels.
+		log.Println("\tdata.page.header.num_values:", count)
 
-		log.Println("encoding:", header.DataPageHeader.Encoding)
+		// A required field is always defined and does not need a definition level.
+		if s.schema.GetRepetitionType() != parquetformat.FieldRepetitionType_REQUIRED {
+			defEnc := header.DataPageHeader.GetDefinitionLevelEncoding()
+			switch defEnc {
+			case parquetformat.Encoding_RLE:
+				dec := rle.NewDecoder(rb)
+
+				for dec.Scan() {
+					log.Println("definition level decoding:", dec.Value())
+				}
+
+				if err := dec.Err(); err != nil {
+					log.Println(err)
+				}
+
+			default:
+				log.Println("WARNING could not handle %s", defEnc)
+			}
+		}
+
+		// Only levels that are repeated need a Repetition level:
+		// optional or required fields are never repeated
+		// and can be skipped while attributing repetition levels.
+		if s.schema.GetRepetitionType() == parquetformat.FieldRepetitionType_REPEATED {
+			repEnc := header.DataPageHeader.GetRepetitionLevelEncoding()
+			switch repEnc {
+
+			case parquetformat.Encoding_BIT_PACKED:
+				dec := bitpacking.NewDecoder(rb, 1) // FIXME 1 ?
+				for dec.Scan() {
+					log.Println("repetition level decoding:", dec.Value())
+				}
+
+				if err := dec.Err(); err != nil {
+					log.Println(err)
+				}
+			default:
+				log.Println("WARNING could not handle %s", repEnc)
+			}
+		}
 
 		switch header.DataPageHeader.Encoding {
 		case parquetformat.Encoding_BIT_PACKED:
@@ -162,27 +229,30 @@ func (s *ColumnScanner) nextPage() (err error) {
 		case parquetformat.Encoding_DELTA_BYTE_ARRAY:
 		case parquetformat.Encoding_DELTA_LENGTH_BYTE_ARRAY:
 		case parquetformat.Encoding_PLAIN:
-		case parquetformat.Encoding_PLAIN_DICTIONARY:
+			d := encoding.NewPlainDecoder(rb, s.meta.GetType(), int(header.DataPageHeader.NumValues))
+			d.Decode()
+
 		case parquetformat.Encoding_RLE:
+
 		case parquetformat.Encoding_RLE_DICTIONARY:
+			fallthrough
+		case parquetformat.Encoding_PLAIN_DICTIONARY:
+			// d := encoding.NewPlainDecoder(s.r, s.meta.GetType(), int(s.meta.NumValues))
+			// d.Decode()
 
 		default:
 			panic("Not supported")
 		}
 
-	case parquetformat.PageType_INDEX_PAGE:
-	case parquetformat.PageType_DICTIONARY_PAGE:
-	case parquetformat.PageType_DATA_PAGE_V2:
-
 	default:
 		panic("parquet.ColumnScanner: unknown PageHeader.PageType")
 	}
 
-	var bytesRead = int64(0)
-	if bytesRead, err = io.CopyN(ioutil.Discard, s.r, int64(header.CompressedPageSize)); err != nil {
-		return err
-	}
-	s.totalBytesRead += bytesRead
+	// var bytesRead = int64(0)
+	// if bytesRead, err = io.CopyN(ioutil.Discard, s.r, int64(s.meta.TotalCompressedSize)); err != nil {
+	// 	return err
+	// }
+	// s.totalBytesRead += bytesRead
 
 	// while (true) {
 	//     int bytes_read = 0;
