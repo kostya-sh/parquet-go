@@ -36,6 +36,10 @@ func (d *Decoder) Scan() bool {
 			return false
 		}
 
+		if count == 0 {
+			panic("invalid count")
+		}
+
 		d.count = count >> 1
 		d.hasHeader = true
 

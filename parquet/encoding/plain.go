@@ -38,7 +38,8 @@ func NewPlainDecoder(r io.Reader, t parquetformat.Type, numValues int) *Decoder 
 	return &Decoder{r, t, numValues}
 }
 
-func (d *Decoder) Decode() {
+// DecodeInt
+func (d *Decoder) DecodeInt(out []int) (int, error) {
 	count := d.count
 
 	switch d.t {
@@ -53,20 +54,25 @@ func (d *Decoder) Decode() {
 				panic(fmt.Sprintf("expected %d int32 but got only %d: %s", count, i, err)) // FIXME
 			}
 
-			log.Println(value)
+			log.Println("plain:int32:", value)
+			out = append(out, int(value))
 		}
+	default:
+		log.Println("unsupported string format: ", d.t, " for type int")
+	}
 
+	return count, nil
+}
+
+// DecodeStr , returns the number of element read, or error
+func (d *Decoder) DecodeStr(out []string) (int, error) {
+	count := d.count
+
+	switch d.t {
 	case parquetformat.Type_BYTE_ARRAY:
-		var numArrays int32
 		var size int32
 
-		err := binary.Read(d.r, binary.LittleEndian, &numArrays)
-		if err != nil {
-			panic(err)
-		}
-		log.Println("num array", numArrays)
-
-		for i := 0; i < int(numArrays); i++ {
+		for i := 0; i < count; i++ {
 			err := binary.Read(d.r, binary.LittleEndian, &size)
 			if err != nil {
 				panic(err)
@@ -74,13 +80,16 @@ func (d *Decoder) Decode() {
 			p := make([]byte, size)
 			n, err := d.r.Read(p)
 			if err != nil {
-				panic(err)
+				return i, fmt.Errorf("plain decoder: short read: %s", err)
 			}
-			log.Println(string(p[:n]))
+
+			value := string(p[:n])
+			log.Println("plain:str:", value)
+			out = append(out, value)
 		}
 
 	default:
-		log.Println("unsupported plain format: ", d.t)
+		log.Println("unsupported string format: ", d.t, " for type string")
 	}
-
+	return count, nil
 }

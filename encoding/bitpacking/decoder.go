@@ -99,6 +99,8 @@ func (d *Decoder) Scan() bool {
 		d.value = int64(int32(b3) + int32(b2)<<8 + int32(b1)<<16)
 	case 4:
 		d.value = int64(binary.LittleEndian.Uint32(d.buff))
+	default:
+		panic("unsupported case")
 	}
 
 	return true

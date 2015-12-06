@@ -56,8 +56,6 @@ func runDump(cmd *Command, args []string) error {
 
 			log.Println(chunk.MetaData.GetPathInSchema(), chunk.MetaData.GetType(), chunk.MetaData.GetNumValues())
 
-			log.Println(chunk.MetaData.GetEncodings())
-
 			scanner := parquet.NewColumnScanner(r, chunk, m.Schema[c+1])
 
 			for scanner.Scan() {
