@@ -38,9 +38,12 @@ func runDump(cmd *Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	schema, err := parquet.SchemaFromFileMetaData(m)
+	if err != nil {
+		return err
+	}
 
 	c := 0 // hardcode just the first column for now
-	schema := m.Schema[c+1]
 	for _, rg := range m.RowGroups {
 		cc := rg.Columns[c]
 		if strings.Join(cc.MetaData.PathInSchema, ".") != dumpColumn {

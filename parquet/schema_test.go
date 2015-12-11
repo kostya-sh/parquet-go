@@ -8,10 +8,8 @@ import (
 	pf "github.com/kostya-sh/parquet-go/parquetformat"
 )
 
-func createFileMetaData(schema ...*pf.SchemaElement) pf.FileMetaData {
-	meta := pf.FileMetaData{}
-	meta.Schema = schema
-	return meta
+func createFileMetaData(schema ...*pf.SchemaElement) *pf.FileMetaData {
+	return &pf.FileMetaData{Schema: schema}
 }
 
 var typeBoolean *pf.Type = pf.TypePtr(pf.Type_BOOLEAN)
@@ -33,7 +31,7 @@ var ctMapKeyValue *pf.ConvertedType = pf.ConvertedTypePtr(pf.ConvertedType_MAP_K
 var ctList *pf.ConvertedType = pf.ConvertedTypePtr(pf.ConvertedType_LIST)
 
 func TestCreateInvalidSchemas(t *testing.T) {
-	invalidFileMetaDatas := []pf.FileMetaData{
+	invalidFileMetaDatas := []*pf.FileMetaData{
 		// empty schema array
 		createFileMetaData(),
 
@@ -200,60 +198,60 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 	}
 }
 
-func TestMaxLevelsOfDremelPaperSchema(t *testing.T) {
-	meta := createFileMetaData(
-		&pf.SchemaElement{
-			Name:        "Document",
-			NumChildren: thrift.Int32Ptr(3),
-		},
-		&pf.SchemaElement{
-			Name:           "DocId",
-			Type:           typeInt64,
-			RepetitionType: frtRequired,
-		},
-		&pf.SchemaElement{
-			Name:           "Links",
-			RepetitionType: frtOptional,
-			NumChildren:    thrift.Int32Ptr(2),
-		},
-		&pf.SchemaElement{
-			Name:           "Backward",
-			Type:           typeInt64,
-			RepetitionType: frtRepeated,
-		},
-		&pf.SchemaElement{
-			Name:           "Forward",
-			Type:           typeInt64,
-			RepetitionType: frtRepeated,
-		},
-		&pf.SchemaElement{
-			Name:           "Name",
-			RepetitionType: frtRepeated,
-			NumChildren:    thrift.Int32Ptr(2),
-		},
-		&pf.SchemaElement{
-			Name:           "Language",
-			RepetitionType: frtRepeated,
-			NumChildren:    thrift.Int32Ptr(2),
-		},
-		&pf.SchemaElement{
-			Name:           "Code",
-			Type:           typeByteArray,
-			RepetitionType: frtRequired,
-		},
-		&pf.SchemaElement{
-			Name:           "Country",
-			Type:           typeByteArray,
-			RepetitionType: frtOptional,
-		},
-		&pf.SchemaElement{
-			Name:           "Url",
-			Type:           typeByteArray,
-			RepetitionType: frtOptional,
-		},
-	)
+var dremelPaperExampleMeta = createFileMetaData(
+	&pf.SchemaElement{
+		Name:        "Document",
+		NumChildren: thrift.Int32Ptr(3),
+	},
+	&pf.SchemaElement{
+		Name:           "DocId",
+		Type:           typeInt64,
+		RepetitionType: frtRequired,
+	},
+	&pf.SchemaElement{
+		Name:           "Links",
+		RepetitionType: frtOptional,
+		NumChildren:    thrift.Int32Ptr(2),
+	},
+	&pf.SchemaElement{
+		Name:           "Backward",
+		Type:           typeInt64,
+		RepetitionType: frtRepeated,
+	},
+	&pf.SchemaElement{
+		Name:           "Forward",
+		Type:           typeInt64,
+		RepetitionType: frtRepeated,
+	},
+	&pf.SchemaElement{
+		Name:           "Name",
+		RepetitionType: frtRepeated,
+		NumChildren:    thrift.Int32Ptr(2),
+	},
+	&pf.SchemaElement{
+		Name:           "Language",
+		RepetitionType: frtRepeated,
+		NumChildren:    thrift.Int32Ptr(2),
+	},
+	&pf.SchemaElement{
+		Name:           "Code",
+		Type:           typeByteArray,
+		RepetitionType: frtRequired,
+	},
+	&pf.SchemaElement{
+		Name:           "Country",
+		Type:           typeByteArray,
+		RepetitionType: frtOptional,
+	},
+	&pf.SchemaElement{
+		Name:           "Url",
+		Type:           typeByteArray,
+		RepetitionType: frtOptional,
+	},
+)
 
-	s, err := SchemaFromFileMetaData(meta)
+func TestMaxLevelsOfDremelPaperSchema(t *testing.T) {
+	s, err := SchemaFromFileMetaData(dremelPaperExampleMeta)
 	if err != nil {
 		t.Fatalf("Unexpcted error: %s", err)
 	}
@@ -284,4 +282,27 @@ func TestMaxLevelsOfDremelPaperSchema(t *testing.T) {
 	// not a field
 	checkMaxLevels([]string{"Links"}, -1, -1)
 	checkMaxLevels([]string{"Name", "UnknownField"}, -1, -1)
+}
+
+func TestSchemaElementByPath(t *testing.T) {
+	s, err := SchemaFromFileMetaData(dremelPaperExampleMeta)
+	if err != nil {
+		t.Fatalf("Unexpcted error: %s", err)
+	}
+
+	if g, e := s.element([]string{"DocId"}), dremelPaperExampleMeta.Schema[1]; g != e {
+		t.Errorf("SchemaElement(DocId) = %v, expected %v", g, e)
+	}
+
+	if g, e := s.element([]string{"Links", "Forward"}), dremelPaperExampleMeta.Schema[4]; g != e {
+		t.Errorf("SchemaElement(Links, Forward) = %v, expected %v", g, e)
+	}
+
+	if g, e := s.element([]string{"Name", "Url"}), dremelPaperExampleMeta.Schema[9]; g != e {
+		t.Errorf("SchemaElement(Name, Url) = %v, expected %v", g, e)
+	}
+
+	if g := s.element([]string{"UnknownField"}); g != nil {
+		t.Errorf("SchemaElement(UnknownField) = %v, expected nil", g)
+	}
 }

@@ -18,6 +18,9 @@ type Schema interface {
 	// maxLevels returns maximum definition and repetition levels for a given
 	// column path
 	maxLevels(path []string) (definition int, repetition int)
+
+	// TODO: better name (schemaElement?)
+	element(path []string) *parquetformat.SchemaElement
 }
 
 type schemaElement interface {
@@ -29,7 +32,8 @@ type schemaElement interface {
 // root of the schema
 type message struct {
 	group
-	maxLevelsByPath map[string][2]int
+	maxLevelsByPath      map[string][2]int
+	schemaElementsByPath map[string]*parquetformat.SchemaElement
 }
 
 // group of fields
@@ -159,6 +163,25 @@ func (g *group) calcMaxLevels() map[string][2]int {
 	return lvls
 }
 
+func (g *group) makeSchemaElementsByPath() map[string]*parquetformat.SchemaElement {
+	m := make(map[string]*parquetformat.SchemaElement)
+	for _, child := range g.children {
+		switch c := child.(type) {
+		case *primitive:
+			s := c.schemaElement
+			m[s.Name] = s
+		case *group:
+			s := c.schemaElement
+			for k, v := range c.makeSchemaElementsByPath() {
+				m[s.Name+"."+k] = v
+			}
+		default:
+			panic("unexpected child type")
+		}
+	}
+	return m
+}
+
 func (m *message) marshalDL(w io.Writer, indent string) {
 	var s = m.schemaElement
 
@@ -250,15 +273,18 @@ func (m *message) MarshalDL(w io.Writer) error {
 }
 
 func (m *message) maxLevels(path []string) (definition int, repetition int) {
-	p := strings.Join(path, ".")
-	lvls, ok := m.maxLevelsByPath[p]
+	lvls, ok := m.maxLevelsByPath[strings.Join(path, ".")]
 	if !ok {
 		return -1, -1
 	}
 	return lvls[0], lvls[1]
 }
 
-func SchemaFromFileMetaData(meta parquetformat.FileMetaData) (Schema, error) {
+func (m *message) element(path []string) *parquetformat.SchemaElement {
+	return m.schemaElementsByPath[strings.Join(path, ".")]
+}
+
+func SchemaFromFileMetaData(meta *parquetformat.FileMetaData) (Schema, error) {
 	m := message{}
 	end, err := m.group.create(meta.Schema, 0)
 	if err != nil {
@@ -269,6 +295,7 @@ func SchemaFromFileMetaData(meta parquetformat.FileMetaData) (Schema, error) {
 			end, len(meta.Schema))
 	}
 	m.maxLevelsByPath = m.group.calcMaxLevels()
+	m.schemaElementsByPath = m.group.makeSchemaElementsByPath()
 
 	return &m, nil
 }
