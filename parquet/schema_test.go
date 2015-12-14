@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"testing"
 
-	"git.apache.org/thrift.git/lib/go/thrift"
 	pf "github.com/kostya-sh/parquet-go/parquetformat"
 )
+
+func int32Ptr(v int32) *int32 {
+	return &v
+}
 
 func createFileMetaData(schema ...*pf.SchemaElement) *pf.FileMetaData {
 	return &pf.FileMetaData{Schema: schema}
@@ -42,51 +45,51 @@ func TestCreateInvalidSchemas(t *testing.T) {
 
 		// negative NumChildren
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(-1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(-1)},
 		),
 
 		// invalid NumChildren (more then SchemaElement elements)
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(3)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(3)},
 		),
 
 		// no repetition_type for a leaf
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeBoolean, Name: "f1"},
 		),
 
 		// NumChildren is too small
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test1", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test1", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1"},
 			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f2"},
 		),
 
 		// no TypeLength for fixed_len_byte_array
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test1", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test1", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeFixedLenByteArray, RepetitionType: frtRequired, Name: "f1"},
 		),
 
 		// int32 with converted_type = UTF8
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeInt32, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctUTF8},
 		),
 		// boolean with converted_type = MAP
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctMap},
 		),
 		// boolean with converted_type = LIST
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctList},
 		),
 		// boolean with converted_type = MAP_KEY_VALUE
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctMapKeyValue},
 		),
 	}
@@ -105,7 +108,7 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 	meta := createFileMetaData(
 		&pf.SchemaElement{
 			Name:        "test.Message",
-			NumChildren: thrift.Int32Ptr(10),
+			NumChildren: int32Ptr(10),
 		},
 		&pf.SchemaElement{
 			Type:           typeBoolean,
@@ -144,7 +147,7 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 		},
 		&pf.SchemaElement{
 			Type:           typeFixedLenByteArray,
-			TypeLength:     thrift.Int32Ptr(10),
+			TypeLength:     int32Ptr(10),
 			RepetitionType: frtOptional,
 			Name:           "OptionalFixedLenByteArray",
 		},
@@ -157,7 +160,7 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 		&pf.SchemaElement{
 			RepetitionType: frtRequired,
 			Name:           "RequiredGroup",
-			NumChildren:    thrift.Int32Ptr(1),
+			NumChildren:    int32Ptr(1),
 		},
 		&pf.SchemaElement{
 			Type:           typeInt32,
@@ -201,7 +204,7 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 var dremelPaperExampleMeta = createFileMetaData(
 	&pf.SchemaElement{
 		Name:        "Document",
-		NumChildren: thrift.Int32Ptr(3),
+		NumChildren: int32Ptr(3),
 	},
 	&pf.SchemaElement{
 		Name:           "DocId",
@@ -211,7 +214,7 @@ var dremelPaperExampleMeta = createFileMetaData(
 	&pf.SchemaElement{
 		Name:           "Links",
 		RepetitionType: frtOptional,
-		NumChildren:    thrift.Int32Ptr(2),
+		NumChildren:    int32Ptr(2),
 	},
 	&pf.SchemaElement{
 		Name:           "Backward",
@@ -226,12 +229,12 @@ var dremelPaperExampleMeta = createFileMetaData(
 	&pf.SchemaElement{
 		Name:           "Name",
 		RepetitionType: frtRepeated,
-		NumChildren:    thrift.Int32Ptr(2),
+		NumChildren:    int32Ptr(2),
 	},
 	&pf.SchemaElement{
 		Name:           "Language",
 		RepetitionType: frtRepeated,
-		NumChildren:    thrift.Int32Ptr(2),
+		NumChildren:    int32Ptr(2),
 	},
 	&pf.SchemaElement{
 		Name:           "Code",
