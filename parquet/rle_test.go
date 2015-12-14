@@ -6,7 +6,8 @@ import (
 )
 
 func rleDecodeAll(w int, data []byte) (a []int32, err error) {
-	d := newRLEDecoder(w, data)
+	d := newRLEDecoder(w)
+	d.init(data)
 	for d.hasNext() {
 		a = append(a, d.nextInt32())
 	}

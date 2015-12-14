@@ -37,16 +37,22 @@ type rleDecoder struct {
 	bpRun    [8]int32
 }
 
-func newRLEDecoder(width int, data []byte) *rleDecoder {
+func newRLEDecoder(width int) *rleDecoder {
 	if width <= 0 || width > 32 {
 		panic("invalid width value")
 	}
 	d := rleDecoder{
-		data:  data,
 		width: width,
 	}
-	d.readRunHeader()
 	return &d
+}
+
+func (d *rleDecoder) init(data []byte) {
+	d.data = data
+	d.pos = 0
+	d.e = nil
+	d.eod = false
+	d.readRunHeader()
 }
 
 func (d *rleDecoder) readRLERunValue() {

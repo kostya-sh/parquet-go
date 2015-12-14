@@ -25,7 +25,7 @@ func TestColumnReader(t *testing.T) {
 		t.Fatalf("%s", err)
 	}
 
-	c := 0
+	c := 2
 	for _, rg := range m.RowGroups {
 		cc := rg.Columns[c]
 		cr, err := NewBooleanColumnChunkReader(r, schema, cc)
@@ -33,7 +33,7 @@ func TestColumnReader(t *testing.T) {
 			t.Fatalf("%s", err)
 		}
 		for cr.Next() {
-			fmt.Println("->", cr.Value())
+			fmt.Printf("V:%v\tD:%d\tR:%d\n", cr.Value(), cr.D(), cr.R())
 		}
 		if cr.Err() != nil {
 			t.Fatalf("%s", cr.Err())
