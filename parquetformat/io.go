@@ -3,7 +3,7 @@ package parquetformat
 import (
 	"io"
 
-	"git.apache.org/thrift.git/lib/go/thrift"
+	"github.com/kostya-sh/parquet-go/parquetformat/internal/thrift"
 )
 
 func newProtocol(r io.Reader) *thrift.TCompactProtocol {

@@ -6,7 +6,7 @@ package parquetformat
 import (
 	"bytes"
 	"fmt"
-	"git.apache.org/thrift.git/lib/go/thrift"
+	"github.com/kostya-sh/parquet-go/parquetformat/internal/thrift"
 )
 
 // (needed to ensure safety because of naive import list construction.)
