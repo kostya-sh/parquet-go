@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kostya-sh/parquet-go/parquet"
+	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
 var cmdDump = &Command{
@@ -15,12 +16,14 @@ var cmdDump = &Command{
 
 // TODO: support various formats, e.g. CSV, fixed width, pretty print, JSON, etc
 var dumpColumn string
+var showLevels bool
 
 func init() {
 	cmdDump.Run = runDump
 
 	// TODO: better usage message
 	cmdDump.Flag.StringVar(&dumpColumn, "c", "", "dump content of the named `column`")
+	cmdDump.Flag.BoolVar(&showLevels, "levels", false, "dump repetition and definition levels along with the column values")
 }
 
 func runDump(cmd *Command, args []string) error {
@@ -43,18 +46,34 @@ func runDump(cmd *Command, args []string) error {
 		return err
 	}
 
-	c := 0 // hardcode just the first column for now
 	for _, rg := range m.RowGroups {
-		cc := rg.Columns[c]
-		if strings.Join(cc.MetaData.PathInSchema, ".") != dumpColumn {
-			return fmt.Errorf("Unable to dump column '%s'", dumpColumn)
+		var cc *parquetformat.ColumnChunk
+		for _, c := range rg.Columns {
+			if strings.Join(c.MetaData.PathInSchema, ".") == dumpColumn {
+				cc = c
+			}
+		}
+		if cc == nil {
+			return fmt.Errorf("no column named '%s'", dumpColumn)
 		}
 		cr, err := parquet.NewBooleanColumnChunkReader(r, schema, cc)
 		if err != nil {
 			return err
 		}
 		for cr.Next() {
-			fmt.Println(cr.Boolean())
+			notNull := cr.D() == cr.MaxD()
+			if notNull {
+				fmt.Print(cr.Boolean())
+			}
+			// TODO: consider customizing null value via command lines
+			if showLevels {
+				if notNull {
+					fmt.Printf(" ")
+				}
+				fmt.Printf("(D:%d; R:%d)", cr.D(), cr.R())
+			}
+			fmt.Println()
+
 		}
 		if cr.Err() != nil {
 			return cr.Err()
