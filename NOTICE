@@ -1,0 +1,24 @@
+parquet-go library and tools
+(c) Copyright 2015 Konstantin Shaposhnikov
+
+The project partially includes the following third party packages:
+
+Apache Parquet Format (parquet.thrift file)
+=========================================================================
+==  NOTICE file corresponding to section 4(d) of the Apache License,   ==
+==  Version 2.0, in this case for the Apache Parquet Format.           ==
+=========================================================================
+Apache Parquet Format
+Copyright 2014 The Apache Software Foundation
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+Apache Thrift (git.apache.org/thrift.git/lib/go/thrift Go package)
+=========================================================================
+==  NOTICE file corresponding to section 4(d) of the Apache License,   ==
+==  Version 2.0, in this case for the Apache Thrift.                   ==
+=========================================================================
+Apache Thrift
+Copyright 2006-2010 The Apache Software Foundation.
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
