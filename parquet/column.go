@@ -156,6 +156,7 @@ func (cr *BooleanColumnChunkReader) PageHeader() *parquetformat.PageHeader {
 
 func (cr *BooleanColumnChunkReader) readDataPage() ([]byte, error) {
 	var err error
+	n := cr.r.n
 
 	if _, err := cr.r.rs.Seek(cr.dataPageOffset, 0); err != nil {
 		return nil, err
@@ -191,7 +192,7 @@ func (cr *BooleanColumnChunkReader) readDataPage() ([]byte, error) {
 	if cr.r.n == cr.totalSize {
 		cr.atLastPage = true
 	}
-	cr.dataPageOffset += size
+	cr.dataPageOffset += (cr.r.n - n)
 
 	return data, nil
 }
