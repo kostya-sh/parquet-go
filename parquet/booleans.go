@@ -5,41 +5,32 @@ import "fmt"
 // PLAIN encoding for BOOLEAN type: bit-packed, LSB first
 
 type booleanPlainDecoder struct {
-	data      []byte
-	numValues int
+	data []byte
 
-	value  bool
-	err    error
-	n      int
+	pos    int
 	values [8]int32
 }
 
-func (d *booleanPlainDecoder) init(data []byte, numValues int32) {
-	d.data = data
-	d.numValues = int(numValues)
-	d.err = nil
-	d.n = 0
-
-	// TODO: test for this
-	if d.numValues > 8*len(data) {
-		d.err = fmt.Errorf("overflow: cannot store %d booleans in %d bytes", numValues, len(data))
-	}
+func newBooleanPlainDecoder() *booleanPlainDecoder {
+	return &booleanPlainDecoder{}
 }
 
-func (d *booleanPlainDecoder) next() bool {
-	if d.err != nil {
-		return false
+func (d *booleanPlainDecoder) init(data []byte) {
+	d.data = data
+	d.pos = 0
+}
+
+func (d *booleanPlainDecoder) next() (value bool, err error) {
+	if d.pos >= len(d.data)*8 { // TODO: this can overflow, reimplement
+		return false, fmt.Errorf("boolean/plain: no more data")
 	}
-	if d.n >= d.numValues {
-		return false
+	if d.pos%8 == 0 {
+		d.values = unpack8int32_1(d.data[d.pos/8 : d.pos/8+1])
 	}
-	if d.n%8 == 0 {
-		d.values = unpack8int32_1(d.data[d.n/8 : d.n/8+1])
+	value = false
+	if d.values[d.pos%8] == 1 {
+		value = true
 	}
-	d.value = false
-	if d.values[d.n%8] == 1 {
-		d.value = true
-	}
-	d.n++
-	return true
+	d.pos++
+	return
 }

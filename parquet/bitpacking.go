@@ -34,6 +34,8 @@ func unpack8Int32FuncForWidth(w int) unpack8int32Func {
 		return unpack8int32_3
 	case 4:
 		return unpack8int32_4
+	case 20:
+		return unpack8int32_20
 	default:
 		// TODO: support width from 4 to 32
 		panic("nyi")
@@ -86,4 +88,8 @@ func unpack8int32_4(data []byte) (a [8]int32) {
 	a[6] = int32((data[3] >> 0) & 15)
 	a[7] = int32((data[3] >> 4) & 15)
 	return
+}
+
+func unpack8int32_20(data []byte) (a [8]int32) {
+	panic("nyi")
 }
