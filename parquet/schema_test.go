@@ -259,32 +259,36 @@ func TestMaxLevelsOfDremelPaperSchema(t *testing.T) {
 		t.Fatalf("Unexpcted error: %s", err)
 	}
 
-	checkMaxLevels := func(path []string, wantD int, wantR int) {
-		d, r := s.maxLevels(path)
-		if d != wantD || r != wantR {
-			t.Errorf("Wrong max levels for %v: got (D:%d, R:%d), want (D:%d, R:%d)", path, d, r, wantD, wantR)
+	checkMaxLevels := func(path []string, expected *Levels) {
+		levels := s.maxLevels(path)
+		if expected == nil && levels != nil {
+			t.Errorf("expected nil, got %v", *levels)
+			return
+		}
+		if levels != nil && *levels != *expected {
+			t.Errorf("wrong max levels for %v: got %+v, want %+v", path, *levels, *expected)
 		}
 	}
 
 	// required non-nested field
-	checkMaxLevels([]string{"DocId"}, 0, 0)
+	checkMaxLevels([]string{"DocId"}, &Levels{0, 0})
 
 	// optional/repeated
-	checkMaxLevels([]string{"Links", "Forward"}, 2, 1)
-	checkMaxLevels([]string{"Links", "Backward"}, 2, 1)
+	checkMaxLevels([]string{"Links", "Forward"}, &Levels{D: 2, R: 1})
+	checkMaxLevels([]string{"Links", "Backward"}, &Levels{D: 2, R: 1})
 
 	// repeated/repeated/required
-	checkMaxLevels([]string{"Name", "Language", "Code"}, 2, 2)
+	checkMaxLevels([]string{"Name", "Language", "Code"}, &Levels{D: 2, R: 2})
 
 	// repeated/repeated/optional
-	checkMaxLevels([]string{"Name", "Language", "Country"}, 3, 2)
+	checkMaxLevels([]string{"Name", "Language", "Country"}, &Levels{D: 3, R: 2})
 
 	// repeated/optional
-	checkMaxLevels([]string{"Name", "Url"}, 2, 1)
+	checkMaxLevels([]string{"Name", "Url"}, &Levels{D: 2, R: 1})
 
 	// not a field
-	checkMaxLevels([]string{"Links"}, -1, -1)
-	checkMaxLevels([]string{"Name", "UnknownField"}, -1, -1)
+	checkMaxLevels([]string{"Links"}, nil)
+	checkMaxLevels([]string{"Name", "UnknownField"}, nil)
 }
 
 func TestSchemaElementByPath(t *testing.T) {

@@ -61,16 +61,18 @@ func runDump(cmd *Command, args []string) error {
 			return err
 		}
 		for cr.Next() {
-			notNull := cr.D() == cr.MaxD()
+			levels := cr.Levels()
+			value := cr.Boolean()
+			notNull := levels.D == cr.MaxD()
 			if notNull {
-				fmt.Print(cr.Boolean())
+				fmt.Print(value)
 			}
 			// TODO: consider customizing null value via command lines
 			if showLevels {
 				if notNull {
 					fmt.Printf(" ")
 				}
-				fmt.Printf("(D:%d; R:%d)", cr.D(), cr.R())
+				fmt.Printf("(D:%d; R:%d)", levels.D, levels.R)
 			}
 			fmt.Println()
 

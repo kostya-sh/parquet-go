@@ -33,7 +33,7 @@ func TestColumnReader(t *testing.T) {
 			t.Fatalf("%s", err)
 		}
 		for cr.Next() {
-			fmt.Printf("V:%v\tD:%d\tR:%d\n", cr.Value(), cr.D(), cr.R())
+			fmt.Printf("V:%v\tD:%d\tR:%d\n", cr.Value(), cr.Levels().D, cr.Levels().R)
 		}
 		if cr.Err() != nil {
 			t.Fatalf("%s", cr.Err())

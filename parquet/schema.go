@@ -9,6 +9,12 @@ import (
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
+type Levels struct {
+	// TODO: maybe use smaller type such as int8?
+	D int
+	R int
+}
+
 // Parquet Schema
 type Schema interface {
 	// MarshalDL writes schema to a given io.Writer using textual format similar
@@ -17,7 +23,7 @@ type Schema interface {
 
 	// maxLevels returns maximum definition and repetition levels for a given
 	// column path
-	maxLevels(path []string) (definition int, repetition int)
+	maxLevels(path []string) *Levels
 
 	// TODO: better name (schemaElement?)
 	element(path []string) *parquetformat.SchemaElement
@@ -32,7 +38,7 @@ type schemaElement interface {
 // root of the schema
 type message struct {
 	group
-	maxLevelsByPath      map[string][2]int
+	maxLevelsByPath      map[string]Levels
 	schemaElementsByPath map[string]*parquetformat.SchemaElement
 }
 
@@ -128,33 +134,30 @@ func (g *group) marshalDL(w io.Writer, indent string) {
 	g.marshalChildren(w, indent)
 }
 
-func (g *group) calcMaxLevels() map[string][2]int {
-	lvls := make(map[string][2]int)
+func (g *group) calcMaxLevels() map[string]Levels {
+	lvls := make(map[string]Levels)
 	for _, child := range g.children {
 		switch c := child.(type) {
 		case *primitive:
 			s := c.schemaElement
-			d := 0
-			r := 0
+			var levels Levels
 			if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
-				d = 1
+				levels.D = 1
 			}
 			if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
-				r = 1
+				levels.R = 1
 			}
-			lvls[s.Name] = [...]int{d, r}
+			lvls[s.Name] = levels
 		case *group:
 			s := c.schemaElement
 			for k, v := range c.calcMaxLevels() {
-				d := v[0]
 				if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
-					d++
+					v.D++
 				}
-				r := v[1]
 				if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
-					r++
+					v.R++
 				}
-				lvls[s.Name+"."+k] = [...]int{d, r}
+				lvls[s.Name+"."+k] = v
 			}
 		default:
 			panic("unexpected child type")
@@ -272,12 +275,12 @@ func (m *message) MarshalDL(w io.Writer) error {
 	return b.Flush()
 }
 
-func (m *message) maxLevels(path []string) (definition int, repetition int) {
+func (m *message) maxLevels(path []string) *Levels {
 	lvls, ok := m.maxLevelsByPath[strings.Join(path, ".")]
 	if !ok {
-		return -1, -1
+		return nil
 	}
-	return lvls[0], lvls[1]
+	return &lvls
 }
 
 func (m *message) element(path []string) *parquetformat.SchemaElement {
