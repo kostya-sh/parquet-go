@@ -118,32 +118,6 @@ func NewBooleanColumnChunkReader(r io.ReadSeeker, schema Schema, chunk *parquetf
 	return &cr, nil
 }
 
-// TODO: implement properly
-func bitWidth(max int) int {
-	switch max {
-	case 0:
-		return 0
-	case 1:
-		return 1
-	case 2:
-		fallthrough
-	case 3:
-		return 2
-	case 4:
-		fallthrough
-	case 5:
-		fallthrough
-	case 6:
-		fallthrough
-	case 7:
-		fallthrough
-	case 8:
-		return 4
-	default:
-		panic("nyi")
-	}
-}
-
 // AtStartOfPage returns true if the reader is positioned at the first value of a page.
 func (cr *BooleanColumnChunkReader) AtStartOfPage() bool {
 	return cr.atStartOfPage

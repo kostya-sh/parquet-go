@@ -1,6 +1,9 @@
 package parquet
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 var unpack8int32Tests = []struct {
 	width  int
@@ -34,6 +37,32 @@ func TestUnpack8int32(t *testing.T) {
 		unpacker := unpack8Int32FuncForWidth(test.width)
 		if got := unpacker(test.data); got != test.values {
 			t.Errorf("got %v, want %v", got, test.values)
+		}
+	}
+}
+
+func TestBitWidth(t *testing.T) {
+	tests := []struct {
+		max   int
+		width int
+	}{
+		{0, 0},
+		{1, 1},
+		{2, 2},
+		{3, 2},
+		{4, 3},
+		{5, 3},
+		{6, 3},
+		{7, 3},
+		{8, 4},
+		{9, 4},
+		{257, 9},
+		{math.MaxInt32, 31},
+		{math.MaxUint32, 32}, // TODO: will this work on 32-bit system?
+	}
+	for _, test := range tests {
+		if got := bitWidth(test.max); got != test.width {
+			t.Errorf("bitWidth(%d)=%d, want %d", test.max, got, test.width)
 		}
 	}
 }

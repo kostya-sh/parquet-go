@@ -93,3 +93,18 @@ func unpack8int32_4(data []byte) (a [8]int32) {
 func unpack8int32_20(data []byte) (a [8]int32) {
 	panic("nyi")
 }
+
+// bitWidth returns number of bits required to represent any number less or
+// equal to max.
+// TODO: maybe replace int with uint64, return result as well
+func bitWidth(max int) int {
+	if max < 0 {
+		panic("max should be >=0")
+	}
+	w := 0
+	for max != 0 {
+		w++
+		max >>= 1
+	}
+	return w
+}
