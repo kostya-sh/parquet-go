@@ -82,26 +82,11 @@ func (d *rle32Decoder) next() (next int32, err error) {
 }
 
 func (d *rle32Decoder) readRLERunValue() error {
-	n := d.pos + d.byteWidth
+	n := d.pos + d.byteWidth // TODO: overflow?
 	if n > len(d.data) {
 		return fmt.Errorf("rle: cannot read run value (not enough data)")
 	}
-	// TODO: extract this into a separate unpack function similar to unpack8Int32FuncForWidth
-	switch d.byteWidth {
-	case 1:
-		d.rleValue = int32(d.data[d.pos])
-	case 2:
-		d.rleValue = int32(binary.LittleEndian.Uint16(d.data[d.pos:n]))
-	case 3:
-		b3 := d.data[d.pos]
-		b2 := d.data[d.pos+1]
-		b1 := d.data[d.pos+2]
-		d.rleValue = int32(b3) + int32(b2)<<8 + int32(b1)<<16
-	case 4:
-		d.rleValue = int32(binary.LittleEndian.Uint32(d.data[d.pos:n]))
-	default:
-		panic("should not happen")
-	}
+	d.rleValue = unpackLittleEndianInt32(d.data[d.pos:n])
 	d.pos = n
 	return nil
 }

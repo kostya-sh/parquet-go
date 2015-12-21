@@ -108,3 +108,19 @@ func bitWidth(max int) int {
 	}
 	return w
 }
+
+// TODO: int32 or uint32?
+func unpackLittleEndianInt32(bytes []byte) int32 {
+	switch len(bytes) {
+	case 1:
+		return int32(bytes[0])
+	case 2:
+		return int32(bytes[0]) + int32(bytes[1])<<8
+	case 3:
+		return int32(bytes[0]) + int32(bytes[1])<<8 + int32(bytes[2])<<16
+	case 4:
+		return int32(bytes[0]) + int32(bytes[1])<<8 + int32(bytes[2])<<16 + int32(bytes[3])<<24
+	default:
+		panic("invalid argument")
+	}
+}
