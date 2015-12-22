@@ -256,7 +256,7 @@ var dremelPaperExampleMeta = createFileMetaData(
 func TestMaxLevelsOfDremelPaperSchema(t *testing.T) {
 	s, err := SchemaFromFileMetaData(dremelPaperExampleMeta)
 	if err != nil {
-		t.Fatalf("Unexpcted error: %s", err)
+		t.Fatalf("Unexpected error: %s", err)
 	}
 
 	checkMaxLevels := func(path []string, expected *Levels) {

@@ -84,12 +84,12 @@ enum ConvertedType {
    * Stored as days since Unix epoch, encoded as the INT32 physical type.
    *
    */
-  DATE = 6; 
+  DATE = 6;
 
-  /** 
-   * A time 
+  /**
+   * A time
    *
-   * The total number of milliseconds since midnight.  The value is stored 
+   * The total number of milliseconds since midnight.  The value is stored
    * as an INT32 physical type.
    */
   TIME_MILLIS = 7;
@@ -104,11 +104,11 @@ enum ConvertedType {
 
   /**
    * A date/time combination
-   * 
+   *
    * Date and time recorded as milliseconds since the Unix epoch.  Recorded as
    * a physical type of INT64.
    */
-  TIMESTAMP_MILLIS = 9; 
+  TIMESTAMP_MILLIS = 9;
 
   /**
    * A date/time combination
@@ -119,11 +119,11 @@ enum ConvertedType {
   TIMESTAMP_MICROS = 10;
 
 
-  /** 
-   * An unsigned integer value.  
-   * 
-   * The number describes the maximum number of meainful data bits in 
-   * the stored value. 8, 16 and 32 bit values are stored using the 
+  /**
+   * An unsigned integer value.
+   *
+   * The number describes the maximum number of meainful data bits in
+   * the stored value. 8, 16 and 32 bit values are stored using the
    * INT32 physical type.  64 bit values are stored using the INT64
    * physical type.
    *
@@ -136,7 +136,7 @@ enum ConvertedType {
   /**
    * A signed integer value.
    *
-   * The number describes the maximum number of meainful data bits in
+   * The number describes the maximum number of meaningful data bits in
    * the stored value. 8, 16 and 32 bit values are stored using the
    * INT32 physical type.  64 bit values are stored using the INT64
    * physical type.
@@ -147,34 +147,34 @@ enum ConvertedType {
   INT_32 = 17;
   INT_64 = 18;
 
-  /** 
+  /**
    * An embedded JSON document
-   * 
+   *
    * A JSON document embedded within a single UTF8 column.
    */
   JSON = 19;
 
-  /** 
+  /**
    * An embedded BSON document
-   * 
-   * A BSON document embedded within a single BINARY column. 
+   *
+   * A BSON document embedded within a single BINARY column.
    */
   BSON = 20;
 
   /**
    * An interval of time
-   * 
+   *
    * This type annotates data stored as a FIXED_LEN_BYTE_ARRAY of length 12
    * This data is composed of three separate little endian unsigned
    * integers.  Each stores a component of a duration of time.  The first
    * integer identifies the number of months associated with the duration,
    * the second identifies the number of days associated with the duration
-   * and the third identifies the number of milliseconds associated with 
+   * and the third identifies the number of milliseconds associated with
    * the provided duration.  This duration of time is independent of any
    * particular timezone or date.
    */
   INTERVAL = 21;
-  
+
 }
 
 /**
@@ -215,14 +215,14 @@ struct SchemaElement {
   /** Data type for this field. Not set if the current element is a non-leaf node */
   1: optional Type type;
 
-  /** If type is FIXED_LEN_BYTE_ARRAY, this is the byte length of the vales.
+  /** If type is FIXED_LEN_BYTE_ARRAY, this is the byte length of the values.
    * Otherwise, if specified, this is the maximum bit length to store any of the values.
    * (e.g. a low cardinality INT col could have this set to 3).  Note that this is
    * in the schema, and therefore fixed for the entire file.
    */
   2: optional i32 type_length;
 
-  /** repetition of the field. The root of the schema does not have a repetition_type.
+  /** Repetition of the field. The root of the schema does not have a repetition_type.
    * All other nodes must have one */
   3: optional FieldRepetitionType repetition_type;
 
@@ -236,8 +236,8 @@ struct SchemaElement {
    */
   5: optional i32 num_children;
 
-  /** When the schema is the result of a conversion from another model
-   * Used to record the original type to help with cross conversion.
+  /** When the schema is the result of a conversion from another model this field is
+   * used to record the original type to help with cross conversion.
    */
   6: optional ConvertedType converted_type;
 
@@ -284,7 +284,7 @@ enum Encoding {
    */
   PLAIN_DICTIONARY = 2;
 
-  /** Group packed run length encoding. Usable for definition/reptition levels
+  /** Group packed run length encoding. Usable for definition/repetition levels
    * encoding and Booleans (on one bit: 0 is false; 1 is true.)
    */
   RLE = 3;
@@ -365,7 +365,7 @@ struct DictionaryPageHeader {
 }
 
 /**
- * New page format alowing reading levels without decompressing the data
+ * New page format allowing reading levels without decompressing the data
  * Repetition and definition levels are uncompressed
  * The remaining section containing the data is compressed if is_compressed is true
  **/
@@ -413,7 +413,7 @@ struct PageHeader {
    **/
   4: optional i32 crc
 
-  // Headers for page specific data.  One only will be set.
+  // Headers for page specific data. Only one will be set.
   5: optional DataPageHeader data_page_header;
   6: optional IndexPageHeader index_page_header;
   7: optional DictionaryPageHeader dictionary_page_header;
@@ -444,17 +444,17 @@ struct SortingColumn {
 }
 
 /**
- * statistics of a given page type and encoding
+ * Statistics of a given page type and encoding
  */
 struct PageEncodingStats {
 
-  /** the page type (data/dic/...) **/
+  /** The page type (data/dict/...) **/
   1: required PageType page_type;
 
-  /** encoding of the page **/
+  /** Encoding of the page **/
   2: required Encoding encoding;
 
-  /** number of pages of this type with this encoding **/
+  /** Number of pages of this type with this encoding **/
   3: required i32 count;
 
 }

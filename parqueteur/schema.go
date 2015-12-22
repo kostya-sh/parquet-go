@@ -9,7 +9,7 @@ import (
 
 var cmdSchema = &Command{
 	Name: "schema",
-	Help: "disaply parquet file schema",
+	Help: "display parquet file schema",
 }
 
 func init() {
@@ -31,8 +31,6 @@ func runSchema(cmd *Command, args []string) error {
 	if err != nil {
 		return err
 	}
-
-	// fmt.Printf("%+v\n\n", meta.Schema)
 
 	schema, err := parquet.SchemaFromFileMetaData(meta)
 	if err != nil {

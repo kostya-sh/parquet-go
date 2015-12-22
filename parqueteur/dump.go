@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
-	"strings"
 
 	"github.com/kostya-sh/parquet-go/parquet"
-	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
 var cmdDump = &Command{
@@ -26,9 +25,12 @@ func init() {
 	cmdDump.Flag.BoolVar(&showLevels, "levels", false, "dump repetition and definition levels along with the column values")
 }
 
+// read The file metadata
+// read the column metadata
+// read the offset of the column
 func runDump(cmd *Command, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("No files")
+		return fmt.Errorf("%s: no files", args[0])
 	}
 
 	r, err := os.Open(args[0])
@@ -41,44 +43,30 @@ func runDump(cmd *Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	schema, err := parquet.SchemaFromFileMetaData(m)
+
+	// dump columns names
+	newSchema, err := parquet.SchemaFromFileMetaData(m)
 	if err != nil {
 		return err
 	}
 
-	for _, rg := range m.RowGroups {
-		var cc *parquetformat.ColumnChunk
-		for _, c := range rg.Columns {
-			if strings.Join(c.MetaData.PathInSchema, ".") == dumpColumn {
-				cc = c
-			}
-		}
-		if cc == nil {
-			return fmt.Errorf("no column named '%s'", dumpColumn)
-		}
-		cr, err := parquet.NewBooleanColumnChunkReader(r, schema, cc)
-		if err != nil {
-			return err
-		}
-		for cr.Next() {
-			levels := cr.Levels()
-			value := cr.Boolean()
-			notNull := levels.D == cr.MaxD()
-			if notNull {
-				fmt.Print(value)
-			}
-			// TODO: consider customizing null value via command lines
-			if showLevels {
-				if notNull {
-					fmt.Printf(" ")
-				}
-				fmt.Printf("(D:%d; R:%d)", levels.D, levels.R)
-			}
-			fmt.Println()
+	newSchema.MarshalDL(os.Stdout)
 
-		}
-		if cr.Err() != nil {
-			return cr.Err()
+	for _, rg := range m.GetRowGroups() {
+
+		for c, chunk := range rg.Columns {
+
+			log.Println(chunk.MetaData.GetPathInSchema(), chunk.MetaData.GetType(), chunk.MetaData.GetNumValues())
+
+			scanner := parquet.NewColumnScanner(r, chunk, m.Schema[c+1])
+
+			for scanner.Scan() {
+
+			}
+
+			if err := scanner.Err(); err != nil {
+				fmt.Printf("%s: invalid input: %s\n", os.Args[0], err)
+			}
 		}
 	}
 
