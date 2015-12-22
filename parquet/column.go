@@ -111,7 +111,7 @@ func (s *ColumnScanner) nextPage() (err error) {
 
 	r = io.LimitReader(r, int64(header.CompressedPageSize))
 
-	log.Println(s.meta.GetPathInSchema(), "header: ", header)
+	log.Printf("%s %s %#v\n", s.meta.GetPathInSchema(), "header: ", header)
 
 	// handle compressed data
 	switch s.meta.Codec {
@@ -135,6 +135,8 @@ func (s *ColumnScanner) nextPage() (err error) {
 
 	switch header.Type {
 	case parquetformat.PageType_INDEX_PAGE:
+		panic("nyi")
+
 	case parquetformat.PageType_DICTIONARY_PAGE:
 		if !header.IsSetDictionaryPageHeader() {
 			panic("unexpected DictionaryPageHeader was not set")
@@ -142,6 +144,7 @@ func (s *ColumnScanner) nextPage() (err error) {
 
 		s.readDictionaryPage(header.DictionaryPageHeader, rb)
 	case parquetformat.PageType_DATA_PAGE_V2:
+		panic("nyi")
 
 	case parquetformat.PageType_DATA_PAGE:
 		if !header.IsSetDataPageHeader() {
@@ -153,8 +156,10 @@ func (s *ColumnScanner) nextPage() (err error) {
 		panic("parquet.ColumnScanner: unknown PageHeader.PageType")
 	}
 
-	if _, err = io.Copy(ioutil.Discard, rb); err != nil {
+	if n, err := io.Copy(ioutil.Discard, rb); err != nil {
 		return err
+	} else if n > 0 {
+		panic("not all the data was consumed.")
 	}
 
 	return nil
@@ -164,7 +169,7 @@ func (s *ColumnScanner) readDictionaryPage(header *parquetformat.DictionaryPageH
 	count := int(header.GetNumValues())
 	dictEnc := header.GetEncoding()
 
-	log.Println("\t: dictionary.page ", count, dictEnc)
+	log.Println(s.meta.PathInSchema, ": dictionary.page ", count, dictEnc)
 
 	switch dictEnc {
 	case parquetformat.Encoding_PLAIN_DICTIONARY:
@@ -198,11 +203,13 @@ func (s *ColumnScanner) readDictionaryPage(header *parquetformat.DictionaryPageH
 }
 
 func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.Reader) {
+	log.Printf("%s %v\n", s.meta.PathInSchema, header)
+
 	count := int(header.GetNumValues())
 
-	log.Println("\t", s.meta.PathInSchema, "data.page.header.num_values:", count)
+	log.Println(s.meta.PathInSchema, "data.page.header.num_values:", count)
 
-	// Only levels that are repeated need a Repetition level:
+	// only levels that are repeated need a Repetition level:
 	// optional or required fields are never repeated
 	// and can be skipped while attributing repetition levels.
 	if s.schema.GetRepetitionType() == parquetformat.FieldRepetitionType_REPEATED {
@@ -223,7 +230,7 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 		}
 	}
 
-	// A required field is always defined and does not need a definition level.
+	// a required field is always defined and does not need a definition level.
 	if s.schema.GetRepetitionType() != parquetformat.FieldRepetitionType_REQUIRED {
 		defEnc := header.GetDefinitionLevelEncoding()
 		switch defEnc {
@@ -276,12 +283,13 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 	case parquetformat.Encoding_RLE_DICTIONARY:
 		fallthrough
 	case parquetformat.Encoding_PLAIN_DICTIONARY:
-		log.Println("RLE/PLAIN DICTIONARY ")
 		var dummy int32
+		// FIXME there is 32bit lingering around, maybe is the repetition encoding?
 		err := binary.Read(rb, binary.LittleEndian, &dummy)
 		if err != nil {
 			panic(err)
 		}
+
 		log.Println("plain dictionary:", dummy)
 
 		b, err := rb.ReadByte()
@@ -289,10 +297,14 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 			panic(err)
 		}
 
-		log.Println("bit decoding: ", int(b))
+		dec := rle.NewHybridBitPackingRLEDecoder(rb, int(b))
 
-		if err := rle.NewHybridDecoder(rb, int(b)); err != nil {
-			log.Println("err ", err)
+		for dec.Scan() {
+			log.Println(dec.Value())
+		}
+
+		if err := dec.Err(); err != nil {
+			panic(fmt.Errorf("%s: plain_dictionary: %s", s.meta.GetPathInSchema(), err))
 		}
 
 	default:
