@@ -38,8 +38,8 @@ func NewPlainDecoder(r io.Reader, t parquetformat.Type, numValues int) *Decoder 
 	return &Decoder{r, t, numValues}
 }
 
-// DecodeInt
-func (d *Decoder) DecodeInt(out []int) (int, error) {
+// DecodeInt32
+func (d *Decoder) DecodeInt32(out []int32) (int, error) {
 	count := d.count
 
 	switch d.t {
@@ -54,11 +54,36 @@ func (d *Decoder) DecodeInt(out []int) (int, error) {
 				panic(fmt.Sprintf("expected %d int32 but got only %d: %s", count, i, err)) // FIXME
 			}
 
-			log.Println("plain:int32:", value)
-			out = append(out, int(value))
+			out = append(out, value)
 		}
 	default:
-		log.Println("unsupported string format: ", d.t, " for type int")
+		log.Println("unsupported string format: ", d.t, " for type int32")
+	}
+
+	return count, nil
+}
+
+// DecodeInt64
+func (d *Decoder) DecodeInt64(out []int64) (int, error) {
+	count := d.count
+
+	switch d.t {
+
+	case parquetformat.Type_INT64:
+		var err error = nil
+
+		for i := 0; i < count; i++ {
+			var value int64 = 0
+			err = binary.Read(d.r, binary.LittleEndian, &value)
+			if err != nil {
+				panic(fmt.Sprintf("expected %d int64 but got only %d: %s", count, i, err)) // FIXME
+			}
+
+			out = append(out, value)
+		}
+
+	default:
+		log.Println("unsupported string format: ", d.t, " for type int64")
 	}
 
 	return count, nil

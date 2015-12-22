@@ -177,9 +177,15 @@ func (s *ColumnScanner) readDictionaryPage(header *parquetformat.DictionaryPageH
 		d := encoding.NewPlainDecoder(rb, s.meta.GetType(), int(header.GetNumValues()))
 
 		switch s.meta.GetType() {
-		case parquetformat.Type_INT32, parquetformat.Type_INT64:
-			out := make([]int, 0, count)
-			read, err := d.DecodeInt(out)
+		case parquetformat.Type_INT32:
+			out := make([]int32, 0, count)
+			read, err := d.DecodeInt32(out)
+			if err != nil || read != count {
+				panic("unexpected")
+			}
+		case parquetformat.Type_INT64:
+			out := make([]int64, 0, count)
+			read, err := d.DecodeInt64(out)
 			if err != nil || read != count {
 				panic("unexpected")
 			}
@@ -250,6 +256,13 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 		}
 	}
 
+	// FIXME there is something at the beginning of the data page. 4 bytes.. ?
+	var dummy int32
+	err := binary.Read(rb, binary.LittleEndian, &dummy)
+	if err != nil {
+		panic(err)
+	}
+
 	switch header.Encoding {
 	case parquetformat.Encoding_BIT_PACKED:
 	case parquetformat.Encoding_DELTA_BINARY_PACKED:
@@ -258,16 +271,22 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 	case parquetformat.Encoding_PLAIN:
 		d := encoding.NewPlainDecoder(rb, s.meta.GetType(), int(header.NumValues))
 		switch s.meta.GetType() {
-		case parquetformat.Type_INT32, parquetformat.Type_INT64:
-			out := make([]int, 0, count)
-			// FIXME there is something at the beginning of the data page. 4 bytes.. ?
-			var dummy int32
-			err := binary.Read(rb, binary.LittleEndian, &dummy)
 
-			read, err := d.DecodeInt(out)
+		case parquetformat.Type_INT32:
+			out := make([]int32, 0, count)
+			read, err := d.DecodeInt32(out)
 			if err != nil || read != count {
 				panic("unexpected")
 			}
+
+		case parquetformat.Type_INT64:
+			out := make([]int64, 0, count)
+
+			read, err := d.DecodeInt64(out)
+			if err != nil || read != count {
+				panic("unexpected")
+			}
+
 		case parquetformat.Type_BYTE_ARRAY, parquetformat.Type_FIXED_LEN_BYTE_ARRAY:
 			s.dictionaryLUT = make([]string, 0, count)
 			read, err := d.DecodeStr(s.dictionaryLUT)
@@ -283,13 +302,6 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 	case parquetformat.Encoding_RLE_DICTIONARY:
 		fallthrough
 	case parquetformat.Encoding_PLAIN_DICTIONARY:
-		var dummy int32
-		// FIXME there is 32bit lingering around, maybe is the repetition encoding?
-		err := binary.Read(rb, binary.LittleEndian, &dummy)
-		if err != nil {
-			panic(err)
-		}
-
 		log.Println("plain dictionary:", dummy)
 
 		b, err := rb.ReadByte()
