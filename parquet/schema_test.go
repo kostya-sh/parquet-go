@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"testing"
 
-	"git.apache.org/thrift.git/lib/go/thrift"
 	pf "github.com/kostya-sh/parquet-go/parquetformat"
 )
 
-func createFileMetaData(schema ...*pf.SchemaElement) pf.FileMetaData {
-	meta := pf.FileMetaData{}
-	meta.Schema = schema
-	return meta
+func int32Ptr(v int32) *int32 {
+	return &v
+}
+
+func createFileMetaData(schema ...*pf.SchemaElement) *pf.FileMetaData {
+	return &pf.FileMetaData{Schema: schema}
 }
 
 var typeBoolean *pf.Type = pf.TypePtr(pf.Type_BOOLEAN)
@@ -33,7 +34,7 @@ var ctMapKeyValue *pf.ConvertedType = pf.ConvertedTypePtr(pf.ConvertedType_MAP_K
 var ctList *pf.ConvertedType = pf.ConvertedTypePtr(pf.ConvertedType_LIST)
 
 func TestCreateInvalidSchemas(t *testing.T) {
-	invalidFileMetaDatas := []pf.FileMetaData{
+	invalidFileMetaDatas := []*pf.FileMetaData{
 		// empty schema array
 		createFileMetaData(),
 
@@ -44,51 +45,51 @@ func TestCreateInvalidSchemas(t *testing.T) {
 
 		// negative NumChildren
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(-1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(-1)},
 		),
 
 		// invalid NumChildren (more then SchemaElement elements)
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(3)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(3)},
 		),
 
 		// no repetition_type for a leaf
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeBoolean, Name: "f1"},
 		),
 
 		// NumChildren is too small
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test1", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test1", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1"},
 			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f2"},
 		),
 
 		// no TypeLength for fixed_len_byte_array
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test1", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test1", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeFixedLenByteArray, RepetitionType: frtRequired, Name: "f1"},
 		),
 
 		// int32 with converted_type = UTF8
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeInt32, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctUTF8},
 		),
 		// boolean with converted_type = MAP
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctMap},
 		),
 		// boolean with converted_type = LIST
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctList},
 		),
 		// boolean with converted_type = MAP_KEY_VALUE
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: thrift.Int32Ptr(1)},
+			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
 			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctMapKeyValue},
 		),
 	}
@@ -107,7 +108,7 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 	meta := createFileMetaData(
 		&pf.SchemaElement{
 			Name:        "test.Message",
-			NumChildren: thrift.Int32Ptr(10),
+			NumChildren: int32Ptr(10),
 		},
 		&pf.SchemaElement{
 			Type:           typeBoolean,
@@ -146,7 +147,7 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 		},
 		&pf.SchemaElement{
 			Type:           typeFixedLenByteArray,
-			TypeLength:     thrift.Int32Ptr(10),
+			TypeLength:     int32Ptr(10),
 			RepetitionType: frtOptional,
 			Name:           "OptionalFixedLenByteArray",
 		},
@@ -159,7 +160,7 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 		&pf.SchemaElement{
 			RepetitionType: frtRequired,
 			Name:           "RequiredGroup",
-			NumChildren:    thrift.Int32Ptr(1),
+			NumChildren:    int32Ptr(1),
 		},
 		&pf.SchemaElement{
 			Type:           typeInt32,
@@ -200,88 +201,115 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 	}
 }
 
-func TestMaxLevelsOfDremelPaperSchema(t *testing.T) {
-	meta := createFileMetaData(
-		&pf.SchemaElement{
-			Name:        "Document",
-			NumChildren: thrift.Int32Ptr(3),
-		},
-		&pf.SchemaElement{
-			Name:           "DocId",
-			Type:           typeInt64,
-			RepetitionType: frtRequired,
-		},
-		&pf.SchemaElement{
-			Name:           "Links",
-			RepetitionType: frtOptional,
-			NumChildren:    thrift.Int32Ptr(2),
-		},
-		&pf.SchemaElement{
-			Name:           "Backward",
-			Type:           typeInt64,
-			RepetitionType: frtRepeated,
-		},
-		&pf.SchemaElement{
-			Name:           "Forward",
-			Type:           typeInt64,
-			RepetitionType: frtRepeated,
-		},
-		&pf.SchemaElement{
-			Name:           "Name",
-			RepetitionType: frtRepeated,
-			NumChildren:    thrift.Int32Ptr(2),
-		},
-		&pf.SchemaElement{
-			Name:           "Language",
-			RepetitionType: frtRepeated,
-			NumChildren:    thrift.Int32Ptr(2),
-		},
-		&pf.SchemaElement{
-			Name:           "Code",
-			Type:           typeByteArray,
-			RepetitionType: frtRequired,
-		},
-		&pf.SchemaElement{
-			Name:           "Country",
-			Type:           typeByteArray,
-			RepetitionType: frtOptional,
-		},
-		&pf.SchemaElement{
-			Name:           "Url",
-			Type:           typeByteArray,
-			RepetitionType: frtOptional,
-		},
-	)
+var dremelPaperExampleMeta = createFileMetaData(
+	&pf.SchemaElement{
+		Name:        "Document",
+		NumChildren: int32Ptr(3),
+	},
+	&pf.SchemaElement{
+		Name:           "DocId",
+		Type:           typeInt64,
+		RepetitionType: frtRequired,
+	},
+	&pf.SchemaElement{
+		Name:           "Links",
+		RepetitionType: frtOptional,
+		NumChildren:    int32Ptr(2),
+	},
+	&pf.SchemaElement{
+		Name:           "Backward",
+		Type:           typeInt64,
+		RepetitionType: frtRepeated,
+	},
+	&pf.SchemaElement{
+		Name:           "Forward",
+		Type:           typeInt64,
+		RepetitionType: frtRepeated,
+	},
+	&pf.SchemaElement{
+		Name:           "Name",
+		RepetitionType: frtRepeated,
+		NumChildren:    int32Ptr(2),
+	},
+	&pf.SchemaElement{
+		Name:           "Language",
+		RepetitionType: frtRepeated,
+		NumChildren:    int32Ptr(2),
+	},
+	&pf.SchemaElement{
+		Name:           "Code",
+		Type:           typeByteArray,
+		RepetitionType: frtRequired,
+	},
+	&pf.SchemaElement{
+		Name:           "Country",
+		Type:           typeByteArray,
+		RepetitionType: frtOptional,
+	},
+	&pf.SchemaElement{
+		Name:           "Url",
+		Type:           typeByteArray,
+		RepetitionType: frtOptional,
+	},
+)
 
-	s, err := SchemaFromFileMetaData(meta)
+func TestMaxLevelsOfDremelPaperSchema(t *testing.T) {
+	s, err := SchemaFromFileMetaData(dremelPaperExampleMeta)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
 
-	checkMaxLevels := func(path []string, wantD int, wantR int) {
-		d, r := s.maxLevels(path)
-		if d != wantD || r != wantR {
-			t.Errorf("Wrong max levels for %v: got (D:%d, R:%d), want (D:%d, R:%d)", path, d, r, wantD, wantR)
+	checkMaxLevels := func(path []string, expected *Levels) {
+		levels := s.maxLevels(path)
+		if expected == nil && levels != nil {
+			t.Errorf("expected nil, got %v", *levels)
+			return
+		}
+		if levels != nil && *levels != *expected {
+			t.Errorf("wrong max levels for %v: got %+v, want %+v", path, *levels, *expected)
 		}
 	}
 
 	// required non-nested field
-	checkMaxLevels([]string{"DocId"}, 0, 0)
+	checkMaxLevels([]string{"DocId"}, &Levels{0, 0})
 
 	// optional/repeated
-	checkMaxLevels([]string{"Links", "Forward"}, 2, 1)
-	checkMaxLevels([]string{"Links", "Backward"}, 2, 1)
+	checkMaxLevels([]string{"Links", "Forward"}, &Levels{D: 2, R: 1})
+	checkMaxLevels([]string{"Links", "Backward"}, &Levels{D: 2, R: 1})
 
 	// repeated/repeated/required
-	checkMaxLevels([]string{"Name", "Language", "Code"}, 2, 2)
+	checkMaxLevels([]string{"Name", "Language", "Code"}, &Levels{D: 2, R: 2})
 
 	// repeated/repeated/optional
-	checkMaxLevels([]string{"Name", "Language", "Country"}, 3, 2)
+	checkMaxLevels([]string{"Name", "Language", "Country"}, &Levels{D: 3, R: 2})
 
 	// repeated/optional
-	checkMaxLevels([]string{"Name", "Url"}, 2, 1)
+	checkMaxLevels([]string{"Name", "Url"}, &Levels{D: 2, R: 1})
 
 	// not a field
-	checkMaxLevels([]string{"Links"}, -1, -1)
-	checkMaxLevels([]string{"Name", "UnknownField"}, -1, -1)
+	checkMaxLevels([]string{"Links"}, nil)
+	checkMaxLevels([]string{"Name", "UnknownField"}, nil)
+}
+
+func TestSchemaElementByPath(t *testing.T) {
+	s, err := SchemaFromFileMetaData(dremelPaperExampleMeta)
+	if err != nil {
+		t.Fatalf("Unexpcted error: %s", err)
+	}
+
+	if g, e := s.element([]string{"DocId"}), dremelPaperExampleMeta.Schema[1]; g != e {
+		t.Errorf("SchemaElement(DocId) = %v, expected %v", g, e)
+	}
+
+	if g, e := s.element([]string{"Links", "Forward"}), dremelPaperExampleMeta.Schema[4]; g != e {
+		t.Errorf("SchemaElement(Links, Forward) = %v, expected %v", g, e)
+	}
+
+	if g, e := s.element([]string{"Name", "Url"}), dremelPaperExampleMeta.Schema[9]; g != e {
+		t.Errorf("SchemaElement(Name, Url) = %v, expected %v", g, e)
+	}
+
+	if g := s.element([]string{"UnknownField"}); g != nil {
+		t.Errorf("SchemaElement(UnknownField) = %v, expected nil", g)
+	}
 }

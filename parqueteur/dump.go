@@ -15,12 +15,14 @@ var cmdDump = &Command{
 
 // TODO: support various formats, e.g. CSV, fixed width, pretty print, JSON, etc
 var dumpColumn string
+var showLevels bool
 
 func init() {
 	cmdDump.Run = runDump
 
 	// TODO: better usage message
 	cmdDump.Flag.StringVar(&dumpColumn, "c", "", "dump content of the named `column`")
+	cmdDump.Flag.BoolVar(&showLevels, "levels", false, "dump repetition and definition levels along with the column values")
 }
 
 // read The file metadata
@@ -43,7 +45,7 @@ func runDump(cmd *Command, args []string) error {
 	}
 
 	// dump columns names
-	newSchema, err := parquet.SchemaFromFileMetaData(*m)
+	newSchema, err := parquet.SchemaFromFileMetaData(m)
 	if err != nil {
 		return err
 	}

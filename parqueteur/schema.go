@@ -32,7 +32,7 @@ func runSchema(cmd *Command, args []string) error {
 		return err
 	}
 
-	schema, err := parquet.SchemaFromFileMetaData(*meta)
+	schema, err := parquet.SchemaFromFileMetaData(meta)
 	if err != nil {
 		return err
 	}
