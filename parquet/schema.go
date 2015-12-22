@@ -1,7 +1,7 @@
 package parquet
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
@@ -9,37 +9,91 @@ import (
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
+// Levels struct combines definition level (D) and repetion level (R).
 type Levels struct {
 	// TODO: maybe use smaller type such as int8?
 	D int
 	R int
 }
 
-// Parquet Schema
-type Schema interface {
-	// MarshalDL writes schema to a given io.Writer using textual format similar
-	// to that described in the Dremel paper and used by parquet-mr project.
-	MarshalDL(w io.Writer) error
+// Schema describes structure of the data that is stored in a parquet file.
+//
+// A Schema can be created from a parquetformat.FileMetaData. Information that
+// is stored in RowGroups part of FileMetaData is not needed for the schema
+// creation.
+// TODO(ksh): provide a way to read FileMetaData without RowGroups.
+//
+// Usually FileMetaData should be read from the same file as data. When data is
+// split into multiple parquet files metadata can be stored in a separate
+// file. Usually this file is called "_common_metadata".
+type Schema struct {
+	root    group
+	columns map[string]ColumnSchema
+}
 
-	// maxLevels returns maximum definition and repetition levels for a given
-	// column path
-	maxLevels(path []string) *Levels
+// ColumnSchema contains information about a single column in a parquet file.
+// TODO(ksh): or maybe interface?
+type ColumnSchema struct {
+	// MaxLevels contains maximum definition and repetition levels for this column
+	MaxLevels Levels
 
-	// TODO: better name (schemaElement?)
-	element(path []string) *parquetformat.SchemaElement
+	SchemaElement *parquetformat.SchemaElement
+}
+
+// SchemaFromFileMetaData creates a Schema from meta.
+func SchemaFromFileMetaData(meta *parquetformat.FileMetaData) (*Schema, error) {
+	s := Schema{}
+	end, err := s.root.create(meta.Schema, 0)
+	if err != nil {
+		return nil, err
+	}
+	if end != len(meta.Schema) {
+		return nil, fmt.Errorf("too many SchemaElements, only %d out of %d have been used",
+			end, len(meta.Schema))
+	}
+
+	maxLevels := s.root.calcMaxLevels()
+	schemaElements := s.root.makeSchemaElements()
+	s.columns = make(map[string]ColumnSchema)
+	for name, lvls := range maxLevels {
+		se, ok := schemaElements[name]
+		if !ok {
+			panic("should not happen")
+		}
+		s.columns[name] = ColumnSchema{MaxLevels: lvls, SchemaElement: se}
+	}
+
+	return &s, nil
+}
+
+// ColumnByName returns a ColumnSchema with the given name (individual elements
+// are separated with ".") or nil if such column does not exist in s.
+func (s *Schema) ColumnByName(name string) *ColumnSchema {
+	cs, ok := s.columns[name]
+	if !ok {
+		return nil
+	}
+	return &cs
+}
+
+// ColumnByPath returns a ColumnSchema for the given path or or nil if such
+// column does not exist in s.
+func (s *Schema) ColumnByPath(path []string) *ColumnSchema {
+	return s.ColumnByName(strings.Join(path, "."))
+}
+
+// DisplayString returns a string representation of s using textual format
+// similar to that described in the Dremel paper and used by parquet-mr project.
+func (s *Schema) DisplayString() string {
+	b := new(bytes.Buffer)
+	s.writeTo(b, "")
+	return b.String()
 }
 
 type schemaElement interface {
 	create(schema []*parquetformat.SchemaElement, start int) (next int, err error)
 
-	marshalDL(w io.Writer, indent string)
-}
-
-// root of the schema
-type message struct {
-	group
-	maxLevelsByPath      map[string]Levels
-	schemaElementsByPath map[string]*parquetformat.SchemaElement
+	writeTo(w io.Writer, indent string)
 }
 
 // group of fields
@@ -111,13 +165,16 @@ func (g *group) create(schema []*parquetformat.SchemaElement, start int) (int, e
 func (g *group) marshalChildren(w io.Writer, indent string) {
 	fmt.Fprintln(w, " {")
 	for _, child := range g.children {
-		child.marshalDL(w, indent+"  ")
+		child.writeTo(w, indent+"  ")
 	}
 	fmt.Fprint(w, indent)
-	fmt.Fprintln(w, "}")
+	fmt.Fprint(w, "}")
+	if indent != "" {
+		fmt.Fprintln(w)
+	}
 }
 
-func (g *group) marshalDL(w io.Writer, indent string) {
+func (g *group) writeTo(w io.Writer, indent string) {
 	var s = g.schemaElement
 
 	fmt.Fprint(w, indent)
@@ -166,7 +223,7 @@ func (g *group) calcMaxLevels() map[string]Levels {
 	return lvls
 }
 
-func (g *group) makeSchemaElementsByPath() map[string]*parquetformat.SchemaElement {
+func (g *group) makeSchemaElements() map[string]*parquetformat.SchemaElement {
 	m := make(map[string]*parquetformat.SchemaElement)
 	for _, child := range g.children {
 		switch c := child.(type) {
@@ -175,7 +232,7 @@ func (g *group) makeSchemaElementsByPath() map[string]*parquetformat.SchemaEleme
 			m[s.Name] = s
 		case *group:
 			s := c.schemaElement
-			for k, v := range c.makeSchemaElementsByPath() {
+			for k, v := range c.makeSchemaElements() {
 				m[s.Name+"."+k] = v
 			}
 		default:
@@ -185,19 +242,19 @@ func (g *group) makeSchemaElementsByPath() map[string]*parquetformat.SchemaEleme
 	return m
 }
 
-func (m *message) marshalDL(w io.Writer, indent string) {
-	var s = m.schemaElement
+func (s *Schema) writeTo(w io.Writer, indent string) {
+	var se = s.root.schemaElement
 
 	fmt.Fprint(w, indent)
 	fmt.Fprintf(w, "message")
-	if s.Name != "" {
-		fmt.Fprintf(w, " %s", s.Name)
+	if se.Name != "" {
+		fmt.Fprintf(w, " %s", se.Name)
 	}
-	if s.ConvertedType != nil {
-		fmt.Fprintf(w, " (%s)", s.ConvertedType)
+	if se.ConvertedType != nil {
+		fmt.Fprintf(w, " (%s)", se.ConvertedType)
 	}
 
-	m.group.marshalChildren(w, indent)
+	s.root.marshalChildren(w, indent)
 }
 
 func (p *primitive) create(schema []*parquetformat.SchemaElement, start int) (int, error) {
@@ -242,7 +299,7 @@ func (p *primitive) create(schema []*parquetformat.SchemaElement, start int) (in
 	return start + 1, nil
 }
 
-func (p *primitive) marshalDL(w io.Writer, indent string) {
+func (p *primitive) writeTo(w io.Writer, indent string) {
 	s := p.schemaElement
 
 	fmt.Fprint(w, indent)
@@ -267,38 +324,4 @@ func (p *primitive) marshalDL(w io.Writer, indent string) {
 	}
 
 	fmt.Fprintln(w, ";")
-}
-
-func (m *message) MarshalDL(w io.Writer) error {
-	b := bufio.NewWriter(w)
-	m.marshalDL(w, "")
-	return b.Flush()
-}
-
-func (m *message) maxLevels(path []string) *Levels {
-	lvls, ok := m.maxLevelsByPath[strings.Join(path, ".")]
-	if !ok {
-		return nil
-	}
-	return &lvls
-}
-
-func (m *message) element(path []string) *parquetformat.SchemaElement {
-	return m.schemaElementsByPath[strings.Join(path, ".")]
-}
-
-func SchemaFromFileMetaData(meta *parquetformat.FileMetaData) (Schema, error) {
-	m := message{}
-	end, err := m.group.create(meta.Schema, 0)
-	if err != nil {
-		return nil, err
-	}
-	if end != len(meta.Schema) {
-		return nil, fmt.Errorf("Only %d SchemaElement(s) out of %d have been used",
-			end, len(meta.Schema))
-	}
-	m.maxLevelsByPath = m.group.calcMaxLevels()
-	m.schemaElementsByPath = m.group.makeSchemaElementsByPath()
-
-	return &m, nil
 }

@@ -65,7 +65,7 @@ type ByteArrayColumnChunkReader struct {
 	rDecoder *rle32Decoder
 }
 
-func NewByteArrayColumnChunkReader(r io.ReadSeeker, schema Schema, chunk *parquetformat.ColumnChunk) (*ByteArrayColumnChunkReader, error) {
+func NewByteArrayColumnChunkReader(r io.ReadSeeker, schema *Schema, chunk *parquetformat.ColumnChunk) (*ByteArrayColumnChunkReader, error) {
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("data in another file: '%s'", *chunk.FilePath)
 	}
@@ -81,7 +81,11 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, schema Schema, chunk *parque
 		return nil, fmt.Errorf("wrong type, expected BYTE_ARRAY was %s", meta.Type)
 	}
 
-	schemaElement := schema.element(meta.PathInSchema)
+	col := schema.ColumnByPath(meta.PathInSchema)
+	if col == nil {
+		return nil, fmt.Errorf("no column %v in schema", meta.PathInSchema)
+	}
+	schemaElement := col.SchemaElement
 	if schemaElement.RepetitionType == nil {
 		return nil, fmt.Errorf("nil RepetitionType (root SchemaElement?)")
 	}
@@ -97,14 +101,9 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, schema Schema, chunk *parque
 		r:              &countingReader{rs: r},
 		totalSize:      meta.TotalCompressedSize,
 		dataPageOffset: meta.DataPageOffset,
+		maxLevels:      col.MaxLevels,
 		decoder:        newByteArrayPlainDecoder(),
 	}
-
-	var ml *Levels
-	if ml = schema.maxLevels(meta.PathInSchema); ml == nil {
-		return nil, fmt.Errorf("no column %v in schema", meta.PathInSchema)
-	}
-	cr.maxLevels = *ml
 
 	if *schemaElement.RepetitionType == parquetformat.FieldRepetitionType_REQUIRED {
 		// TODO: also check that len(Path) = maxD
