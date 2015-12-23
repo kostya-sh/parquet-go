@@ -239,6 +239,8 @@ func (cr *ByteArrayColumnChunkReader) Next() bool {
 		if cr.err != nil {
 			return false
 		}
+	} else {
+		cr.curValue = nil // just to be deterministic
 	}
 
 	cr.valuesRead++

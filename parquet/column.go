@@ -229,6 +229,8 @@ func (cr *BooleanColumnChunkReader) Next() bool {
 		if cr.err != nil {
 			return false
 		}
+	} else {
+		cr.curValue = false // just to be deterministic
 	}
 
 	cr.valuesRead++
