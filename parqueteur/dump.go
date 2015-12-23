@@ -45,8 +45,12 @@ func runDump(cmd *Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	cs := schema.ColumnByName(dumpColumn)
+	if cs == nil {
+		return fmt.Errorf("no column named '%s' in schema", dumpColumn)
+	}
 
-	for _, rg := range m.RowGroups {
+	for i, rg := range m.RowGroups {
 		var cc *parquetformat.ColumnChunk
 		for _, c := range rg.Columns {
 			if strings.Join(c.MetaData.PathInSchema, ".") == dumpColumn {
@@ -54,16 +58,16 @@ func runDump(cmd *Command, args []string) error {
 			}
 		}
 		if cc == nil {
-			return fmt.Errorf("no column named '%s'", dumpColumn)
+			return fmt.Errorf("no column named '%s' in rowgroup %d", dumpColumn, i)
 		}
-		cr, err := parquet.NewBooleanColumnChunkReader(r, schema, cc)
+		cr, err := parquet.NewBooleanColumnChunkReader(r, cs, cc)
 		if err != nil {
 			return err
 		}
 		for cr.Next() {
 			levels := cr.Levels()
 			value := cr.Boolean()
-			notNull := levels.D == cr.MaxD()
+			notNull := levels.D == cs.MaxLevels.D
 			if notNull {
 				fmt.Print(value)
 			}

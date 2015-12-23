@@ -65,7 +65,7 @@ type ByteArrayColumnChunkReader struct {
 	rDecoder *rle32Decoder
 }
 
-func NewByteArrayColumnChunkReader(r io.ReadSeeker, schema *Schema, chunk *parquetformat.ColumnChunk) (*ByteArrayColumnChunkReader, error) {
+func NewByteArrayColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *parquetformat.ColumnChunk) (*ByteArrayColumnChunkReader, error) {
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("data in another file: '%s'", *chunk.FilePath)
 	}
@@ -81,11 +81,7 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, schema *Schema, chunk *parqu
 		return nil, fmt.Errorf("wrong type, expected BYTE_ARRAY was %s", meta.Type)
 	}
 
-	col := schema.ColumnByPath(meta.PathInSchema)
-	if col == nil {
-		return nil, fmt.Errorf("no column %v in schema", meta.PathInSchema)
-	}
-	schemaElement := col.SchemaElement
+	schemaElement := cs.SchemaElement
 	if schemaElement.RepetitionType == nil {
 		return nil, fmt.Errorf("nil RepetitionType (root SchemaElement?)")
 	}
@@ -101,7 +97,7 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, schema *Schema, chunk *parqu
 		r:              &countingReader{rs: r},
 		totalSize:      meta.TotalCompressedSize,
 		dataPageOffset: meta.DataPageOffset,
-		maxLevels:      col.MaxLevels,
+		maxLevels:      cs.MaxLevels,
 		decoder:        newByteArrayPlainDecoder(),
 	}
 
@@ -291,11 +287,4 @@ func (cr *ByteArrayColumnChunkReader) Value() interface{} {
 // Err returns the first non-EOF error that was encountered by the reader.
 func (cr *ByteArrayColumnChunkReader) Err() error {
 	return cr.err
-}
-
-// MaxD returns the maximum definition level of the given column being read by
-// ByteArrayColumnChunkReader.
-// TODO: this should be in the schema
-func (cr *ByteArrayColumnChunkReader) MaxD() int {
-	return cr.maxLevels.D
 }

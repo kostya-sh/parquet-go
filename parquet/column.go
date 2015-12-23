@@ -55,7 +55,7 @@ type BooleanColumnChunkReader struct {
 	rDecoder *rle32Decoder
 }
 
-func NewBooleanColumnChunkReader(r io.ReadSeeker, schema *Schema, chunk *parquetformat.ColumnChunk) (*BooleanColumnChunkReader, error) {
+func NewBooleanColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *parquetformat.ColumnChunk) (*BooleanColumnChunkReader, error) {
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("data in another file: '%s'", *chunk.FilePath)
 	}
@@ -71,11 +71,7 @@ func NewBooleanColumnChunkReader(r io.ReadSeeker, schema *Schema, chunk *parquet
 		return nil, fmt.Errorf("wrong type, expected BOOLEAN was %s", meta.Type)
 	}
 
-	col := schema.ColumnByPath(meta.PathInSchema)
-	if col == nil {
-		return nil, fmt.Errorf("no column %v in schema", meta.PathInSchema)
-	}
-	schemaElement := col.SchemaElement
+	schemaElement := cs.SchemaElement
 	if schemaElement.RepetitionType == nil {
 		return nil, fmt.Errorf("nil RepetitionType (root SchemaElement?)")
 	}
@@ -91,7 +87,7 @@ func NewBooleanColumnChunkReader(r io.ReadSeeker, schema *Schema, chunk *parquet
 		r:              &countingReader{rs: r},
 		totalSize:      meta.TotalCompressedSize,
 		dataPageOffset: meta.DataPageOffset,
-		maxLevels:      col.MaxLevels,
+		maxLevels:      cs.MaxLevels,
 		decoder:        newBooleanPlainDecoder(),
 	}
 
@@ -281,11 +277,4 @@ func (cr *BooleanColumnChunkReader) Value() interface{} {
 // Err returns the first non-EOF error that was encountered by the reader.
 func (cr *BooleanColumnChunkReader) Err() error {
 	return cr.err
-}
-
-// MaxD returns the maximum definition level of the given column being read by
-// BooleanColumnChunkReader.
-// TODO: this should be in the schema
-func (cr *BooleanColumnChunkReader) MaxD() int {
-	return cr.maxLevels.D
 }

@@ -28,7 +28,8 @@ func TestBooleanColumnReader(t *testing.T) {
 	c := 2
 	for _, rg := range m.RowGroups {
 		cc := rg.Columns[c]
-		cr, err := NewBooleanColumnChunkReader(r, schema, cc)
+		cs := schema.ColumnByPath(cc.MetaData.PathInSchema)
+		cr, err := NewBooleanColumnChunkReader(r, cs, cc)
 		if err != nil {
 			t.Fatalf("%s", err)
 		}
@@ -63,7 +64,8 @@ func TestByteArrayColumnReader(t *testing.T) {
 	c := 2
 	for _, rg := range m.RowGroups {
 		cc := rg.Columns[c]
-		cr, err := NewByteArrayColumnChunkReader(r, schema, cc)
+		cs := schema.ColumnByPath(cc.MetaData.PathInSchema)
+		cr, err := NewByteArrayColumnChunkReader(r, cs, cc)
 		if err != nil {
 			t.Fatalf("%s", err)
 		}
