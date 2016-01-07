@@ -1,7 +1,7 @@
 package parquet
 
 import (
-	"bytes"
+	"strings"
 	"testing"
 
 	pf "github.com/kostya-sh/parquet-go/parquetformat"
@@ -15,23 +15,23 @@ func createFileMetaData(schema ...*pf.SchemaElement) *pf.FileMetaData {
 	return &pf.FileMetaData{Schema: schema}
 }
 
-var typeBoolean *pf.Type = pf.TypePtr(pf.Type_BOOLEAN)
-var typeInt32 *pf.Type = pf.TypePtr(pf.Type_INT32)
-var typeInt64 *pf.Type = pf.TypePtr(pf.Type_INT64)
-var typeInt96 *pf.Type = pf.TypePtr(pf.Type_INT96)
-var typeFloat *pf.Type = pf.TypePtr(pf.Type_FLOAT)
-var typeDouble *pf.Type = pf.TypePtr(pf.Type_DOUBLE)
-var typeByteArray *pf.Type = pf.TypePtr(pf.Type_BYTE_ARRAY)
-var typeFixedLenByteArray *pf.Type = pf.TypePtr(pf.Type_FIXED_LEN_BYTE_ARRAY)
+var typeBoolean = pf.TypePtr(pf.Type_BOOLEAN)
+var typeInt32 = pf.TypePtr(pf.Type_INT32)
+var typeInt64 = pf.TypePtr(pf.Type_INT64)
+var typeInt96 = pf.TypePtr(pf.Type_INT96)
+var typeFloat = pf.TypePtr(pf.Type_FLOAT)
+var typeDouble = pf.TypePtr(pf.Type_DOUBLE)
+var typeByteArray = pf.TypePtr(pf.Type_BYTE_ARRAY)
+var typeFixedLenByteArray = pf.TypePtr(pf.Type_FIXED_LEN_BYTE_ARRAY)
 
-var frtOptional *pf.FieldRepetitionType = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_OPTIONAL)
-var frtRequired *pf.FieldRepetitionType = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_REQUIRED)
-var frtRepeated *pf.FieldRepetitionType = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_REPEATED)
+var frtOptional = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_OPTIONAL)
+var frtRequired = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_REQUIRED)
+var frtRepeated = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_REPEATED)
 
-var ctUTF8 *pf.ConvertedType = pf.ConvertedTypePtr(pf.ConvertedType_UTF8)
-var ctMap *pf.ConvertedType = pf.ConvertedTypePtr(pf.ConvertedType_MAP)
-var ctMapKeyValue *pf.ConvertedType = pf.ConvertedTypePtr(pf.ConvertedType_MAP_KEY_VALUE)
-var ctList *pf.ConvertedType = pf.ConvertedTypePtr(pf.ConvertedType_LIST)
+var ctUTF8 = pf.ConvertedTypePtr(pf.ConvertedType_UTF8)
+var ctMap = pf.ConvertedTypePtr(pf.ConvertedType_MAP)
+var ctMapKeyValue = pf.ConvertedTypePtr(pf.ConvertedType_MAP_KEY_VALUE)
+var ctList = pf.ConvertedTypePtr(pf.ConvertedType_LIST)
 
 func TestCreateInvalidSchemas(t *testing.T) {
 	invalidFileMetaDatas := []*pf.FileMetaData{
@@ -104,8 +104,16 @@ func TestCreateInvalidSchemas(t *testing.T) {
 	}
 }
 
+func mustCreateSchema(meta *pf.FileMetaData) *Schema {
+	s, err := SchemaFromFileMetaData(meta)
+	if err != nil {
+		panic(err)
+	}
+	return s
+}
+
 func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
-	meta := createFileMetaData(
+	s := mustCreateSchema(createFileMetaData(
 		&pf.SchemaElement{
 			Name:        "test.Message",
 			NumChildren: int32Ptr(10),
@@ -167,7 +175,7 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 			RepetitionType: frtOptional,
 			Name:           "OptionalInt32",
 		},
-	)
+	))
 
 	want := `message test.Message {
   required boolean RequiredBoolean;
@@ -182,22 +190,10 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
   required group RequiredGroup {
     optional int32 OptionalInt32;
   }
-}
-`
+}`
 
-	s, err := SchemaFromFileMetaData(meta)
-	if err != nil {
-		t.Fatalf("Unexpcted error: %s", err)
-	}
-
-	buf := new(bytes.Buffer)
-	err = s.MarshalDL(buf)
-	if err != nil {
-		t.Fatalf("Unexpcted error: %s", err)
-	}
-	got := buf.String()
-	if got != want {
-		t.Errorf("MarshalDL. got: \n%s\nwant:\n%s", got, want)
+	if got := s.DisplayString(); got != want {
+		t.Errorf("DisplayString: got \n%s\nwant\n%s", got, want)
 	}
 }
 
@@ -253,63 +249,89 @@ var dremelPaperExampleMeta = createFileMetaData(
 	},
 )
 
-func TestMaxLevelsOfDremelPaperSchema(t *testing.T) {
-	s, err := SchemaFromFileMetaData(dremelPaperExampleMeta)
-	if err != nil {
-		t.Fatalf("Unexpected error: %s", err)
+func TestSchemaColumns(t *testing.T) {
+	s := mustCreateSchema(dremelPaperExampleMeta)
+
+	eq := func(a *ColumnSchema, b *ColumnSchema) bool {
+		if a == nil && b == nil {
+			return true
+		}
+		if a == nil || b == nil {
+			return false
+		}
+		return *a == *b
 	}
 
-	checkMaxLevels := func(path []string, expected *Levels) {
-		levels := s.maxLevels(path)
-		if expected == nil && levels != nil {
-			t.Errorf("expected nil, got %v", *levels)
-			return
+	check := func(path []string, expected *ColumnSchema) {
+		name := strings.Join(path, ".")
+		cs := s.ColumnByPath(path)
+		cs2 := s.ColumnByName(name)
+		if !eq(cs, cs2) {
+			t.Errorf("ColumnByPath(%v) = %+v is not the same as ColumnByName(%s) = %+v", path, cs, name, cs2)
 		}
-		if levels != nil && *levels != *expected {
-			t.Errorf("wrong max levels for %v: got %+v, want %+v", path, *levels, *expected)
+		if !eq(cs, expected) {
+			t.Errorf("wrong ColumnSchema for %v: got %+v, want %+v", path, *cs, *expected)
 		}
 	}
 
 	// required non-nested field
-	checkMaxLevels([]string{"DocId"}, &Levels{0, 0})
+	check([]string{"DocId"}, &ColumnSchema{
+		MaxLevels:     Levels{0, 0},
+		SchemaElement: dremelPaperExampleMeta.Schema[1],
+	})
 
 	// optional/repeated
-	checkMaxLevels([]string{"Links", "Forward"}, &Levels{D: 2, R: 1})
-	checkMaxLevels([]string{"Links", "Backward"}, &Levels{D: 2, R: 1})
+	check([]string{"Links", "Backward"}, &ColumnSchema{
+		MaxLevels:     Levels{D: 2, R: 1},
+		SchemaElement: dremelPaperExampleMeta.Schema[3],
+	})
+	check([]string{"Links", "Forward"}, &ColumnSchema{
+		MaxLevels:     Levels{D: 2, R: 1},
+		SchemaElement: dremelPaperExampleMeta.Schema[4],
+	})
 
 	// repeated/repeated/required
-	checkMaxLevels([]string{"Name", "Language", "Code"}, &Levels{D: 2, R: 2})
+	check([]string{"Name", "Language", "Code"}, &ColumnSchema{
+		MaxLevels:     Levels{D: 2, R: 2},
+		SchemaElement: dremelPaperExampleMeta.Schema[7],
+	})
 
 	// repeated/repeated/optional
-	checkMaxLevels([]string{"Name", "Language", "Country"}, &Levels{D: 3, R: 2})
+	check([]string{"Name", "Language", "Country"}, &ColumnSchema{
+		MaxLevels:     Levels{D: 3, R: 2},
+		SchemaElement: dremelPaperExampleMeta.Schema[8],
+	})
 
 	// repeated/optional
-	checkMaxLevels([]string{"Name", "Url"}, &Levels{D: 2, R: 1})
+	check([]string{"Name", "Url"}, &ColumnSchema{
+		MaxLevels:     Levels{D: 2, R: 1},
+		SchemaElement: dremelPaperExampleMeta.Schema[9],
+	})
 
 	// not a field
-	checkMaxLevels([]string{"Links"}, nil)
-	checkMaxLevels([]string{"Name", "UnknownField"}, nil)
+	check([]string{"Links"}, nil)
+	check([]string{"Name", "UnknownField"}, nil)
 }
 
-func TestSchemaElementByPath(t *testing.T) {
-	s, err := SchemaFromFileMetaData(dremelPaperExampleMeta)
-	if err != nil {
-		t.Fatalf("Unexpcted error: %s", err)
-	}
+func TestDremelPaperExampleDisplayString(t *testing.T) {
+	s := mustCreateSchema(dremelPaperExampleMeta)
 
-	if g, e := s.element([]string{"DocId"}), dremelPaperExampleMeta.Schema[1]; g != e {
-		t.Errorf("SchemaElement(DocId) = %v, expected %v", g, e)
-	}
+	want := `message Document {
+  required int64 DocId;
+  optional group Links {
+    repeated int64 Backward;
+    repeated int64 Forward;
+  }
+  repeated group Name {
+    repeated group Language {
+      required byte_array Code;
+      optional byte_array Country;
+    }
+    optional byte_array Url;
+  }
+}`
 
-	if g, e := s.element([]string{"Links", "Forward"}), dremelPaperExampleMeta.Schema[4]; g != e {
-		t.Errorf("SchemaElement(Links, Forward) = %v, expected %v", g, e)
-	}
-
-	if g, e := s.element([]string{"Name", "Url"}), dremelPaperExampleMeta.Schema[9]; g != e {
-		t.Errorf("SchemaElement(Name, Url) = %v, expected %v", g, e)
-	}
-
-	if g := s.element([]string{"UnknownField"}); g != nil {
-		t.Errorf("SchemaElement(UnknownField) = %v, expected nil", g)
+	if got := s.DisplayString(); got != want {
+		t.Errorf("DisplayString: got \n%s\nwant\n%s", got, want)
 	}
 }

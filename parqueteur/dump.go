@@ -50,7 +50,7 @@ func runDump(cmd *Command, args []string) error {
 		return err
 	}
 
-	newSchema.MarshalDL(os.Stdout)
+	log.Println(newSchema.DisplayString())
 
 	for _, rg := range m.GetRowGroups() {
 

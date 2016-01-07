@@ -36,5 +36,6 @@ func runSchema(cmd *Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	return schema.MarshalDL(os.Stdout)
+	_, err = fmt.Println(schema.DisplayString())
+	return err
 }

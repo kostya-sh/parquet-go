@@ -65,7 +65,7 @@ type ByteArrayColumnChunkReader struct {
 	rDecoder *rle32Decoder
 }
 
-func NewByteArrayColumnChunkReader(r io.ReadSeeker, schema Schema, chunk *parquetformat.ColumnChunk) (*ByteArrayColumnChunkReader, error) {
+func NewByteArrayColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *parquetformat.ColumnChunk) (*ByteArrayColumnChunkReader, error) {
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("data in another file: '%s'", *chunk.FilePath)
 	}
@@ -81,7 +81,7 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, schema Schema, chunk *parque
 		return nil, fmt.Errorf("wrong type, expected BYTE_ARRAY was %s", meta.Type)
 	}
 
-	schemaElement := schema.element(meta.PathInSchema)
+	schemaElement := cs.SchemaElement
 	if schemaElement.RepetitionType == nil {
 		return nil, fmt.Errorf("nil RepetitionType (root SchemaElement?)")
 	}
@@ -97,14 +97,9 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, schema Schema, chunk *parque
 		r:              &countingReader{rs: r},
 		totalSize:      meta.TotalCompressedSize,
 		dataPageOffset: meta.DataPageOffset,
+		maxLevels:      cs.MaxLevels,
 		decoder:        newByteArrayPlainDecoder(),
 	}
-
-	var ml *Levels
-	if ml = schema.maxLevels(meta.PathInSchema); ml == nil {
-		return nil, fmt.Errorf("no column %v in schema", meta.PathInSchema)
-	}
-	cr.maxLevels = *ml
 
 	if *schemaElement.RepetitionType == parquetformat.FieldRepetitionType_REQUIRED {
 		// TODO: also check that len(Path) = maxD
@@ -244,6 +239,8 @@ func (cr *ByteArrayColumnChunkReader) Next() bool {
 		if cr.err != nil {
 			return false
 		}
+	} else {
+		cr.curValue = nil // just to be deterministic
 	}
 
 	cr.valuesRead++
@@ -292,11 +289,4 @@ func (cr *ByteArrayColumnChunkReader) Value() interface{} {
 // Err returns the first non-EOF error that was encountered by the reader.
 func (cr *ByteArrayColumnChunkReader) Err() error {
 	return cr.err
-}
-
-// MaxD returns the maximum definition level of the given column being read by
-// ByteArrayColumnChunkReader.
-// TODO: this should be in the schema
-func (cr *ByteArrayColumnChunkReader) MaxD() int {
-	return cr.maxLevels.D
 }
