@@ -183,11 +183,20 @@ func (s *ColumnScanner) readDictionaryPage(header *parquetformat.DictionaryPageH
 			if err != nil || read != count {
 				panic("unexpected")
 			}
+
+			for idx, value := range out {
+				log.Printf("%d %d", idx, value)
+			}
+
 		case parquetformat.Type_INT64:
 			out := make([]int64, 0, count)
 			read, err := d.DecodeInt64(out)
 			if err != nil || read != count {
 				panic("unexpected")
+			}
+
+			for idx, value := range out {
+				log.Printf("%d %d", idx, value)
 			}
 		case parquetformat.Type_BYTE_ARRAY, parquetformat.Type_FIXED_LEN_BYTE_ARRAY:
 			out := make([]string, 0, count)
@@ -195,6 +204,11 @@ func (s *ColumnScanner) readDictionaryPage(header *parquetformat.DictionaryPageH
 			if err != nil || read != count {
 				panic("unexpected")
 			}
+
+			for idx, value := range out {
+				log.Printf("%d %s", idx, value)
+			}
+
 		case parquetformat.Type_INT96:
 			log.Println("Warning: skipping not supported type int96 in plain encoding dictionary")
 			return nil
@@ -278,6 +292,9 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 			if err != nil || read != count {
 				panic("unexpected")
 			}
+			for idx, value := range out {
+				log.Printf("%d %d", idx, value)
+			}
 
 		case parquetformat.Type_INT64:
 			out := make([]int64, 0, count)
@@ -286,6 +303,9 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 			if err != nil || read != count {
 				panic("unexpected")
 			}
+			for idx, value := range out {
+				log.Printf("%d %d", idx, value)
+			}
 
 		case parquetformat.Type_BYTE_ARRAY, parquetformat.Type_FIXED_LEN_BYTE_ARRAY:
 			s.dictionaryLUT = make([]string, 0, count)
@@ -293,6 +313,7 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 			if err != nil || read != count {
 				panic("unexpected")
 			}
+
 		case parquetformat.Type_INT96:
 			panic("not supported type int96")
 		default:
@@ -302,8 +323,6 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 	case parquetformat.Encoding_RLE_DICTIONARY:
 		fallthrough
 	case parquetformat.Encoding_PLAIN_DICTIONARY:
-		log.Println("plain dictionary:", dummy)
-
 		b, err := rb.ReadByte()
 		if err != nil {
 			panic(err)
@@ -312,7 +331,7 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 		dec := rle.NewHybridBitPackingRLEDecoder(rb, int(b))
 
 		for dec.Scan() {
-			log.Println(dec.Value())
+			log.Println(s.meta.GetPathInSchema(), dec.Value())
 		}
 
 		if err := dec.Err(); err != nil {
