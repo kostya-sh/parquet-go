@@ -53,6 +53,7 @@ func ReadFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read metadata: error reading footer: %s", err)
 	}
+
 	if !bytes.Equal(buf, PARQUET_MAGIC) {
 		return nil, ErrNotParquetFile
 	}

@@ -26,11 +26,11 @@ func makeSomeData(w io.Writer) error {
             "name": "long_field"
         },
         {
-            "type": "integer",
+            "type": "int",
             "name": "integer_field"
         },
         {
-            "type": "decimal",
+            "type": "string",
             "name": "decimal_field"
         },
         {
@@ -50,11 +50,11 @@ func makeSomeData(w io.Writer) error {
             "name": "string_field"
         },
         {
-            "type": "date",
+            "type": "long",
             "name": "date_field"
         },
         {
-            "type": "timestamp ",
+            "type": "long",
             "name": "timestamp_field"
         }
     ]
@@ -77,15 +77,14 @@ func makeSomeData(w io.Writer) error {
 	}
 	defer fw.Close()
 
-	records := []map[string]interface{}{
-		// GENERATE A Record based on the type.
-		{"long_field": float32(1), "integer_field": int(2), "decimal_field": int(3),
-			"float_field": float32(4), "double_field": float64(5), "boolean_field": true,
-			"string_field": string("7"), "date_field": int64(8), "timestamp_field": int64(9),
-		},
+	// GENERATE A Record based on the type.
+	rec := map[string]interface{}{"long_field": int64(1), "integer_field": int32(2), "decimal_field": string(3),
+		"float_field": float32(4), "double_field": float64(5), "boolean_field": true,
+		"string_field": string("7"), "date_field": int64(8), "timestamp_field": int64(9),
 	}
 
-	for _, rec := range records {
+	for i := 0; i < 100; i++ {
+
 		record, err := goavro.NewRecord(goavro.RecordSchema(schema))
 		if err != nil {
 			log.Fatal(err)
@@ -141,6 +140,5 @@ func main() {
 
 	fd.Close()
 
-	os.Remove("temp.avro")
 	log.Println("finished")
 }
