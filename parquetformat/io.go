@@ -30,6 +30,19 @@ func (meta *FileMetaData) Write(w io.Writer) (int64, error) {
 	return wc.N, err
 }
 
+func (rg *RowGroup) AddColumn(col *ColumnChunk) {
+	rg.Columns = append(rg.Columns, col)
+}
+
+// Column Chunk Writer
+func (cc *ColumnChunk) Write(w io.Writer) (int64, error) {
+	wc := NewCountingWriter(w)
+	ttransport := &thrift.StreamTransport{Writer: wc}
+	proto := thrift.NewTCompactProtocol(ttransport)
+	err := cc.write(proto)
+	return wc.N, err
+}
+
 // CountingWriter counts the number of bytes written to it.
 type CountingWriter struct {
 	W io.Writer // underlying writer

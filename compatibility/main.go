@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/kostya-sh/parquet-go/parquet"
 	"github.com/linkedin/goavro"
 )
 
@@ -15,8 +16,7 @@ func check(w int, err error) {
 	}
 }
 
-func makeSomeData(w io.Writer) error {
-	schema := `
+const schema = `
 {
     "type": "record",
     "name": "example",
@@ -60,6 +60,8 @@ func makeSomeData(w io.Writer) error {
     ]
 }
     `
+
+func makeSomeData(w io.Writer) error {
 	var err error
 	// If you want speed, create the codec one time for each
 	// schema and reuse it to create multiple Writer instances.
@@ -138,6 +140,18 @@ func main() {
 
 	dumpReader(fd)
 
+	fd.Close()
+
+	fd, err = os.Create("temp.parquet")
+	if err != nil {
+		log.Println("error", err)
+	}
+
+	e := parquet.NewEncoder(schema)
+
+	if err := e.Write(fd); err != nil {
+		log.Println("err", err)
+	}
 	fd.Close()
 
 	log.Println("finished")

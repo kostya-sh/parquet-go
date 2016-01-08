@@ -109,7 +109,7 @@ type primitive struct {
 
 func (g *group) create(schema []*parquetformat.SchemaElement, start int) (int, error) {
 	if len(schema) == 0 {
-		return 0, fmt.Errorf("empty schema")
+		return 0, nil
 	}
 
 	var s = schema[start]

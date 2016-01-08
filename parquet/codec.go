@@ -22,9 +22,12 @@ func NewEncoder(schema string) *Encoder {
 	}
 
 	return &Encoder{
-
 		version: "parquet-go",
 	}
+}
+
+func (c *Encoder) AddRowGroup() {
+
 }
 
 func (c *Encoder) Write(w io.Writer) error {
