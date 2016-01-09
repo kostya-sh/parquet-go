@@ -3,3 +3,7 @@ language: go
 go:
   - 1.5.2
   - tip
+
+script:
+  - go test -v ./...
+  - if [[ `go version` =~ go1.5 ]] ; then go tool vet parquet parqueteur ; fi
