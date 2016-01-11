@@ -28,16 +28,29 @@ type Levels struct {
 // file. Usually this file is called "_common_metadata".
 type Schema struct {
 	root    group
-	columns map[string]ColumnSchema
+	columns []ColumnSchema
 }
 
 // ColumnSchema contains information about a single column in a parquet file.
 // TODO(ksh): or maybe interface?
 type ColumnSchema struct {
-	// MaxLevels contains maximum definition and repetition levels for this column
-	MaxLevels Levels
+	index         int
+	name          string
+	maxLevels     Levels
+	schemaElement *parquetformat.SchemaElement
+}
 
-	SchemaElement *parquetformat.SchemaElement
+// Index is a 0-based index of cs in its schema.
+//
+// Column chunks in a row group have the same order as columns in the schema.
+func (cs *ColumnSchema) Index() int {
+	return cs.index
+}
+
+// MaxLevels contains maximum definition and repetition levels for cs.
+// TODO: maybe MaxD and MaxR (and make Levels private)
+func (cs *ColumnSchema) MaxLevels() Levels {
+	return cs.maxLevels
 }
 
 // SchemaFromFileMetaData creates a Schema from meta.
@@ -52,15 +65,9 @@ func SchemaFromFileMetaData(meta *parquetformat.FileMetaData) (*Schema, error) {
 			end, len(meta.Schema))
 	}
 
-	maxLevels := s.root.calcMaxLevels()
-	schemaElements := s.root.makeSchemaElements()
-	s.columns = make(map[string]ColumnSchema)
-	for name, lvls := range maxLevels {
-		se, ok := schemaElements[name]
-		if !ok {
-			panic("should not happen")
-		}
-		s.columns[name] = ColumnSchema{MaxLevels: lvls, SchemaElement: se}
+	s.columns = s.root.collectColumns()
+	for i := range s.columns {
+		s.columns[i].index = i
 	}
 
 	return &s, nil
@@ -69,17 +76,24 @@ func SchemaFromFileMetaData(meta *parquetformat.FileMetaData) (*Schema, error) {
 // ColumnByName returns a ColumnSchema with the given name (individual elements
 // are separated with ".") or nil if such column does not exist in s.
 func (s *Schema) ColumnByName(name string) *ColumnSchema {
-	cs, ok := s.columns[name]
-	if !ok {
-		return nil
+	for i := range s.columns {
+		if s.columns[i].name == name {
+			return &s.columns[i]
+		}
 	}
-	return &cs
+	return nil
 }
 
 // ColumnByPath returns a ColumnSchema for the given path or or nil if such
 // column does not exist in s.
 func (s *Schema) ColumnByPath(path []string) *ColumnSchema {
 	return s.ColumnByName(strings.Join(path, "."))
+}
+
+// Columns returns ColumnSchemas for all columns defined in s.
+func (s *Schema) Columns() []ColumnSchema {
+	// TODO: maybe copy?
+	return s.columns
 }
 
 // DisplayString returns a string representation of s using textual format
@@ -191,8 +205,8 @@ func (g *group) writeTo(w io.Writer, indent string) {
 	g.marshalChildren(w, indent)
 }
 
-func (g *group) calcMaxLevels() map[string]Levels {
-	lvls := make(map[string]Levels)
+func (g *group) collectColumns() []ColumnSchema {
+	var cols = make([]ColumnSchema, 0, len(g.children))
 	for _, child := range g.children {
 		switch c := child.(type) {
 		case *primitive:
@@ -204,42 +218,24 @@ func (g *group) calcMaxLevels() map[string]Levels {
 			if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
 				levels.R = 1
 			}
-			lvls[s.Name] = levels
+			cols = append(cols, ColumnSchema{name: s.Name, maxLevels: levels, schemaElement: s})
 		case *group:
 			s := c.schemaElement
-			for k, v := range c.calcMaxLevels() {
+			for _, cs := range c.collectColumns() {
 				if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
-					v.D++
+					cs.maxLevels.D++
 				}
 				if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
-					v.R++
+					cs.maxLevels.R++
 				}
-				lvls[s.Name+"."+k] = v
+				cs.name = s.Name + "." + cs.name
+				cols = append(cols, cs)
 			}
 		default:
 			panic("unexpected child type")
 		}
 	}
-	return lvls
-}
-
-func (g *group) makeSchemaElements() map[string]*parquetformat.SchemaElement {
-	m := make(map[string]*parquetformat.SchemaElement)
-	for _, child := range g.children {
-		switch c := child.(type) {
-		case *primitive:
-			s := c.schemaElement
-			m[s.Name] = s
-		case *group:
-			s := c.schemaElement
-			for k, v := range c.makeSchemaElements() {
-				m[s.Name+"."+k] = v
-			}
-		default:
-			panic("unexpected child type")
-		}
-	}
-	return m
+	return cols
 }
 
 func (s *Schema) writeTo(w io.Writer, indent string) {

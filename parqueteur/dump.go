@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/kostya-sh/parquet-go/parquet"
-	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
 var cmdDump = &Command{
@@ -51,14 +50,13 @@ func runDump(cmd *Command, args []string) error {
 	}
 
 	for i, rg := range m.RowGroups {
-		var cc *parquetformat.ColumnChunk
-		for _, c := range rg.Columns {
-			if strings.Join(c.MetaData.PathInSchema, ".") == dumpColumn {
-				cc = c
-			}
+		if cs.Index() > len(rg.Columns) {
+			return fmt.Errorf("not enough column chunks in rowgroup %d", i)
 		}
-		if cc == nil {
-			return fmt.Errorf("no column named '%s' in rowgroup %d", dumpColumn, i)
+		var cc = rg.Columns[cs.Index()]
+		if ccName := strings.Join(cc.MetaData.PathInSchema, "."); ccName != dumpColumn {
+			return fmt.Errorf("wrong column %s at index %d in rowgroup %d, expected %s",
+				ccName, cs.Index(), i, dumpColumn)
 		}
 		cr, err := parquet.NewBooleanColumnChunkReader(r, cs, cc)
 		if err != nil {
@@ -67,7 +65,7 @@ func runDump(cmd *Command, args []string) error {
 		for cr.Next() {
 			levels := cr.Levels()
 			value := cr.Boolean()
-			notNull := levels.D == cs.MaxLevels.D
+			notNull := levels.D == cs.MaxLevels().D
 			if notNull {
 				fmt.Print(value)
 			}

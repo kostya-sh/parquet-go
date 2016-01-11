@@ -71,7 +71,7 @@ func NewBooleanColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *parqu
 		return nil, fmt.Errorf("wrong type, expected BOOLEAN was %s", meta.Type)
 	}
 
-	schemaElement := cs.SchemaElement
+	schemaElement := cs.schemaElement
 	if schemaElement.RepetitionType == nil {
 		return nil, fmt.Errorf("nil RepetitionType (root SchemaElement?)")
 	}
@@ -87,7 +87,7 @@ func NewBooleanColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *parqu
 		r:              &countingReader{rs: r},
 		totalSize:      meta.TotalCompressedSize,
 		dataPageOffset: meta.DataPageOffset,
-		maxLevels:      cs.MaxLevels,
+		maxLevels:      cs.maxLevels,
 		decoder:        newBooleanPlainDecoder(),
 	}
 

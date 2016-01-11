@@ -81,7 +81,7 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *par
 		return nil, fmt.Errorf("wrong type, expected BYTE_ARRAY was %s", meta.Type)
 	}
 
-	schemaElement := cs.SchemaElement
+	schemaElement := cs.schemaElement
 	if schemaElement.RepetitionType == nil {
 		return nil, fmt.Errorf("nil RepetitionType (root SchemaElement?)")
 	}
@@ -97,7 +97,7 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *par
 		r:              &countingReader{rs: r},
 		totalSize:      meta.TotalCompressedSize,
 		dataPageOffset: meta.DataPageOffset,
-		maxLevels:      cs.MaxLevels,
+		maxLevels:      cs.maxLevels,
 		decoder:        newByteArrayPlainDecoder(),
 	}
 

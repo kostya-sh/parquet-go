@@ -38,7 +38,7 @@ func checkColumnValues(t *testing.T, path string, c int, expected []cell) {
 		cc := rg.Columns[c]
 		cs := schema.ColumnByPath(cc.MetaData.PathInSchema)
 		var cr ColumnChunkReader
-		switch cs.SchemaElement.GetType() {
+		switch cs.schemaElement.GetType() {
 		case parquetformat.Type_BOOLEAN:
 			cr, err = NewBooleanColumnChunkReader(r, cs, cc)
 		case parquetformat.Type_BYTE_ARRAY:
