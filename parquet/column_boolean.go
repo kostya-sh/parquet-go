@@ -9,38 +9,7 @@ import (
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
-type byteArrayPlainDecoder struct {
-	data []byte
-	pos  int
-}
-
-func newByteArrayPlainDecoder() *byteArrayPlainDecoder {
-	return &byteArrayPlainDecoder{}
-}
-
-func (d *byteArrayPlainDecoder) init(data []byte) {
-	d.data = data
-	d.pos = 0
-}
-
-func (d *byteArrayPlainDecoder) next() (value []byte, err error) {
-	if d.pos > len(d.data)-4 {
-		return nil, fmt.Errorf("bytearray/plain: no more data")
-	}
-	size := int(binary.LittleEndian.Uint32(d.data[d.pos:])) // TODO: think about int overflow here
-	d.pos += 4
-	if d.pos > len(d.data)-size {
-		return nil, fmt.Errorf("bytearray/plain: not enough data")
-	}
-	// TODO: configure copy or not
-	value = make([]byte, size)
-	copy(value, d.data[d.pos:d.pos+size])
-	d.pos += size
-	return
-}
-
-// TODO: shorter name?
-type ByteArrayColumnChunkReader struct {
+type booleanColumnChunkReader struct {
 	// TODO: consider using a separate reader for each column chunk (no seeking)
 	r *countingReader
 
@@ -51,7 +20,7 @@ type ByteArrayColumnChunkReader struct {
 	// changing state
 	err            error
 	curLevels      Levels
-	curValue       []byte
+	curValue       bool
 	pageValuesRead int
 	atStartOfPage  bool
 	atLastPage     bool
@@ -60,12 +29,12 @@ type ByteArrayColumnChunkReader struct {
 	header         *parquetformat.PageHeader
 
 	// decoders
-	decoder  *byteArrayPlainDecoder
+	decoder  *booleanPlainDecoder
 	dDecoder *rle32Decoder
 	rDecoder *rle32Decoder
 }
 
-func NewByteArrayColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *parquetformat.ColumnChunk) (*ByteArrayColumnChunkReader, error) {
+func newBooleanColumnChunkReader(r io.ReadSeeker, cs ColumnSchema, chunk parquetformat.ColumnChunk) (*booleanColumnChunkReader, error) {
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("data in another file: '%s'", *chunk.FilePath)
 	}
@@ -77,8 +46,8 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *par
 		return nil, fmt.Errorf("missing ColumnMetaData")
 	}
 
-	if meta.Type != parquetformat.Type_BYTE_ARRAY {
-		return nil, fmt.Errorf("wrong type, expected BYTE_ARRAY was %s", meta.Type)
+	if meta.Type != parquetformat.Type_BOOLEAN {
+		return nil, fmt.Errorf("wrong type, expected BOOLEAN was %s", meta.Type)
 	}
 
 	schemaElement := cs.schemaElement
@@ -93,12 +62,12 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *par
 
 	// only REQUIRED non-neseted columns are supported for now
 	// so definitionLevel = 1 and repetitionLevel = 1
-	cr := ByteArrayColumnChunkReader{
+	cr := booleanColumnChunkReader{
 		r:              &countingReader{rs: r},
 		totalSize:      meta.TotalCompressedSize,
 		dataPageOffset: meta.DataPageOffset,
 		maxLevels:      cs.maxLevels,
-		decoder:        newByteArrayPlainDecoder(),
+		decoder:        newBooleanPlainDecoder(),
 	}
 
 	if *schemaElement.RepetitionType == parquetformat.FieldRepetitionType_REQUIRED {
@@ -124,16 +93,16 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *par
 }
 
 // AtStartOfPage returns true if the reader is positioned at the first value of a page.
-func (cr *ByteArrayColumnChunkReader) AtStartOfPage() bool {
+func (cr *booleanColumnChunkReader) AtStartOfPage() bool {
 	return cr.atStartOfPage
 }
 
 // PageHeader returns page header of the current page.
-func (cr *ByteArrayColumnChunkReader) PageHeader() *parquetformat.PageHeader {
+func (cr *booleanColumnChunkReader) PageHeader() *parquetformat.PageHeader {
 	return cr.header
 }
 
-func (cr *ByteArrayColumnChunkReader) readDataPage() ([]byte, error) {
+func (cr *booleanColumnChunkReader) readDataPage() ([]byte, error) {
 	var err error
 	n := cr.r.n
 
@@ -177,9 +146,9 @@ func (cr *ByteArrayColumnChunkReader) readDataPage() ([]byte, error) {
 }
 
 // Next advances the reader to the next value, which then will be available
-// through ByteArray() method. It returns false when the reading stops, either by
+// through Boolean() method. It returns false when the reading stops, either by
 // reaching the end of the input or an error.
-func (cr *ByteArrayColumnChunkReader) Next() bool {
+func (cr *booleanColumnChunkReader) Next() bool {
 	if cr.err != nil {
 		return false
 	}
@@ -240,7 +209,7 @@ func (cr *ByteArrayColumnChunkReader) Next() bool {
 			return false
 		}
 	} else {
-		cr.curValue = nil // just to be deterministic
+		cr.curValue = false // just to be deterministic
 	}
 
 	cr.valuesRead++
@@ -253,40 +222,18 @@ func (cr *ByteArrayColumnChunkReader) Next() bool {
 	return true
 }
 
-// Skip behaves like Next but it may skip decoding the current value.
-// TODO: think about use case and implement if necessary
-func (cr *ByteArrayColumnChunkReader) Skip() bool {
-	panic("nyi")
-}
-
-// NextPage advances the reader to the first value of the next page. It behaves as Next.
-// TODO: think about how this method can be used to skip unreadable/corrupted pages
-func (cr *ByteArrayColumnChunkReader) NextPage() bool {
-	if cr.err != nil {
-		return false
-	}
-	cr.atStartOfPage = true
-	// TODO: implement
-	return false
-}
-
 // Levels returns repetition and definition levels of the most recent value
 // generated by a call to Next or NextPage.
-func (cr *ByteArrayColumnChunkReader) Levels() Levels {
+func (cr *booleanColumnChunkReader) Levels() Levels {
 	return cr.curLevels
 }
 
-// ByteArray returns the most recent value generated by a call to Next or NextPage.
-func (cr *ByteArrayColumnChunkReader) ByteArray() []byte {
+// Value returns Boolean()
+func (cr *booleanColumnChunkReader) Value() interface{} {
 	return cr.curValue
 }
 
-// Value returns ByteArray()
-func (cr *ByteArrayColumnChunkReader) Value() interface{} {
-	return cr.ByteArray()
-}
-
 // Err returns the first non-EOF error that was encountered by the reader.
-func (cr *ByteArrayColumnChunkReader) Err() error {
+func (cr *booleanColumnChunkReader) Err() error {
 	return cr.err
 }

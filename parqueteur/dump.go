@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/kostya-sh/parquet-go/parquet"
 )
@@ -54,17 +53,13 @@ func runDump(cmd *Command, args []string) error {
 			return fmt.Errorf("not enough column chunks in rowgroup %d", i)
 		}
 		var cc = rg.Columns[cs.Index()]
-		if ccName := strings.Join(cc.MetaData.PathInSchema, "."); ccName != dumpColumn {
-			return fmt.Errorf("wrong column %s at index %d in rowgroup %d, expected %s",
-				ccName, cs.Index(), i, dumpColumn)
-		}
-		cr, err := parquet.NewBooleanColumnChunkReader(r, cs, cc)
+		cr, err := parquet.NewColumnChunkReader(r, *cs, *cc)
 		if err != nil {
 			return err
 		}
 		for cr.Next() {
 			levels := cr.Levels()
-			value := cr.Boolean()
+			value := cr.Value()
 			notNull := levels.D == cs.MaxLevels().D
 			if notNull {
 				fmt.Print(value)

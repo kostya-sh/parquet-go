@@ -4,8 +4,6 @@ import (
 	"os"
 	"reflect"
 	"testing"
-
-	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
 type cell struct {
@@ -37,15 +35,11 @@ func checkColumnValues(t *testing.T, path string, c int, expected []cell) {
 	for i, rg := range m.RowGroups {
 		cc := rg.Columns[c]
 		cs := schema.ColumnByPath(cc.MetaData.PathInSchema)
-		var cr ColumnChunkReader
-		switch cs.schemaElement.GetType() {
-		case parquetformat.Type_BOOLEAN:
-			cr, err = NewBooleanColumnChunkReader(r, cs, cc)
-		case parquetformat.Type_BYTE_ARRAY:
-			cr, err = NewByteArrayColumnChunkReader(r, cs, cc)
-		default:
-			panic("nyi")
+		if cs == nil {
+			t.Errorf("column %d: no schema", c)
+			return
 		}
+		cr, err := NewColumnChunkReader(r, *cs, *cc)
 		if err != nil {
 			t.Errorf("column %d: failed to create reader for row group %d: %s", c, i, err)
 			return
