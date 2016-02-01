@@ -1,4 +1,4 @@
-package parquet
+package encoding
 
 import (
 	"math"

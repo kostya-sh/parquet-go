@@ -2,8 +2,10 @@ package parquet
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/kostya-sh/parquet-go/parquetformat"
@@ -35,13 +37,80 @@ type Schema struct {
 // TODO(ksh): or maybe interface?
 type ColumnSchema struct {
 	// MaxLevels contains maximum definition and repetition levels for this column
-	MaxLevels Levels
-
+	MaxLevels     Levels
 	SchemaElement *parquetformat.SchemaElement
+
+	index int
 }
 
-// SchemaFromFileMetaData creates a Schema from meta.
-func SchemaFromFileMetaData(meta *parquetformat.FileMetaData) (*Schema, error) {
+// ReadFileMetaData reads parquetformat.FileMetaData object from r that provides
+// read interface to data in parquet format.
+//
+// Parquet format is described here:
+// https://github.com/apache/parquet-format/blob/master/README.md
+// Note that the File Metadata is at the END of the file.
+//
+func readFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
+	_, err := r.Seek(0, os.SEEK_SET)
+	if err != nil {
+		return nil, fmt.Errorf("read metadata: error seeking to header: %s", err)
+	}
+
+	buf := make([]byte, MAGIC_SIZE, MAGIC_SIZE)
+	// read and validate header
+	_, err = io.ReadFull(r, buf)
+	if err != nil {
+		return nil, fmt.Errorf("read metadata: error reading header: %s", err)
+	}
+	if !bytes.Equal(buf, PARQUET_MAGIC) {
+		return nil, ErrNotParquetFile
+	}
+
+	// read and validate footer
+	_, err = r.Seek(-MAGIC_SIZE, os.SEEK_END)
+	if err != nil {
+		return nil, fmt.Errorf("read metadata: error seeking to footer: %s", err)
+	}
+	_, err = io.ReadFull(r, buf)
+	if err != nil {
+		return nil, fmt.Errorf("read metadata: error reading footer: %s", err)
+	}
+
+	if !bytes.Equal(buf, PARQUET_MAGIC) {
+		return nil, ErrNotParquetFile
+	}
+
+	_, err = r.Seek(-FOOTER_SIZE, os.SEEK_END)
+	if err != nil {
+		return nil, fmt.Errorf("read metadata: error seeking to footer length: %s", err)
+	}
+	var footerLength int32
+	err = binary.Read(r, binary.LittleEndian, &footerLength)
+	if err != nil {
+		return nil, fmt.Errorf("read metadata: error reading footer length: %s", err)
+	}
+	if footerLength <= 0 {
+		return nil, fmt.Errorf("read metadata: invalid footer length %d", footerLength)
+	}
+
+	// read file metadata
+	_, err = r.Seek(-FOOTER_SIZE-int64(footerLength), os.SEEK_END)
+	if err != nil {
+		return nil, fmt.Errorf("read metadata: error seeking to file: %s", err)
+	}
+	var meta parquetformat.FileMetaData
+	err = meta.Read(io.LimitReader(r, int64(footerLength)))
+	if err != nil {
+		return nil, fmt.Errorf("read metadata: error reading file: %s", err)
+	}
+
+	return &meta, nil
+}
+
+// schemaFromFileMetaData creates a Schema from meta.
+func schemaFromFileMetaData(meta *parquetformat.FileMetaData) (*Schema, error) {
+	fmt.Printf("%#v\n", meta)
+
 	s := Schema{}
 	end, err := s.root.create(meta.Schema, 0)
 	if err != nil {
@@ -100,10 +169,12 @@ type schemaElement interface {
 type group struct {
 	schemaElement *parquetformat.SchemaElement
 	children      []schemaElement
+	index         int
 }
 
 // primitive field
 type primitive struct {
+	index         int
 	schemaElement *parquetformat.SchemaElement
 }
 
@@ -116,9 +187,11 @@ func (g *group) create(schema []*parquetformat.SchemaElement, start int) (int, e
 	if s.NumChildren == nil {
 		return 0, fmt.Errorf("NumChildren must be defined in schema[%d]", start)
 	}
-	if *s.NumChildren <= 0 {
-		return 0, fmt.Errorf("Invalid NumChildren value in schema[%d]: %d", start, *s.NumChildren)
+
+	if s.GetNumChildren() <= 0 {
+		return 0, fmt.Errorf("Invalid NumChildren value in schema[%d]: %d", start, s.GetNumChildren())
 	}
+
 	if s.Type != nil {
 		return 0, fmt.Errorf("Not null type (%s) in schema[%d]", s.Type, start)
 	}
@@ -137,13 +210,14 @@ func (g *group) create(schema []*parquetformat.SchemaElement, start int) (int, e
 
 	i := start + 1
 	var err error
-	for k := 0; k < int(*s.NumChildren); k++ {
+	for k := 0; k < int(s.GetNumChildren()); k++ {
 		if i >= len(schema) {
 			// TODO: more accurate error message
-			return 0, fmt.Errorf("schema[%d].NumChildren is invalid (out of bounds)", start)
+			return 0, fmt.Errorf("schema[%d].NumChildren is invalid (out of bounds)", i)
 		}
 		if schema[i].Type == nil {
 			child := group{}
+			child.index = i
 			i, err = child.create(schema, i)
 			if err != nil {
 				return 0, err
@@ -151,6 +225,7 @@ func (g *group) create(schema []*parquetformat.SchemaElement, start int) (int, e
 			g.children[k] = &child
 		} else {
 			child := primitive{}
+			child.index = i
 			i, err = child.create(schema, i)
 			if err != nil {
 				return 0, err

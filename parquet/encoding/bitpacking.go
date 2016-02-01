@@ -1,4 +1,4 @@
-package parquet
+package encoding
 
 // Encoding/decoding bit-packed int32
 

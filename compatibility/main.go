@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"os"
 
 	"github.com/kostya-sh/parquet-go/parquet"
+	"github.com/kostya-sh/parquet-go/parquetformat"
 	"github.com/linkedin/goavro"
 )
 
@@ -142,16 +144,31 @@ func main() {
 
 	fd.Close()
 
+	record, err := goavro.NewRecord(goavro.RecordSchema(schema))
+	if err != nil {
+		log.Println("error", err)
+	}
+
+	var columns []*parquetformat.ColumnChunk
+	var column_chunks []bytes.Buffer
+
+	for _, f := range record.Fields {
+		chunk, data := parquet.NewColumnChunk(f.Name)
+		columns = append(columns, chunk)
+		column_chunks = append(column_chunks, data)
+	}
+
+	e := parquet.NewEncoder(columns)
+
 	fd, err = os.Create("temp.parquet")
 	if err != nil {
 		log.Println("error", err)
 	}
 
-	e := parquet.NewEncoder(schema)
-
-	if err := e.Write(fd); err != nil {
+	if err := e.Write(fd, column_chunks); err != nil {
 		log.Println("err", err)
 	}
+
 	fd.Close()
 
 	log.Println("finished")

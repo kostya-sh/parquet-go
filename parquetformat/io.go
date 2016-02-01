@@ -35,12 +35,20 @@ func (rg *RowGroup) AddColumn(col *ColumnChunk) {
 }
 
 // Column Chunk Writer
-func (cc *ColumnChunk) Write(w io.Writer) (int64, error) {
+func (cc *ColumnChunk) Write(w io.Writer) (int, error) {
 	wc := NewCountingWriter(w)
 	ttransport := &thrift.StreamTransport{Writer: wc}
 	proto := thrift.NewTCompactProtocol(ttransport)
 	err := cc.write(proto)
-	return wc.N, err
+	return int(wc.N), err
+}
+
+func (page *PageHeader) Write(w io.Writer) (int, error) {
+	wc := NewCountingWriter(w)
+	ttransport := &thrift.StreamTransport{Writer: wc}
+	proto := thrift.NewTCompactProtocol(ttransport)
+	err := page.write(proto)
+	return int(wc.N), err
 }
 
 // CountingWriter counts the number of bytes written to it.

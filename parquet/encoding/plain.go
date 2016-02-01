@@ -118,3 +118,62 @@ func (d *Decoder) DecodeStr(out []string) (int, error) {
 	}
 	return count, nil
 }
+
+// Encoder
+type Encoder interface {
+	WriteInt32(int32) error
+	WriteInt64(int64) error
+	Flush() error
+	NumValues() int
+}
+
+type plain struct {
+	w         io.Writer
+	numValues int
+}
+
+func NewPlainEncoder(w io.Writer) Encoder {
+	return &plain{w: w}
+}
+
+func (p *plain) Flush() error {
+	return nil
+}
+
+func (p *plain) NumValues() int {
+	return p.numValues
+}
+
+/*
+- BOOLEAN: 1 bit boolean
+- INT32: 32 bit signed int
+- INT64: 64 bit signed int
+- INT96: 96 bit signed int
+- FLOAT: IEEE 32-bit floating point values
+- DOUBLE: IEEE 64-bit floating point values
+- BYTE_ARRAY: arbitrarily long byte arrays
+*/
+func (e *plain) WriteBoolean(v bool) error {
+
+	return nil
+}
+
+func (e *plain) WriteInt32(v int32) error {
+	return binary.Write(e.w, binary.LittleEndian, v)
+}
+
+func (e *plain) WriteInt64(v int64) error {
+	return binary.Write(e.w, binary.LittleEndian, v)
+}
+
+func (e *plain) WriteFloat(v float32) error {
+	return nil
+}
+
+func (e *plain) WriteDouble(v float64) error {
+	return nil
+}
+
+func (e *plain) WriteByteArray(v []byte) error {
+	return nil
+}

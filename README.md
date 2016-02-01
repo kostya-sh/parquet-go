@@ -1,5 +1,9 @@
 # parquet-go
 
+```
+	./dump dump ./parquet/testdata/nation.impala.parquet
+```
+
 Library to work with Parquet file format in Go.
 WARNING: totally not ready to use
 
@@ -22,4 +26,8 @@ Documentation is available via
 
 # License
 MIT - see LICENSE
+
+
+So the problem is to first have a schema and then write the information and keep this information to then write them at the end of the file.
+
 

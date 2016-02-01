@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/kostya-sh/parquet-go/parquet"
@@ -39,26 +38,12 @@ func runDump(cmd *Command, args []string) error {
 	}
 	defer r.Close()
 
-	m, err := parquet.ReadFileMetaData(r)
-	if err != nil {
-		return err
-	}
+	decoder := parquet.NewDecoder(r)
 
-	// dump columns names
-	newSchema, err := parquet.SchemaFromFileMetaData(m)
-	if err != nil {
-		return err
-	}
+	// log.Println(chunk.MetaData.GetPathInSchema(), chunk.MetaData.GetType(), chunk.MetaData.GetNumValues())
 
-	log.Println(newSchema.DisplayString())
-
-	for _, rg := range m.GetRowGroups() {
-
-		for c, chunk := range rg.Columns {
-
-			log.Println(chunk.MetaData.GetPathInSchema(), chunk.MetaData.GetType(), chunk.MetaData.GetNumValues())
-
-			scanner := parquet.NewColumnScanner(r, chunk, m.Schema[c+1])
+	for _, rowGroupScanner := range decoder.NewRowGroupScanner() {
+		for _, scanner := range rowGroupScanner.NewColumnScanners() {
 
 			for scanner.Scan() {
 

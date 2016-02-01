@@ -1,4 +1,4 @@
-package parquet
+package datatypes
 
 import "fmt"
 
