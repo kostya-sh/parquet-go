@@ -2,14 +2,16 @@ package parquet
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
+
+func strptr(v string) *string {
+	return &v
+}
 
 // Levels struct combines definition level (D) and repetion level (R).
 type Levels struct {
@@ -30,12 +32,12 @@ type Levels struct {
 // file. Usually this file is called "_common_metadata".
 type Schema struct {
 	root    group
-	columns map[string]ColumnSchema
+	columns map[string]ColumnDescriptor
 }
 
-// ColumnSchema contains information about a single column in a parquet file.
+// ColumnDescriptor contains information about a single column in a parquet file.
 // TODO(ksh): or maybe interface?
-type ColumnSchema struct {
+type ColumnDescriptor struct {
 	// MaxLevels contains maximum definition and repetition levels for this column
 	MaxLevels     Levels
 	SchemaElement *parquetformat.SchemaElement
@@ -43,68 +45,64 @@ type ColumnSchema struct {
 	index int
 }
 
-// ReadFileMetaData reads parquetformat.FileMetaData object from r that provides
-// read interface to data in parquet format.
-//
-// Parquet format is described here:
-// https://github.com/apache/parquet-format/blob/master/README.md
-// Note that the File Metadata is at the END of the file.
-//
-func readFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
-	_, err := r.Seek(0, os.SEEK_SET)
-	if err != nil {
-		return nil, fmt.Errorf("read metadata: error seeking to header: %s", err)
+func (schema *Schema) createMetadata() *parquetformat.FileMetaData {
+	root_children := int32(1)
+
+	root := parquetformat.NewSchemaElement()
+	root.Name = "root"
+	root.NumChildren = &root_children
+
+	// the root of the schema does not have to have a repetition type.
+	// All the other elements do.
+	elements := []*parquetformat.SchemaElement{root}
+
+	//typeint := parquetformat.Type_INT32
+
+	//offset := len(PARQUET_MAGIC)
+
+	// for row group
+	// for idx, cc := range schema.columns {
+	// 	cc.FileOffset = int64(offset)
+	// 	// n, err := cc.Write(w)
+	// 	// if err != nil {
+	// 	// 	return fmt.Errorf("chunk writer: could not write chunk for column %d: %s", idx, err)
+	// 	// }
+	// 	// offset += n
+	// 	cc.MetaData.DataPageOffset = int64(offset)
+
+	// 	n1, err := io.Copy(w, &chunks[0])
+	// 	if err != nil {
+	// 		return fmt.Errorf("chunk writer: could not write chunk for column %d: %s", idx, err)
+	// 	}
+
+	// 	log.Println("wrote:", n1)
+
+	// 	offset += int(n1)
+
+	// 	group.AddColumn(cc)
+
+	// 	columnDescriptor := parquetformat.NewSchemaElement()
+	// 	columnDescriptor.Name = cc.GetMetaData().PathInSchema[0]
+	// 	columnDescriptor.NumChildren = nil
+	// 	columnDescriptor.Type = &typeint
+	// 	required := parquetformat.FieldRepetitionType_REQUIRED
+	// 	columnDescriptor.RepetitionType = &required
+
+	// 	schema = append(schema, columnDescriptor)
+	// }
+
+	rowGroup := createRowGroup([]*parquetformat.ColumnChunk{})
+
+	// write metadata at then end of the file in thrift format
+	meta := parquetformat.FileMetaData{
+		Version:          0,
+		Schema:           elements,
+		RowGroups:        []*parquetformat.RowGroup{rowGroup},
+		KeyValueMetadata: []*parquetformat.KeyValue{},
+		CreatedBy:        strptr("go-0.1"), // go-parquet version 1.0 (build 6cf94d29b2b7115df4de2c06e2ab4326d721eb55)
 	}
 
-	buf := make([]byte, MAGIC_SIZE, MAGIC_SIZE)
-	// read and validate header
-	_, err = io.ReadFull(r, buf)
-	if err != nil {
-		return nil, fmt.Errorf("read metadata: error reading header: %s", err)
-	}
-	if !bytes.Equal(buf, PARQUET_MAGIC) {
-		return nil, ErrNotParquetFile
-	}
-
-	// read and validate footer
-	_, err = r.Seek(-MAGIC_SIZE, os.SEEK_END)
-	if err != nil {
-		return nil, fmt.Errorf("read metadata: error seeking to footer: %s", err)
-	}
-	_, err = io.ReadFull(r, buf)
-	if err != nil {
-		return nil, fmt.Errorf("read metadata: error reading footer: %s", err)
-	}
-
-	if !bytes.Equal(buf, PARQUET_MAGIC) {
-		return nil, ErrNotParquetFile
-	}
-
-	_, err = r.Seek(-FOOTER_SIZE, os.SEEK_END)
-	if err != nil {
-		return nil, fmt.Errorf("read metadata: error seeking to footer length: %s", err)
-	}
-	var footerLength int32
-	err = binary.Read(r, binary.LittleEndian, &footerLength)
-	if err != nil {
-		return nil, fmt.Errorf("read metadata: error reading footer length: %s", err)
-	}
-	if footerLength <= 0 {
-		return nil, fmt.Errorf("read metadata: invalid footer length %d", footerLength)
-	}
-
-	// read file metadata
-	_, err = r.Seek(-FOOTER_SIZE-int64(footerLength), os.SEEK_END)
-	if err != nil {
-		return nil, fmt.Errorf("read metadata: error seeking to file: %s", err)
-	}
-	var meta parquetformat.FileMetaData
-	err = meta.Read(io.LimitReader(r, int64(footerLength)))
-	if err != nil {
-		return nil, fmt.Errorf("read metadata: error reading file: %s", err)
-	}
-
-	return &meta, nil
+	return &meta
 }
 
 // schemaFromFileMetaData creates a Schema from meta.
@@ -123,21 +121,21 @@ func schemaFromFileMetaData(meta *parquetformat.FileMetaData) (*Schema, error) {
 
 	maxLevels := s.root.calcMaxLevels()
 	schemaElements := s.root.makeSchemaElements()
-	s.columns = make(map[string]ColumnSchema)
+	s.columns = make(map[string]ColumnDescriptor)
 	for name, lvls := range maxLevels {
 		se, ok := schemaElements[name]
 		if !ok {
 			panic("should not happen")
 		}
-		s.columns[name] = ColumnSchema{MaxLevels: lvls, SchemaElement: se}
+		s.columns[name] = ColumnDescriptor{MaxLevels: lvls, SchemaElement: se}
 	}
 
 	return &s, nil
 }
 
-// ColumnByName returns a ColumnSchema with the given name (individual elements
+// ColumnByName returns a ColumnDescriptor with the given name (individual elements
 // are separated with ".") or nil if such column does not exist in s.
-func (s *Schema) ColumnByName(name string) *ColumnSchema {
+func (s *Schema) ColumnByName(name string) *ColumnDescriptor {
 	cs, ok := s.columns[name]
 	if !ok {
 		return nil
@@ -145,9 +143,9 @@ func (s *Schema) ColumnByName(name string) *ColumnSchema {
 	return &cs
 }
 
-// ColumnByPath returns a ColumnSchema for the given path or or nil if such
+// ColumnByPath returns a ColumnDescriptor for the given path or or nil if such
 // column does not exist in s.
-func (s *Schema) ColumnByPath(path []string) *ColumnSchema {
+func (s *Schema) ColumnByPath(path []string) *ColumnDescriptor {
 	return s.ColumnByName(strings.Join(path, "."))
 }
 

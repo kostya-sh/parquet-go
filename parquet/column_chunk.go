@@ -20,25 +20,23 @@ import (
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
-// Create a DataPage of Type
-// Compress it
-// Fill stats
-// Write it to the file and record the set.
-// Plain Encoder needs only data pages
-//  WriteInt()
-
 // you can only have one dictionary page per each column chunk
 // you can have multiple data pages
 
 type ColumnEncoder struct {
-	Schema *parquetformat.SchemaElement
+	Schema   *parquetformat.SchemaElement
+	Metadata *parquetformat.ColumnMetaData
+
+	dDecoder *encoding.RLE32Decoder
+	rDecoder *encoding.RLE32Decoder
 }
 
 func NewColumnEncoder(schema *parquetformat.SchemaElement) *ColumnEncoder {
-	return &ColumnEncoder{Schema: schema}
+	return &ColumnEncoder{Schema: schema, Metadata: parquetformat.NewColumnMetaData()}
 }
 
 func (e *ColumnEncoder) WriteChunk(w io.Writer, offset int, name string) (int, error) {
+
 	return 0, nil
 }
 
@@ -130,6 +128,7 @@ func (s *ColumnScanner) Scan() bool {
 	return true
 }
 
+// read another page in the column chunk
 func (s *ColumnScanner) nextPage() (err error) {
 
 	r := s.r
@@ -185,7 +184,7 @@ func (s *ColumnScanner) nextPage() (err error) {
 			panic("unexpected DataPageHeader was not set")
 		}
 
-		s.readDataPage(header.DataPageHeader, rb)
+		/* header, rb =*/ s.readDataPage(header.DataPageHeader, rb)
 	default:
 		panic("parquet.ColumnScanner: unknown PageHeader.PageType")
 	}
@@ -199,6 +198,7 @@ func (s *ColumnScanner) nextPage() (err error) {
 	return nil
 }
 
+// Read a dictionary page. There is only one dictionary page for each column chunk
 func (s *ColumnScanner) readDictionaryPage(header *parquetformat.DictionaryPageHeader, rb *bufio.Reader) error {
 	count := int(header.GetNumValues())
 	dictEnc := header.GetEncoding()
@@ -256,6 +256,7 @@ func (s *ColumnScanner) readDictionaryPage(header *parquetformat.DictionaryPageH
 	return nil
 }
 
+// readDataPage
 func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.Reader) {
 	log.Printf("%s %v\n", s.meta.PathInSchema, header)
 
@@ -308,11 +309,12 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 	var dummy int32
 	err := binary.Read(rb, binary.LittleEndian, &dummy)
 	if err != nil {
-		panic(err)
+		log.Printf("column chunk: %s\n", err)
 	}
 
 	switch header.Encoding {
 	case parquetformat.Encoding_BIT_PACKED:
+
 	case parquetformat.Encoding_DELTA_BINARY_PACKED:
 	case parquetformat.Encoding_DELTA_BYTE_ARRAY:
 	case parquetformat.Encoding_DELTA_LENGTH_BYTE_ARRAY:
@@ -458,7 +460,7 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 // 		return nil, fmt.Errorf("unsupported compression codec: %s", meta.Codec)
 // 	}
 
-// 	// only REQUIRED non-neseted columns are supported for now
+// 	// only REQUIRED non-nested columns are supported for now
 // 	// so definitionLevel = 1 and repetitionLevel = 1
 // 	cr := BooleanColumnChunkReader{
 // 		r:              &countingReader{rs: r},

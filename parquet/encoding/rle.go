@@ -19,7 +19,7 @@ import (
 // rle-header := varint-encode( (number of times repeated) << 1)
 // repeated-value := value that is repeated, using a fixed-width of round-up-to-next-byte(bit-width)
 
-type rle32Decoder struct {
+type RLE32Decoder struct {
 	bitWidth   int
 	byteWidth  int
 	bpUnpacker unpack8int32Func
@@ -38,11 +38,11 @@ type rle32Decoder struct {
 }
 
 // newRLE32Decoder creates a new RLE decoder with bit-width w
-func newRLE32Decoder(w int) *rle32Decoder {
+func NewRLE32Decoder(w int) *RLE32Decoder {
 	if w <= 0 || w > 32 {
 		panic("invalid width value")
 	}
-	d := rle32Decoder{
+	d := RLE32Decoder{
 		bitWidth:   w,
 		byteWidth:  (w + 7) / 8,
 		bpUnpacker: unpack8Int32FuncForWidth(w),
@@ -50,12 +50,12 @@ func newRLE32Decoder(w int) *rle32Decoder {
 	return &d
 }
 
-func (d *rle32Decoder) init(data []byte) {
+func (d *RLE32Decoder) init(data []byte) {
 	d.data = data
 	d.pos = 0
 }
 
-func (d *rle32Decoder) next() (next int32, err error) {
+func (d *RLE32Decoder) next() (next int32, err error) {
 	if d.rleCount == 0 && d.bpCount == 0 && d.bpRunPos == 0 {
 		if err = d.readRunHeader(); err != nil {
 			return
@@ -81,7 +81,7 @@ func (d *rle32Decoder) next() (next int32, err error) {
 	return
 }
 
-func (d *rle32Decoder) readRLERunValue() error {
+func (d *RLE32Decoder) readRLERunValue() error {
 	n := d.pos + d.byteWidth // TODO: overflow?
 	if n > len(d.data) {
 		return fmt.Errorf("rle: cannot read run value (not enough data)")
@@ -91,7 +91,7 @@ func (d *rle32Decoder) readRLERunValue() error {
 	return nil
 }
 
-func (d *rle32Decoder) readBitPackedRun() error {
+func (d *RLE32Decoder) readBitPackedRun() error {
 	n := d.pos + d.bitWidth
 	if n > len(d.data) {
 		return fmt.Errorf("rle: cannot read bit-packed run (not enough data)")
@@ -102,7 +102,7 @@ func (d *rle32Decoder) readBitPackedRun() error {
 	return nil
 }
 
-func (d *rle32Decoder) readRunHeader() error {
+func (d *RLE32Decoder) readRunHeader() error {
 	if d.pos >= len(d.data) {
 		return fmt.Errorf("rle: no more data")
 	}

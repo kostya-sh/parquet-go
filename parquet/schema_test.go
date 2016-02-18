@@ -1,7 +1,6 @@
 package parquet
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -18,24 +17,6 @@ func int32Ptr(v int32) *int32 {
 func createFileMetaData(schema ...*pf.SchemaElement) *pf.FileMetaData {
 	return &pf.FileMetaData{Schema: schema}
 }
-
-var typeBoolean = pf.TypePtr(pf.Type_BOOLEAN)
-var typeInt32 = pf.TypePtr(pf.Type_INT32)
-var typeInt64 = pf.TypePtr(pf.Type_INT64)
-var typeInt96 = pf.TypePtr(pf.Type_INT96)
-var typeFloat = pf.TypePtr(pf.Type_FLOAT)
-var typeDouble = pf.TypePtr(pf.Type_DOUBLE)
-var typeByteArray = pf.TypePtr(pf.Type_BYTE_ARRAY)
-var typeFixedLenByteArray = pf.TypePtr(pf.Type_FIXED_LEN_BYTE_ARRAY)
-
-var frtOptional = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_OPTIONAL)
-var frtRequired = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_REQUIRED)
-var frtRepeated = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_REPEATED)
-
-var ctUTF8 = pf.ConvertedTypePtr(pf.ConvertedType_UTF8)
-var ctMap = pf.ConvertedTypePtr(pf.ConvertedType_MAP)
-var ctMapKeyValue = pf.ConvertedTypePtr(pf.ConvertedType_MAP_KEY_VALUE)
-var ctList = pf.ConvertedTypePtr(pf.ConvertedType_LIST)
 
 func TestCreateInvalidSchemas(t *testing.T) {
 	invalidFileMetaDatas := []*pf.FileMetaData{
@@ -99,7 +80,7 @@ func TestCreateInvalidSchemas(t *testing.T) {
 	}
 
 	for _, meta := range invalidFileMetaDatas {
-		_, err := SchemaFromFileMetaData(meta)
+		_, err := schemaFromFileMetaData(meta)
 		if err == nil {
 			t.Errorf("Error expected for %+v", meta)
 		} else {
@@ -109,7 +90,7 @@ func TestCreateInvalidSchemas(t *testing.T) {
 }
 
 func mustCreateSchema(meta *pf.FileMetaData) *Schema {
-	s, err := SchemaFromFileMetaData(meta)
+	s, err := schemaFromFileMetaData(meta)
 	if err != nil {
 		panic(err)
 	}
@@ -356,7 +337,7 @@ func TestReadFileMetaDataFromInvalidFiles(t *testing.T) {
 			continue
 		}
 
-		_, err = ReadFileMetaData(r)
+		_, err = readFileMetaData(r)
 		if err == nil {
 			t.Errorf("Error expected reading %s", f)
 		}
@@ -365,16 +346,16 @@ func TestReadFileMetaDataFromInvalidFiles(t *testing.T) {
 	}
 }
 
-func TestReadFileMetaData(t *testing.T) {
+func TestreadFileMetaData(t *testing.T) {
 	r, err := os.Open("testdata/OneRecord.parquet")
 	if err != nil {
 		t.Fatalf("Error: %s", err)
 	}
 	defer r.Close()
 
-	m, err := ReadFileMetaData(r)
+	m, err := readFileMetaData(r)
 	if err != nil {
-		t.Errorf("Unexptected error: %s", err)
+		t.Errorf("Unexpected error: %s", err)
 	}
 	b, _ := json.MarshalIndent(m, "", " ")
 	t.Logf("Read: %s", b)
@@ -386,47 +367,47 @@ func TestReadFileMetaData(t *testing.T) {
 		t.Errorf("NumRows: was %d, expected 1", m.NumRows)
 	}
 	if len(m.Schema) != 2 {
-		t.Errorf("Shema size: was %d, expected 2", len(m.Schema))
+		t.Errorf("Schema size: was %d, expected 2", len(m.Schema))
 	}
 	fieldType := *m.Schema[1].Type
-	if fieldType != parquetformat.Type_BOOLEAN {
+	if fieldType != pf.Type_BOOLEAN {
 		t.Errorf("Field type: was %s, expected BOOLEAN", fieldType)
 	}
 }
 
-func TestCanWriteSchemaWithNoColumns(t *testing.T) {
-	c := NewEncoder([]*parquetformat.ColumnChunk{})
-	var b bytes.Buffer
+// func TestCanWriteSchemaWithNoColumns(t *testing.T) {
+// 	c := NewEncoder([]*pf.ColumnChunk{})
+// 	var b bytes.Buffer
 
-	if err := c.Write(&b); err != nil {
-		t.Fatal(err)
-	}
+// 	if err := c.Write(&b); err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	d := NewDecoder(bytes.NewReader(b.Bytes()))
-	if err := d.ReadSchema(); err != nil {
-		t.Fatalf("error reading schema: %s", err)
-	}
+// 	d := NewDecoder(bytes.NewReader(b.Bytes()))
+// 	if err := d.ReadSchema(); err != nil {
+// 		t.Fatalf("error reading schema: %s", err)
+// 	}
 
-	if len(d.schema.columns) != 0 {
-		t.Fatalf("expected 0 columns")
-	}
-}
+// 	if len(d.schema.columns) != 0 {
+// 		t.Fatalf("expected 0 columns")
+// 	}
+// }
 
-func TestCanWriteSchemaWithOneColumnAndNoRows(t *testing.T) {
-	c := NewEncoder([]*parquetformat.ColumnChunk{})
+// func TestCanWriteSchemaWithOneColumnAndNoRows(t *testing.T) {
+// 	c := NewEncoder([]*pf.ColumnChunk{})
 
-	var b bytes.Buffer
+// 	var b bytes.Buffer
 
-	if err := c.Write(&b); err != nil {
-		t.Fatal(err)
-	}
+// 	if err := c.Write(&b); err != nil {
+// 		t.Fatal(err)
+// 	}
 
-	d := NewDecoder(bytes.NewReader(b.Bytes()))
-	if err := d.ReadSchema(); err != nil {
-		t.Fatalf("error reading schema: %s", err)
-	}
+// 	d := NewDecoder(bytes.NewReader(b.Bytes()))
+// 	if err := d.ReadSchema(); err != nil {
+// 		t.Fatalf("error reading schema: %s", err)
+// 	}
 
-	if len(d.schema.columns) != 0 {
-		t.Fatalf("expected 0 columns")
-	}
-}
+// 	if len(d.schema.columns) != 0 {
+// 		t.Fatalf("expected 0 columns")
+// 	}
+// }

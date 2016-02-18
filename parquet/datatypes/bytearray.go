@@ -91,7 +91,7 @@ func NewByteArrayColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *par
 		return nil, fmt.Errorf("unsupported compression codec: %s", meta.Codec)
 	}
 
-	// only REQUIRED non-neseted columns are supported for now
+	// only REQUIRED non-nested columns are supported for now
 	// so definitionLevel = 1 and repetitionLevel = 1
 	cr := ByteArrayColumnChunkReader{
 		r:              &countingReader{rs: r},

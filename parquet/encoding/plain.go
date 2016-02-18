@@ -34,6 +34,7 @@ type Decoder struct {
 	count int
 }
 
+// NewPlainDecoder creates a new PageDecoder
 func NewPlainDecoder(r io.Reader, t parquetformat.Type, numValues int) *Decoder {
 	return &Decoder{r, t, numValues}
 }
@@ -119,21 +120,13 @@ func (d *Decoder) DecodeStr(out []string) (int, error) {
 	return count, nil
 }
 
-// Encoder
-type Encoder interface {
-	WriteInt32(int32) error
-	WriteInt64(int64) error
-	Flush() error
-	NumValues() int
-}
-
+// plain Encoder
 type plain struct {
-	w         io.Writer
 	numValues int
 }
 
-func NewPlainEncoder(w io.Writer) Encoder {
-	return &plain{w: w}
+func NewPlainEncoder() Encoder {
+	return &plain{}
 }
 
 func (p *plain) Flush() error {
@@ -153,27 +146,27 @@ func (p *plain) NumValues() int {
 - DOUBLE: IEEE 64-bit floating point values
 - BYTE_ARRAY: arbitrarily long byte arrays
 */
-func (e *plain) WriteBoolean(v bool) error {
+func (e *plain) WriteBoolean(v []bool) error {
 
 	return nil
 }
 
-func (e *plain) WriteInt32(v int32) error {
-	return binary.Write(e.w, binary.LittleEndian, v)
+func (e *plain) WriteInt32(w io.Writer, v []int32) error {
+	return binary.Write(w, binary.LittleEndian, v)
 }
 
-func (e *plain) WriteInt64(v int64) error {
-	return binary.Write(e.w, binary.LittleEndian, v)
+func (e *plain) WriteInt64(w io.Writer, v []int64) error {
+	return binary.Write(w, binary.LittleEndian, v)
 }
 
-func (e *plain) WriteFloat(v float32) error {
+func (e *plain) WriteFloat32(w io.Writer, v []float32) error {
 	return nil
 }
 
-func (e *plain) WriteDouble(v float64) error {
+func (e *plain) WriteFloat64(w io.Writer, v []float64) error {
 	return nil
 }
 
-func (e *plain) WriteByteArray(v []byte) error {
+func (e *plain) WriteByteArray(w io.Writer, v [][]byte) error {
 	return nil
 }
