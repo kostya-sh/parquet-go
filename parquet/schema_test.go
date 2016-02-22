@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	pf "github.com/kostya-sh/parquet-go/parquetformat"
@@ -16,6 +15,28 @@ func int32Ptr(v int32) *int32 {
 
 func createFileMetaData(schema ...*pf.SchemaElement) *pf.FileMetaData {
 	return &pf.FileMetaData{Schema: schema}
+}
+
+func TestCreateSchema(t *testing.T) {
+	s := NewSchema()
+	specs := []string{
+		"test: INT32 INT_32 REQUIRED",
+		"test: INT32 REQUIRED",
+		"test: INT32 OPTIONAL",
+		"test: INT32 REPEATED",
+
+		"test: int64 OPTIONAL",
+		"test: BYTE_ARRAY OPTIONAL",
+		"test: FIXED_LEN_BYTE_ARRAY OPTIONAL",
+	}
+
+	for _, tc := range specs {
+		err := s.AddColumn(tc)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
 }
 
 func TestCreateInvalidSchemas(t *testing.T) {
@@ -234,69 +255,69 @@ var dremelPaperExampleMeta = createFileMetaData(
 	},
 )
 
-func TestSchemaColumns(t *testing.T) {
-	s := mustCreateSchema(dremelPaperExampleMeta)
+// func TestSchemaColumns(t *testing.T) {
+// 	s := mustCreateSchema(dremelPaperExampleMeta)
 
-	eq := func(a *ColumnSchema, b *ColumnSchema) bool {
-		if a == nil && b == nil {
-			return true
-		}
-		if a == nil || b == nil {
-			return false
-		}
-		return *a == *b
-	}
+// 	eq := func(a *ColumnSchema, b *ColumnSchema) bool {
+// 		if a == nil && b == nil {
+// 			return true
+// 		}
+// 		if a == nil || b == nil {
+// 			return false
+// 		}
+// 		return *a == *b
+// 	}
 
-	check := func(path []string, expected *ColumnSchema) {
-		name := strings.Join(path, ".")
-		cs := s.ColumnByPath(path)
-		cs2 := s.ColumnByName(name)
-		if !eq(cs, cs2) {
-			t.Errorf("ColumnByPath(%v) = %+v is not the same as ColumnByName(%s) = %+v", path, cs, name, cs2)
-		}
-		if !eq(cs, expected) {
-			t.Errorf("wrong ColumnSchema for %v: got %+v, want %+v", path, *cs, *expected)
-		}
-	}
+// 	check := func(path []string, expected *ColumnSchema) {
+// 		name := strings.Join(path, ".")
+// 		cs := s.ColumnByPath(path)
+// 		cs2 := s.ColumnByName(name)
+// 		if !eq(cs, cs2) {
+// 			t.Errorf("ColumnByPath(%v) = %+v is not the same as ColumnByName(%s) = %+v", path, cs, name, cs2)
+// 		}
+// 		if !eq(cs, expected) {
+// 			t.Errorf("wrong ColumnSchema for %v: got %+v, want %+v", path, *cs, *expected)
+// 		}
+// 	}
 
-	// required non-nested field
-	check([]string{"DocId"}, &ColumnSchema{
-		MaxLevels:     Levels{0, 0},
-		SchemaElement: dremelPaperExampleMeta.Schema[1],
-	})
+// 	// required non-nested field
+// 	check([]string{"DocId"}, &ColumnSchema{
+// 		MaxLevels:     Levels{0, 0},
+// 		SchemaElement: dremelPaperExampleMeta.Schema[1],
+// 	})
 
-	// optional/repeated
-	check([]string{"Links", "Backward"}, &ColumnSchema{
-		MaxLevels:     Levels{D: 2, R: 1},
-		SchemaElement: dremelPaperExampleMeta.Schema[3],
-	})
-	check([]string{"Links", "Forward"}, &ColumnSchema{
-		MaxLevels:     Levels{D: 2, R: 1},
-		SchemaElement: dremelPaperExampleMeta.Schema[4],
-	})
+// 	// optional/repeated
+// 	check([]string{"Links", "Backward"}, &ColumnSchema{
+// 		MaxLevels:     Levels{D: 2, R: 1},
+// 		SchemaElement: dremelPaperExampleMeta.Schema[3],
+// 	})
+// 	check([]string{"Links", "Forward"}, &ColumnSchema{
+// 		MaxLevels:     Levels{D: 2, R: 1},
+// 		SchemaElement: dremelPaperExampleMeta.Schema[4],
+// 	})
 
-	// repeated/repeated/required
-	check([]string{"Name", "Language", "Code"}, &ColumnSchema{
-		MaxLevels:     Levels{D: 2, R: 2},
-		SchemaElement: dremelPaperExampleMeta.Schema[7],
-	})
+// 	// repeated/repeated/required
+// 	check([]string{"Name", "Language", "Code"}, &ColumnSchema{
+// 		MaxLevels:     Levels{D: 2, R: 2},
+// 		SchemaElement: dremelPaperExampleMeta.Schema[7],
+// 	})
 
-	// repeated/repeated/optional
-	check([]string{"Name", "Language", "Country"}, &ColumnSchema{
-		MaxLevels:     Levels{D: 3, R: 2},
-		SchemaElement: dremelPaperExampleMeta.Schema[8],
-	})
+// 	// repeated/repeated/optional
+// 	check([]string{"Name", "Language", "Country"}, &ColumnSchema{
+// 		MaxLevels:     Levels{D: 3, R: 2},
+// 		SchemaElement: dremelPaperExampleMeta.Schema[8],
+// 	})
 
-	// repeated/optional
-	check([]string{"Name", "Url"}, &ColumnSchema{
-		MaxLevels:     Levels{D: 2, R: 1},
-		SchemaElement: dremelPaperExampleMeta.Schema[9],
-	})
+// 	// repeated/optional
+// 	check([]string{"Name", "Url"}, &ColumnSchema{
+// 		MaxLevels:     Levels{D: 2, R: 1},
+// 		SchemaElement: dremelPaperExampleMeta.Schema[9],
+// 	})
 
-	// not a field
-	check([]string{"Links"}, nil)
-	check([]string{"Name", "UnknownField"}, nil)
-}
+// 	// not a field
+// 	check([]string{"Links"}, nil)
+// 	check([]string{"Name", "UnknownField"}, nil)
+// }
 
 func TestDremelPaperExampleDisplayString(t *testing.T) {
 	s := mustCreateSchema(dremelPaperExampleMeta)

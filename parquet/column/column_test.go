@@ -1,9 +1,6 @@
-package parquet
+package column
 
-import (
-	"os"
-	"testing"
-)
+import "testing"
 
 type cell struct {
 	d int
@@ -12,12 +9,6 @@ type cell struct {
 }
 
 func checkColumnValues(t *testing.T, path string, c int, expected []cell) {
-	r, err := os.Open(path)
-	if err != nil {
-		t.Errorf("failed to open %s: %s", path, err)
-		return
-	}
-	defer r.Close()
 
 	m, err := readFileMetaData(r)
 	if err != nil {
@@ -41,6 +32,7 @@ func checkColumnValues(t *testing.T, path string, c int, expected []cell) {
 		//case parquetformat.Type_BYTE_ARRAY:
 		//cr, err = NewByteArrayColumnChunkReader(r, cs, cc)
 		//}
+
 		scanner := NewColumnScanner(r, cc, columnSchema.SchemaElement)
 
 		for scanner.Scan() {

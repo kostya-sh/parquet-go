@@ -22,27 +22,21 @@ var (
 )
 
 // writeFile
+func writeHeader(w io.Writer) error {
+	_, err := w.Write(parquetMagic)
+	if err != nil {
+		return fmt.Errorf("codec: header write error: %s", err)
+	}
+	return nil
+}
+
 // Create a DataPage of Type
 // Compress it
 // Fill stats
 // Write it to the file and record the set.
 // Plain Encoder needs only data pages
 //  WriteInt()
-func writeFile(w io.Writer, meta *parquetformat.FileMetaData) error {
-
-	// write header
-	_, err := w.Write(parquetMagic)
-	if err != nil {
-		return fmt.Errorf("codec: header write error: %s", err)
-	}
-
-	/*
-		// for each rowGroup
-		for idx, rowGroup := range rowGroups {
-
-		}
-	*/
-
+func writeFileMetadata(w io.Writer, meta *parquetformat.FileMetaData) error {
 	// write metadata
 	n, err := meta.Write(w)
 	if err != nil {
@@ -125,4 +119,35 @@ func readFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
 	}
 
 	return &meta, nil
+}
+
+type file struct {
+	r    ReadSeekCloser
+	meta *parquetformat.FileMetaData
+}
+
+func OpenFile(path string) (ReadSeekCloser, error) {
+	r, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open %s: %s", path, err)
+	}
+
+	meta, err := readFileMetaData(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read metadata %s: %s", path, err)
+	}
+
+	return &file{r, meta}, err
+}
+
+func (f *file) Close() error {
+	return f.r.Close()
+}
+
+func (f *file) Read(p []byte) (int, error) {
+	return f.r.Read(p)
+}
+
+func (f *file) Seek(p int64, x int) (int64, error) {
+	return f.r.Seek(p, x)
 }

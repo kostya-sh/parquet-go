@@ -3,6 +3,7 @@ package parquet
 import (
 	"io"
 
+	"github.com/kostya-sh/parquet-go/parquet/column"
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
@@ -14,12 +15,12 @@ type RowGroupScanner struct {
 	columns  []*parquetformat.SchemaElement
 }
 
-func (rg *RowGroupScanner) NewColumnScanners() []*ColumnScanner {
-	var columnScanners []*ColumnScanner
+func (rg *RowGroupScanner) NewColumnScanners() []*column.Scanner {
+	var columnScanners []*column.Scanner
 
 	for idx, columnSchema := range rg.columns {
 		chunk := rg.rowGroup.GetColumns()[idx]
-		columnScanners = append(columnScanners, NewColumnScanner(rg.r, chunk, columnSchema))
+		columnScanners = append(columnScanners, column.NewScanner(rg.r, chunk, columnSchema))
 	}
 
 	return columnScanners

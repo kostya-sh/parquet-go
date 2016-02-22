@@ -125,6 +125,8 @@ type plain struct {
 	numValues int
 }
 
+// NewPlainEncoder creates an encoder that uses the Plain encoding to store data
+// inside a DataPage
 func NewPlainEncoder() Encoder {
 	return &plain{}
 }
@@ -137,6 +139,10 @@ func (p *plain) NumValues() int {
 	return p.numValues
 }
 
+func (p *plain) Type() parquetformat.Encoding {
+	return parquetformat.Encoding_PLAIN
+}
+
 /*
 - BOOLEAN: 1 bit boolean
 - INT32: 32 bit signed int
@@ -146,27 +152,43 @@ func (p *plain) NumValues() int {
 - DOUBLE: IEEE 64-bit floating point values
 - BYTE_ARRAY: arbitrarily long byte arrays
 */
-func (e *plain) WriteBoolean(v []bool) error {
-
-	return nil
+func (e *plain) WriteBool(w io.Writer, v []bool) error {
+	e.numValues += len(v)
+	return binary.Write(w, binary.LittleEndian, v)
 }
 
 func (e *plain) WriteInt32(w io.Writer, v []int32) error {
+	e.numValues += len(v)
 	return binary.Write(w, binary.LittleEndian, v)
 }
 
 func (e *plain) WriteInt64(w io.Writer, v []int64) error {
+	e.numValues += len(v)
 	return binary.Write(w, binary.LittleEndian, v)
 }
 
 func (e *plain) WriteFloat32(w io.Writer, v []float32) error {
-	return nil
+	e.numValues += len(v)
+	return binary.Write(w, binary.LittleEndian, v)
 }
 
 func (e *plain) WriteFloat64(w io.Writer, v []float64) error {
-	return nil
+	e.numValues += len(v)
+	return binary.Write(w, binary.LittleEndian, v)
 }
 
 func (e *plain) WriteByteArray(w io.Writer, v [][]byte) error {
+	e.numValues += len(v)
+	for _, b := range v {
+		err := binary.Write(w, binary.LittleEndian, len(b))
+		if err != nil {
+			return fmt.Errorf("could not write byte array len: %s", err)
+		}
+		err = binary.Write(w, binary.LittleEndian, b)
+		if err != nil {
+			return fmt.Errorf("could not write byte array: %s", err)
+		}
+	}
+
 	return nil
 }

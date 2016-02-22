@@ -2,6 +2,7 @@ package parquet
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -33,6 +34,84 @@ type Levels struct {
 type Schema struct {
 	root    group
 	columns map[string]ColumnDescriptor
+}
+
+var (
+	ErrBadFormat = errors.New("invalid format. format is `name: type [original type] REQUIRED|OPTIONAL`")
+)
+
+func NewSchema() *Schema {
+	return &Schema{
+		root:    group{},
+		columns: make(map[string]ColumnDescriptor),
+	}
+}
+
+func normalizeType(str string) string {
+	return strings.ToUpper(str)
+}
+
+// Columns return the name of all the columns.
+func (s *Schema) Columns() []string {
+	var names []string
+	for k, _ := range s.columns {
+		names = append(names, k)
+	}
+	return names
+}
+
+// spec name: type [original type] REQUIRED
+func (s *Schema) AddColumn(format string) error {
+	values := strings.SplitN(format, ":", 2)
+	if len(values) != 2 {
+		return ErrBadFormat
+	}
+
+	name := values[0]
+	spec := values[1]
+
+	el := parquetformat.NewSchemaElement()
+	el.Name = name
+
+	values = strings.Split(strings.TrimSpace(spec), " ")
+
+	originalType, err := parquetformat.TypeFromString(normalizeType(values[0]))
+	if err != nil {
+		return fmt.Errorf("could not add column: bad type: %s (%s)", err, values[0])
+	}
+	el.Type = &originalType
+
+	switch len(values) {
+	case 3:
+		convertedType, err := parquetformat.ConvertedTypeFromString(normalizeType(values[1]))
+		if err != nil {
+			return fmt.Errorf("could not add column: bad converted type: %s", err)
+		}
+
+		repetitionType, err := parquetformat.FieldRepetitionTypeFromString(normalizeType(values[2]))
+		if err != nil {
+			return fmt.Errorf("could not add column: bad repetition type: %s", err)
+		}
+
+		el.ConvertedType = &convertedType
+		el.RepetitionType = &repetitionType
+	case 2:
+		repetitionType, err := parquetformat.FieldRepetitionTypeFromString(normalizeType(values[1]))
+		if err != nil {
+			return fmt.Errorf("could not add column: bad repetition type: %s", err)
+		}
+		el.RepetitionType = &repetitionType
+
+	default:
+		return fmt.Errorf("could not add column: invalid number of elements in format")
+
+	}
+
+	s.columns[el.Name] = ColumnDescriptor{
+		SchemaElement: el,
+	}
+
+	return nil
 }
 
 // ColumnDescriptor contains information about a single column in a parquet file.
@@ -114,6 +193,7 @@ func schemaFromFileMetaData(meta *parquetformat.FileMetaData) (*Schema, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if end != len(meta.Schema) {
 		return nil, fmt.Errorf("too many SchemaElements, only %d out of %d have been used",
 			end, len(meta.Schema))

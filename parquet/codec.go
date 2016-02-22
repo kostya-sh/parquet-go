@@ -1,133 +1,210 @@
 package parquet
 
 import (
-	"bytes"
+	"fmt"
 	"io"
 
 	pf "github.com/kostya-sh/parquet-go/parquetformat"
 )
 
-var typeBoolean = pf.TypePtr(pf.Type_BOOLEAN)
-var typeInt32 = pf.TypePtr(pf.Type_INT32)
-var typeInt64 = pf.TypePtr(pf.Type_INT64)
-var typeInt96 = pf.TypePtr(pf.Type_INT96)
-var typeFloat = pf.TypePtr(pf.Type_FLOAT)
-var typeDouble = pf.TypePtr(pf.Type_DOUBLE)
-var typeByteArray = pf.TypePtr(pf.Type_BYTE_ARRAY)
-var typeFixedLenByteArray = pf.TypePtr(pf.Type_FIXED_LEN_BYTE_ARRAY)
-
-var frtOptional = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_OPTIONAL)
-var frtRequired = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_REQUIRED)
-var frtRepeated = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_REPEATED)
-
-var ctUTF8 = pf.ConvertedTypePtr(pf.ConvertedType_UTF8)
-var ctMap = pf.ConvertedTypePtr(pf.ConvertedType_MAP)
-var ctMapKeyValue = pf.ConvertedTypePtr(pf.ConvertedType_MAP_KEY_VALUE)
-var ctList = pf.ConvertedTypePtr(pf.ConvertedType_LIST)
+var (
+	typeBoolean           = pf.TypePtr(pf.Type_BOOLEAN)
+	typeInt32             = pf.TypePtr(pf.Type_INT32)
+	typeInt64             = pf.TypePtr(pf.Type_INT64)
+	typeInt96             = pf.TypePtr(pf.Type_INT96)
+	typeFloat             = pf.TypePtr(pf.Type_FLOAT)
+	typeDouble            = pf.TypePtr(pf.Type_DOUBLE)
+	typeByteArray         = pf.TypePtr(pf.Type_BYTE_ARRAY)
+	typeFixedLenByteArray = pf.TypePtr(pf.Type_FIXED_LEN_BYTE_ARRAY)
+	frtOptional           = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_OPTIONAL)
+	frtRequired           = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_REQUIRED)
+	frtRepeated           = pf.FieldRepetitionTypePtr(pf.FieldRepetitionType_REPEATED)
+	ctUTF8                = pf.ConvertedTypePtr(pf.ConvertedType_UTF8)
+	ctMap                 = pf.ConvertedTypePtr(pf.ConvertedType_MAP)
+	ctMapKeyValue         = pf.ConvertedTypePtr(pf.ConvertedType_MAP_KEY_VALUE)
+	ctList                = pf.ConvertedTypePtr(pf.ConvertedType_LIST)
+)
 
 // Encoder
-type Encoder struct {
-	version string
+type Encoder interface {
+	WriteRecords(records []map[string]interface{}) error
+
+	WriteInt32(name string, values []int32) error
+	WriteInt64(name string, values []int64) error
+	WriteFloat32(name string, values []float32) error
+	WriteFloat64(name string, values []float64) error
+	WriteByteArray(name string, values [][]byte) error
+
+	WriteBool(name string, values []bool) error
 }
 
-func NewEncoder(schema *Schema) *Encoder {
-	// parse schema
-	schema_elements := []string{}
-	for range schema_elements {
+type defaultEncoder struct {
+	schema         *Schema
+	version        string
+	w              io.Writer
+	filemetadata   *pf.FileMetaData
+	columnEncoders map[string]DataEncoder
+}
 
+func NewEncoder(schema *Schema, w io.Writer) Encoder {
+	return &defaultEncoder{
+		schema:         schema,
+		version:        "parquet-go", // FIXME
+		w:              w,
+		filemetadata:   pf.NewFileMetaData(),
+		columnEncoders: make(map[string]DataEncoder),
+	}
+}
+
+func (e *defaultEncoder) getColumnEncoder(name string) (DataEncoder, bool) {
+	enc, ok := e.columnEncoders[name]
+	if !ok {
+		// TODO have a better configuration strategy to choose the encoding algorithm
+		preferences := EncodingPreferences{CompressionCodec: "", Strategy: "default"}
+
+		e.columnEncoders[name] = NewPageEncoder(preferences)
 	}
 
-	return &Encoder{
-		version: "parquet-go", // FIXME
+	return enc, true
+}
+
+// WriteRecords will write all the values defined in the Schema found in the given records.
+// WriteRecords does not copy the values.
+func (e *defaultEncoder) WriteRecords(records []map[string]interface{}) error {
+
+	for colname, coldesc := range e.schema.columns {
+		var a accumulator
+
+		var accumulate func(interface{}) error
+
+		switch coldesc.SchemaElement.GetType() {
+		case pf.Type_INT32:
+			accumulate = a.WriteInt32
+		case pf.Type_INT64:
+			accumulate = a.WriteInt64
+		case pf.Type_FLOAT:
+			accumulate = a.WriteFloat32
+		case pf.Type_DOUBLE:
+			accumulate = a.WriteFloat64
+		case pf.Type_BOOLEAN:
+			accumulate = a.WriteBoolean
+		case pf.Type_INT96:
+			panic("not supported")
+		case pf.Type_BYTE_ARRAY:
+			accumulate = a.WriteString
+		case pf.Type_FIXED_LEN_BYTE_ARRAY:
+			accumulate = a.WriteString
+		default:
+			panic("type not supported")
+		}
+
+		for i := 0; i < len(records); i++ {
+			record := records[i]
+
+			value, ok := record[colname]
+			if !ok /*&& coldesc.IsRequired() */ {
+				// column not found in the schema. ignore
+				return fmt.Errorf("row %d does not have required field %s", i, colname)
+			}
+
+			if err := accumulate(value); err != nil {
+				return fmt.Errorf("invalid value %s: %s", colname, err)
+			}
+
+		}
+
+		var err error
+
+		switch coldesc.SchemaElement.GetType() {
+		case pf.Type_INT32:
+			err = e.WriteInt32(colname, a.int32Buff)
+		case pf.Type_INT64:
+			err = e.WriteInt64(colname, a.int64Buff)
+		case pf.Type_FLOAT:
+			err = e.WriteFloat32(colname, a.float32Buff)
+		case pf.Type_DOUBLE:
+			err = e.WriteFloat64(colname, a.float64Buff)
+		case pf.Type_BOOLEAN:
+			err = e.WriteBool(colname, a.boolBuff)
+		case pf.Type_INT96:
+			panic("not supported")
+		case pf.Type_BYTE_ARRAY:
+			err = e.WriteByteArray(colname, a.byteArrayBuff)
+		case pf.Type_FIXED_LEN_BYTE_ARRAY:
+			err = e.WriteByteArray(colname, a.byteArrayBuff)
+		default:
+			panic("type not supported")
+		}
+		if err != nil {
+			return fmt.Errorf("could not write column %s: %s", colname, err)
+		}
 	}
+
+	return nil
 }
 
-func NewColumnChunk(name string) (*pf.ColumnChunk, bytes.Buffer) {
-	// values := make([]int32, 100)
-	// for i := 0; i < 100; i++ {
-	// 	values[i] = int32(i)
-	// }
-
-	var pageBuffer bytes.Buffer
-	// w := bufio.NewWriter(&pageBuffer)
-	// preferences := EncodingPreferences{
-	// 	CompressionCodec: "gzip",
-	// 	Strategy:         "default",
-	// }
-
-	// enc := NewPageEncoder(preferences)
-	// for i := 0; i < 3; i++ {
-	// 	err := enc.WriteInt32(values)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// }
-	// pages := enc.Pages()
-
-	// // DataPage
-	// var b bytes.Buffer
-	// w := bufio.NewWriter(&b)
-	// enc := encoding.NewPlainEncoder(w)
-	// for i := 0; i < 100; i++ {
-	// 	err := enc.WriteInt32(values)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// }
-	// enc.Flush()
-
-	// var compressed bytes.Buffer
-	// wc := snappy.NewWriter(&compressed)
-	// if _, err := io.Copy(wc, &b); err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// // Page Header
-	// header := pf.NewPageHeader()
-	// header.CompressedPageSize = int32(compressed.Len())
-	// header.UncompressedPageSize = int32(b.Len())
-	// header.Type = pf.PageType_DATA_PAGE
-	// header.DataPageHeader = pf.NewDataPageHeader()
-	// header.DataPageHeader.NumValues = int32(100)
-	// header.DataPageHeader.Encoding = pf.Encoding_PLAIN
-	// header.DataPageHeader.DefinitionLevelEncoding = pf.Encoding_BIT_PACKED
-	// header.DataPageHeader.RepetitionLevelEncoding = pf.Encoding_BIT_PACKED
-
-	// if _, err := header.Write(&final); err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// _, err := io.Copy(&final, &compressed)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// // ColumnChunk
-	// offset := 0
-	// filename := "thisfile.parquet"
-	chunk := pf.NewColumnChunk()
-	// chunk.FileOffset = int64(offset)
-	// chunk.FilePath = &filename
-	// chunk.MetaData = pf.NewColumnMetaData()
-	// chunk.MetaData.TotalCompressedSize = int64(compressed.Len())
-	// chunk.MetaData.TotalUncompressedSize = int64(b.Len())
-	// chunk.MetaData.Codec = pf.CompressionCodec_SNAPPY
-
-	// chunk.MetaData.DataPageOffset = 0
-	// chunk.MetaData.DictionaryPageOffset = nil
-
-	// chunk.MetaData.Type = pf.Type_INT32
-	// chunk.MetaData.PathInSchema = []string{name}
-
-	return chunk, pageBuffer
+// WriteInt32
+func (e *defaultEncoder) WriteInt32(name string, values []int32) error {
+	enc, ok := e.getColumnEncoder(name)
+	if !ok {
+		return fmt.Errorf("invalid column %s", name)
+	}
+	return enc.WriteInt32(values)
 }
 
+// WriteInt64
+func (e *defaultEncoder) WriteInt64(name string, values []int64) error {
+	enc, ok := e.getColumnEncoder(name)
+	if !ok {
+		return fmt.Errorf("invalid column %s", name)
+	}
+	return enc.WriteInt64(values)
+}
+
+// WriteFloat32
+func (e *defaultEncoder) WriteFloat32(name string, values []float32) error {
+	enc, ok := e.getColumnEncoder(name)
+	if !ok {
+		return fmt.Errorf("invalid column %s", name)
+	}
+	return enc.WriteFloat32(values)
+}
+
+// WriteFloat64
+func (e *defaultEncoder) WriteFloat64(name string, values []float64) error {
+	enc, ok := e.getColumnEncoder(name)
+	if !ok {
+		return fmt.Errorf("invalid column %s", name)
+	}
+	return enc.WriteFloat64(values)
+}
+
+// WriteByteArray
+func (e *defaultEncoder) WriteByteArray(name string, values [][]byte) error {
+	enc, ok := e.getColumnEncoder(name)
+	if !ok {
+		return fmt.Errorf("invalid column %s", name)
+	}
+	return enc.WriteByteArray(values)
+}
+
+// WriteBool
+func (e *defaultEncoder) WriteBool(name string, values []bool) error {
+	enc, ok := e.getColumnEncoder(name)
+	if !ok {
+		return fmt.Errorf("invalid column %s", name)
+	}
+	return enc.WriteBool(values)
+}
+
+// Decoder
 type Decoder struct {
 	r      io.ReadSeeker
 	meta   *pf.FileMetaData
 	schema *Schema
 }
 
+// NewDecoder
 func NewDecoder(r io.ReadSeeker) *Decoder {
 	return &Decoder{r: r}
 }

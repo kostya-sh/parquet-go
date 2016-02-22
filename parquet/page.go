@@ -3,16 +3,22 @@ package parquet
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"fmt"
+	"log"
 
+	"github.com/golang/snappy"
 	"github.com/kostya-sh/parquet-go/parquet/encoding"
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
 type DataEncoder interface {
-	NumValues() int
-	Encoding() parquetformat.Encoding
-	Bytes() []byte
+	WriteBool([]bool) error
+	WriteInt32([]int32) error
+	WriteInt64([]int64) error
+	WriteFloat32([]float32) error
+	WriteFloat64([]float64) error
+	WriteByteArray([][]byte) error
 }
 
 type dataPage struct {
@@ -30,7 +36,7 @@ func newDataPage() *dataPage {
 	datapage.NumValues = 0
 	datapage.Encoding = parquetformat.Encoding_PLAIN
 	datapage.DefinitionLevelEncoding = parquetformat.Encoding_RLE
-	datapage.RepetitionLevelEncoding = parquetformat.Encoding_BIT_PACKED
+	datapage.RepetitionLevelEncoding = parquetformat.Encoding_RLE
 	datapage.Statistics = nil /** Optional statistics for the data in this page**/
 
 	header := parquetformat.NewPageHeader()
@@ -53,6 +59,7 @@ type PageScanner interface {
 
 // PageEncoder encodes a stream of values into a set of pages
 type PageEncoder interface {
+	DataEncoder
 	Pages() []Page
 }
 
@@ -93,28 +100,83 @@ type defaultPageEncoder struct {
 	pages         []Page
 	currentWriter *bufio.Writer
 	encoder       encoding.Encoder
+	encoderType   parquetformat.Encoding
 	compression   string
 }
 
 func newDefaultPageEncoder(compressionCodec string) *defaultPageEncoder {
 	encoder := &defaultPageEncoder{
 		compression: compressionCodec,
+		encoderType: parquetformat.Encoding_PLAIN,
+		encoder:     encoding.NewPlainEncoder(),
 	}
 	encoder.addPage()
 	return encoder
 }
 
-func (e *defaultPageEncoder) addPage() {
+func (e *defaultPageEncoder) addPage() error {
 	if e.currentWriter != nil {
 		page := newDataPage()
+		err := e.currentWriter.Flush()
+		if err != nil {
+			return err
+		}
+
+		compressed, err := e.compress(e.buffer.Bytes())
+		if err != nil {
+			return err
+		}
+
+		uncompressedSize := e.buffer.Len()
+		compressedSize := len(compressed)
+
+		page.header.DataPageHeader.Encoding = e.encoderType
+
+		page.header.UncompressedPageSize = int32(uncompressedSize)
+		page.header.CompressedPageSize = int32(compressedSize)
+
 		e.pages = append(e.pages, page)
 	}
+
 	e.currentWriter = bufio.NewWriter(&e.buffer)
+
+	return nil
+}
+
+func (e *defaultPageEncoder) compress(p []byte) ([]byte, error) {
+	var compressed bytes.Buffer // TODO get from a buffer pool
+	switch e.compression {
+	case "gzip":
+		w := gzip.NewWriter(&compressed)
+		if _, err := w.Write(p); err != nil {
+			return nil, err
+		}
+	case "snappy":
+		wc := snappy.NewWriter(&compressed)
+		if _, err := wc.Write(p); err != nil {
+			return nil, err
+		}
+	case "":
+		return p, nil
+	default:
+		log.Println("defaultPageEncoder: warning unknown compression codec.")
+	}
+
+	return compressed.Bytes(), nil
 }
 
 func (e *defaultPageEncoder) Pages() []Page {
 
 	return []Page{}
+}
+
+func (e *defaultPageEncoder) WriteBool(values []bool) error {
+	err := e.encoder.WriteBool(e.currentWriter, values)
+	if err != nil {
+		return fmt.Errorf("defaultPageEncoder: could not write bool: %s", err)
+	}
+
+	return nil
 }
 
 func (e *defaultPageEncoder) WriteInt32(values []int32) error {

@@ -1,4 +1,4 @@
-package parquet
+package column
 
 import (
 	"io"
@@ -20,26 +20,6 @@ import (
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
-// you can only have one dictionary page per each column chunk
-// you can have multiple data pages
-
-type ColumnEncoder struct {
-	Schema   *parquetformat.SchemaElement
-	Metadata *parquetformat.ColumnMetaData
-
-	dDecoder *encoding.RLE32Decoder
-	rDecoder *encoding.RLE32Decoder
-}
-
-func NewColumnEncoder(schema *parquetformat.SchemaElement) *ColumnEncoder {
-	return &ColumnEncoder{Schema: schema, Metadata: parquetformat.NewColumnMetaData()}
-}
-
-func (e *ColumnEncoder) WriteChunk(w io.Writer, offset int, name string) (int, error) {
-
-	return 0, nil
-}
-
 /*
 - BOOLEAN: 1 bit boolean
 - INT32: 32 bit signed int
@@ -56,8 +36,8 @@ var Config = struct {
 	Debug: true,
 }
 
-// ColumnScanner implements the logic to deserialize columns in the parquet format
-type ColumnScanner struct {
+// Scanner implements the logic to deserialize columns in the parquet format
+type Scanner struct {
 	rs             io.ReadSeeker // The reader provided by the client.
 	r              io.Reader
 	chunk          *parquetformat.ColumnChunk
@@ -68,28 +48,28 @@ type ColumnScanner struct {
 	err            error
 }
 
-// NewColumnScanner returns a ColumnScanner that reads from r
+// NewScanner returns a Scanner that reads from r
 // and interprets the stream as described in the ColumnChunk parquet format
-func NewColumnScanner(rs io.ReadSeeker, chunk *parquetformat.ColumnChunk, schema *parquetformat.SchemaElement) *ColumnScanner {
-	return &ColumnScanner{rs: rs, r: nil, chunk: chunk, meta: chunk.MetaData, schema: schema}
+func NewScanner(rs io.ReadSeeker, chunk *parquetformat.ColumnChunk, schema *parquetformat.SchemaElement) *Scanner {
+	return &Scanner{rs: rs, r: nil, chunk: chunk, meta: chunk.MetaData, schema: schema}
 }
 
 // setErr records the first error encountered.
 // it will not overwrite the existing error unless is nil or is io.EOF
-func (s *ColumnScanner) setErr(err error) {
+func (s *Scanner) setErr(err error) {
 	if s.err == nil || s.err == io.EOF {
 		s.err = err
 	}
 }
 
-func (s *ColumnScanner) Err() error {
+func (s *Scanner) Err() error {
 	if s.err == io.EOF {
 		return nil
 	}
 	return s.err
 }
 
-func (s *ColumnScanner) Scan() bool {
+func (s *Scanner) Scan() bool {
 	log.Println(s.meta.GetPathInSchema(), s.meta)
 
 	if s.totalPagesRead == 0 {
@@ -116,7 +96,7 @@ func (s *ColumnScanner) Scan() bool {
 		if err := s.nextPage(); err != nil {
 			s.setErr(err)
 			if err == io.EOF {
-				log.Printf("columnScanner: %s (%s): total pages read: %d", s.meta.GetPathInSchema(), s.meta.Type, s.totalPagesRead)
+				log.Printf("Scanner: %s (%s): total pages read: %d", s.meta.GetPathInSchema(), s.meta.Type, s.totalPagesRead)
 			}
 			return false
 		}
@@ -124,12 +104,12 @@ func (s *ColumnScanner) Scan() bool {
 		s.totalPagesRead++
 	}
 
-	log.Printf("columnScanner: %s (%s): total pages read: %d", s.meta.GetPathInSchema(), s.meta.Type, s.totalPagesRead)
+	log.Printf("Scanner: %s (%s): total pages read: %d", s.meta.GetPathInSchema(), s.meta.Type, s.totalPagesRead)
 	return true
 }
 
 // read another page in the column chunk
-func (s *ColumnScanner) nextPage() (err error) {
+func (s *Scanner) nextPage() (err error) {
 
 	r := s.r
 
@@ -186,7 +166,7 @@ func (s *ColumnScanner) nextPage() (err error) {
 
 		/* header, rb =*/ s.readDataPage(header.DataPageHeader, rb)
 	default:
-		panic("parquet.ColumnScanner: unknown PageHeader.PageType")
+		panic("parquet.Scanner: unknown PageHeader.PageType")
 	}
 
 	if n, err := io.Copy(ioutil.Discard, rb); err != nil {
@@ -199,7 +179,7 @@ func (s *ColumnScanner) nextPage() (err error) {
 }
 
 // Read a dictionary page. There is only one dictionary page for each column chunk
-func (s *ColumnScanner) readDictionaryPage(header *parquetformat.DictionaryPageHeader, rb *bufio.Reader) error {
+func (s *Scanner) readDictionaryPage(header *parquetformat.DictionaryPageHeader, rb *bufio.Reader) error {
 	count := int(header.GetNumValues())
 	dictEnc := header.GetEncoding()
 
@@ -257,7 +237,7 @@ func (s *ColumnScanner) readDictionaryPage(header *parquetformat.DictionaryPageH
 }
 
 // readDataPage
-func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.Reader) {
+func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.Reader) {
 	log.Printf("%s %v\n", s.meta.PathInSchema, header)
 
 	count := int(header.GetNumValues())
@@ -395,17 +375,6 @@ func (s *ColumnScanner) readDataPage(header *parquetformat.DataPageHeader, rb *b
 // 	Levels() Levels
 // 	Err() error
 // 	Value() interface{}
-// }
-
-// type countingReader struct {
-// 	rs io.ReadSeeker
-// 	n  int64
-// }
-
-// func (r *countingReader) Read(p []byte) (n int, err error) {
-// 	n, err = r.rs.Read(p)
-// 	r.n += int64(n)
-// 	return
 // }
 
 // // TODO: shorter name?

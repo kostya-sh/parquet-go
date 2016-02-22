@@ -1,12 +1,6 @@
 package parquet
 
-import (
-	"bufio"
-	"bytes"
-	"testing"
-
-	"github.com/kostya-sh/parquet-go/parquet/encoding"
-)
+import "testing"
 
 func TestEncodeDataPageHeader(t *testing.T) {
 	values := make([]int32, 100)
@@ -14,24 +8,40 @@ func TestEncodeDataPageHeader(t *testing.T) {
 		values[i] = int32(i)
 	}
 
-	var final bytes.Buffer
+	preferences := EncodingPreferences{
+		CompressionCodec: "",
+		Strategy:         "",
+	}
 
-	// DataPage
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
+	enc := NewPageEncoder(preferences)
 
-	enc := encoding.NewPlainEncoder(w)
 	err := enc.WriteInt32(values)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("could not WriteInt32 %s", err)
 	}
-	enc.Flush()
 
-	enc := NewPageEncoder(w)
-	err := enc.WriteInt32(value)
-	if err != nil {
-		t.Fatal(err)
-	}
+	//	page := enc.DataPage()
+	// enc.DictionaryPage
+	// enc.IndexPage()
+
+	// var final bytes.Buffer
+
+	// // DataPage
+	// var b bytes.Buffer
+	// w := bufio.NewWriter(&b)
+
+	// enc := encoding.NewPlainEncoder(w)
+	// err := enc.WriteInt32(values)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// enc.Flush()
+
+	// enc := NewPageEncoder(w)
+	// err := enc.WriteInt32(value)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
 
 	// var compressed bytes.Buffer
 	// wc := snappy.NewWriter(&compressed)
