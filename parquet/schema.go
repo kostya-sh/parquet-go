@@ -170,7 +170,7 @@ func (schema *Schema) createMetadata() *parquetformat.FileMetaData {
 	// 	schema = append(schema, columnDescriptor)
 	// }
 
-	rowGroup := createRowGroup([]*parquetformat.ColumnChunk{})
+	rowGroup := NewRowGroup([]Page{})
 
 	// write metadata at then end of the file in thrift format
 	meta := parquetformat.FileMetaData{

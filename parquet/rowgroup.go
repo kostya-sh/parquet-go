@@ -1,6 +1,7 @@
 package parquet
 
 import (
+	"bufio"
 	"io"
 
 	"github.com/kostya-sh/parquet-go/parquet/column"
@@ -26,18 +27,33 @@ func (rg *RowGroupScanner) NewColumnScanners() []*column.Scanner {
 	return columnScanners
 }
 
-type WriteOffsetter interface {
-	io.Writer
-	Offset() int64
+type RowGroup struct {
+	pages []Page
 }
 
-func createRowGroup(columns []*parquetformat.ColumnChunk) *parquetformat.RowGroup {
+func NewRowGroup(w io.Writer) *RowGroup {
+	return &RowGroup{
+		buffer: bufio.NewWriter(w),
+	}
+}
+
+// func (rg *RowGroup) newDataPage(col *ColumnDescriptor) dataPage {
+
+// }
+func (*) MarshalThrift(w WriteOffsetter) error {
+
+}
+
+func newrow(columns []*ColumnDescriptor, pages []Page) *parquetformat.RowGroup {
 	rowGroup := parquetformat.NewRowGroup()
 	var total int64 = 0
 	var numRows int64 = 0
-	for _, columnChunk := range columns {
-		total += columnChunk.MetaData.GetTotalUncompressedSize()
-		numRows = columnChunk.MetaData.GetNumValues()
+	var columns []*parquetformat.SchemaElement
+
+	for idx, page := range pages {
+		total += int64(page.CompressedSize())
+		numRows = math.MaxInt(numRows, page.NumValues())
+		columns = append(columns, columns[i].SchemaElement)
 	}
 
 	rowGroup.TotalByteSize = total

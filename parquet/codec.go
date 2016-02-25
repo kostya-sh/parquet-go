@@ -41,18 +41,20 @@ type Encoder interface {
 type defaultEncoder struct {
 	schema         *Schema
 	version        string
-	w              io.Writer
+	w              *CountingWriter
 	filemetadata   *pf.FileMetaData
 	columnEncoders map[string]DataEncoder
+	rowgroups      []*RowGroup
 }
 
 func NewEncoder(schema *Schema, w io.Writer) Encoder {
 	return &defaultEncoder{
 		schema:         schema,
 		version:        "parquet-go", // FIXME
-		w:              w,
+		w:              NewCountingWriter(w),
 		filemetadata:   pf.NewFileMetaData(),
 		columnEncoders: make(map[string]DataEncoder),
+		rowgroups:      make([]*RowGroup, 0, 5),
 	}
 }
 
@@ -195,6 +197,32 @@ func (e *defaultEncoder) WriteBool(name string, values []bool) error {
 		return fmt.Errorf("invalid column %s", name)
 	}
 	return enc.WriteBool(values)
+}
+
+// Close writes all the pending data to the underlying stream.
+func (e *defaultEncoder) Close() error {
+	if err := writeHeader(e.w); err != nil {
+		return fmt.Errorf("could not write parquet header to stream: %s", err)
+	}
+
+	for _, rowGroup := range e.rowgroups {
+		err := rowGroup.MarshalThrift(e.w)
+
+		for _, page := range rowGroup.pages {
+
+		}
+	}
+
+	// has to be in the same order of the schema
+	for _, colname := range e.schema.Columns() {
+		enc, ok := e.getColumnEncoder(colname)
+		if !ok {
+			panic("should not have a column not encoded")
+		}
+
+	}
+
+	return nil
 }
 
 // Decoder

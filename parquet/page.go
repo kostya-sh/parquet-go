@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"io"
 	"log"
 
 	"github.com/golang/snappy"
@@ -25,8 +26,20 @@ type dataPage struct {
 	header *parquetformat.PageHeader
 }
 
-func (dp *dataPage) Type() parquetformat.PageType {
+func (page *dataPage) Type() parquetformat.PageType {
 	return parquetformat.PageType_DATA_PAGE
+}
+
+func (page *dataPage) CompressedSize() int32 {
+	return page.header.CompressedPageSize
+}
+
+func (page *dataPage) UncompressedSize() int32 {
+	return page.header.UncompressedPageSize
+}
+
+func (page *dataPage) NumValues() int32 {
+	return page.header.DataPageHeader.NumValues
 }
 
 // encoder should provide this
@@ -50,6 +63,9 @@ func newDataPage() *dataPage {
 
 type Page interface {
 	Type() parquetformat.PageType
+	CompressedSize() int32
+	UncompressedSize() int32
+	NumValues() int32
 }
 
 type PageScanner interface {
@@ -114,8 +130,16 @@ func newDefaultPageEncoder(compressionCodec string) *defaultPageEncoder {
 	return encoder
 }
 
+func (e *defaultPageEncoder) mempool() io.Writer {
+	return new(bytes.Buffer)
+}
+
 func (e *defaultPageEncoder) addPage() error {
 	if e.currentWriter != nil {
+
+		// create DataPage
+		b := e.mempool()
+
 		page := newDataPage()
 		err := e.currentWriter.Flush()
 		if err != nil {
@@ -131,9 +155,25 @@ func (e *defaultPageEncoder) addPage() error {
 		compressedSize := len(compressed)
 
 		page.header.DataPageHeader.Encoding = e.encoderType
-
 		page.header.UncompressedPageSize = int32(uncompressedSize)
 		page.header.CompressedPageSize = int32(compressedSize)
+
+		// Write header
+		err = page.header.Write(&b)
+		if err != nil {
+			return fmt.Errorf("could not write data page header to buffer:%s", err)
+		}
+		// Write repetition levels
+
+		// Write definition levels
+
+		// Write values
+		err = io.Copy(&b, e.buffer)
+		if err != nil {
+			return fmt.Errorf("could not write data page value to buffer:%s", err)
+		}
+
+		page.buffer = &b
 
 		e.pages = append(e.pages, page)
 	}
@@ -165,9 +205,9 @@ func (e *defaultPageEncoder) compress(p []byte) ([]byte, error) {
 	return compressed.Bytes(), nil
 }
 
+// Pages return all the pages written by this encoder
 func (e *defaultPageEncoder) Pages() []Page {
-
-	return []Page{}
+	return e.pages
 }
 
 func (e *defaultPageEncoder) WriteBool(values []bool) error {
