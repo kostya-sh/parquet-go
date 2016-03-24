@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/kostya-sh/parquet-go/parquet/page"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
@@ -48,7 +49,7 @@ type defaultEncoder struct {
 	version        string
 	w              *thrift.CountingWriter
 	filemetadata   *thrift.FileMetaData
-	columnEncoders map[string]DataEncoder
+	columnEncoders map[string]page.DataEncoder
 	rowgroups      []*RowGroup
 }
 
@@ -59,18 +60,18 @@ func NewEncoder(schema *Schema, w io.Writer) Encoder {
 		version:        "parquet-go", // FIXME
 		w:              thrift.NewCountingWriter(w),
 		filemetadata:   thrift.NewFileMetaData(),
-		columnEncoders: make(map[string]DataEncoder),
+		columnEncoders: make(map[string]page.DataEncoder),
 		rowgroups:      make([]*RowGroup, 0, 5),
 	}
 }
 
-func (e *defaultEncoder) getColumnEncoder(name string) (DataEncoder, bool) {
+func (e *defaultEncoder) getColumnEncoder(name string) (page.DataEncoder, bool) {
 	enc, ok := e.columnEncoders[name]
 	if !ok {
 		// TODO have a better configuration strategy to choose the encoding algorithm
-		preferences := EncodingPreferences{CompressionCodec: "", Strategy: "default"}
+		preferences := page.EncodingPreferences{CompressionCodec: "", Strategy: "default"}
 
-		e.columnEncoders[name] = NewPageEncoder(preferences)
+		e.columnEncoders[name] = page.NewPageEncoder(preferences)
 	}
 
 	return enc, true

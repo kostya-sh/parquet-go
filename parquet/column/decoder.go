@@ -19,12 +19,6 @@ import (
 - BYTE_ARRAY: arbitrarily long byte arrays
 */
 
-var Config = struct {
-	Debug bool
-}{
-	Debug: true,
-}
-
 // Scanner implements the logic to de-serialize columns in the parquet format
 type Scanner struct {
 	rs             io.ReadSeeker // The reader provided by the client.
@@ -33,7 +27,7 @@ type Scanner struct {
 	cursor         int
 	totalPagesRead int
 	err            error
-	currentChunk   chunk
+	currentChunk   *chunk
 	//dictionaryLUT  []string // Look Up Table for dictionary encoded column chunks
 }
 
@@ -78,7 +72,7 @@ func (s *Scanner) Scan() bool {
 		offset = meta.GetIndexPageOffset()
 	}
 
-	_, err := s.rs.Seek(columnStart, os.SEEK_SET)
+	_, err := s.rs.Seek(offset, os.SEEK_SET)
 	if err != nil {
 		s.setErr(err)
 		return false
@@ -87,21 +81,21 @@ func (s *Scanner) Scan() bool {
 	// substitute the original reader with a limited one to get io.EOF
 	r := io.LimitReader(s.rs, meta.TotalCompressedSize)
 
-	pageScanner := page.NewScanner(r, meta.GetCodec())
+	pageScanner := page.NewScanner(s.schema, meta.GetCodec(), r)
 
-	c := new(chunk)
+	currentChunk := new(chunk)
 
-	c.numValues = meta.GetNumValues()
+	currentChunk.numValues = meta.GetNumValues()
 
 	for pageScanner.Scan() {
 		if page, ok := pageScanner.DataPage(); ok {
-			chunk.data = append(chunk.data, page)
+			currentChunk.data = append(currentChunk.data, page)
 		}
 		if index, ok := pageScanner.IndexPage(); ok {
-			chunk.index = index
+			currentChunk.index = index
 		}
 		if dictionary, ok := pageScanner.DictionaryPage(); ok {
-			chunk.dictionary = dictionary
+			currentChunk.dictionary = dictionary
 		}
 	}
 
@@ -110,7 +104,7 @@ func (s *Scanner) Scan() bool {
 	}
 
 	// chunk is ready to be decoded
-	s.currentChunk = chunk
+	s.currentChunk = currentChunk
 
 	s.cursor++
 
@@ -135,25 +129,28 @@ func (c *Scanner) NumValues() int64 {
 
 // column.Scanner.ReadInt32 returns all the values in the current chunk
 func (s *Scanner) ReadInt32([]int32) bool {
-	if s.chunk == nil {
+	if s.currentChunk == nil {
 		return false
 	}
 
-	// s.currentChunk
+	return true
 }
 
 func (s *Scanner) Int32() ([]int32, bool) {
-	alloc := make(s.chunk.meta, []int32)
+	alloc := make([]int32, 0, s.NumValues())
 	ok := s.ReadInt32(alloc)
 	return alloc, ok
 }
 
+// ReadInt64
 func (s *Scanner) ReadInt64([]int64) bool {
-
+	return true
 }
 
-func (s *Scanner) ReadInt64([]int64) bool {
+// ReadString
+func (s *Scanner) ReadString([]int64) bool {
 
+	return true
 }
 
 // // read another page in the column chunk

@@ -160,10 +160,10 @@ func (fd *FileDescriptor) ColumnScanner(colname string) (*column.Scanner, error)
 
 	chunks, err := fd.meta.GetColumnChunks(colname)
 	if err != nil {
-		return fmt.Errorf("could not get columnChunks: %s", err)
+		return nil, fmt.Errorf("could not get columnChunks: %s", err)
 	}
 
-	return column.NewScanner(fd, elementSchema, chunks)
+	return column.NewScanner(fd, elementSchema, chunks), nil
 }
 
 // func (fd *FileDescriptor) Close() error {

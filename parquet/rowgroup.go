@@ -20,7 +20,7 @@ func (rg *RowGroupScanner) NewColumnScanners() []*column.Scanner {
 
 	for idx, columnSchema := range rg.columns {
 		chunk := rg.rowGroup.GetColumns()[idx]
-		columnScanners = append(columnScanners, column.NewScanner(rg.r, chunk, columnSchema))
+		columnScanners = append(columnScanners, column.NewScanner(rg.r, columnSchema, []*thrift.ColumnChunk{chunk}))
 	}
 
 	return columnScanners
