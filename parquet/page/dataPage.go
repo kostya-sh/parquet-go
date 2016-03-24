@@ -12,12 +12,23 @@ import (
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
-type DataPage interface {
+//DataPage represents one data page inside a column chunk
+type DataPage struct {
+	schema *thrift.SchemaElement
+	header *thrift.DataPageHeader
+	meta   *thrift.ColumnMetaData
 }
 
-// readDataPage
-func readDataPage(schema *thrift.SchemaElement, header *thrift.DataPageHeader, rb *bufio.Reader) (*DataPage, error) {
+// NewDataPage
+func NewDataPage(schema *thrift.SchemaElement, header *thrift.DataPageHeader) *DataPage {
+	return &DataPage{schema: schema, header: header}
+}
 
+// Decode using the given reader
+func (p *DataPage) Decode(rb *bufio.Reader) error {
+	header := p.header
+	schema := p.schema
+	Type := p.schema.GetType()
 	count := int(header.GetNumValues())
 
 	// only levels that are repeated need a Repetition level:
@@ -31,13 +42,11 @@ func readDataPage(schema *thrift.SchemaElement, header *thrift.DataPageHeader, r
 			for dec.Scan() {
 				log.Println("repetition level decoding:", dec.Value())
 			}
-
 			if err := dec.Err(); err != nil {
-				return nil, err
+				return err
 			}
 		default:
-			log.Println("WARNING could not handle %s", repEnc)
-			return nil, err
+			return fmt.Errorf("WARNING could not handle %s", repEnc)
 		}
 	}
 
@@ -53,12 +62,11 @@ func readDataPage(schema *thrift.SchemaElement, header *thrift.DataPageHeader, r
 			}
 
 			if err := dec.Err(); err != nil {
-				return nil, err
+				return err
 			}
 
 		default:
-			log.Println("WARNING could not handle %s", defEnc)
-			return nil, err
+			return fmt.Errorf("WARNING could not handle %s", defEnc)
 		}
 	}
 
@@ -77,8 +85,8 @@ func readDataPage(schema *thrift.SchemaElement, header *thrift.DataPageHeader, r
 	case thrift.Encoding_DELTA_BYTE_ARRAY:
 	case thrift.Encoding_DELTA_LENGTH_BYTE_ARRAY:
 	case thrift.Encoding_PLAIN:
-		d := encoding.NewPlainDecoder(rb, meta.GetType(), int(header.NumValues))
-		switch meta.GetType() {
+		d := encoding.NewPlainDecoder(rb, Type, int(header.NumValues))
+		switch Type {
 
 		case thrift.Type_INT32:
 			out := make([]int32, 0, count)
@@ -102,11 +110,11 @@ func readDataPage(schema *thrift.SchemaElement, header *thrift.DataPageHeader, r
 			}
 
 		case thrift.Type_BYTE_ARRAY, thrift.Type_FIXED_LEN_BYTE_ARRAY:
-			s.dictionaryLUT = make([]string, 0, count)
-			read, err := d.DecodeStr(s.dictionaryLUT)
-			if err != nil || read != count {
-				panic("unexpected")
-			}
+			// s.dictionaryLUT = make([]string, 0, count)
+			// read, err := d.DecodeStr(s.dictionaryLUT)
+			// if err != nil || read != count {
+			// 	panic("unexpected")
+			// }
 
 		case thrift.Type_INT96:
 			panic("not supported type int96")
@@ -125,14 +133,16 @@ func readDataPage(schema *thrift.SchemaElement, header *thrift.DataPageHeader, r
 		dec := rle.NewHybridBitPackingRLEDecoder(rb, int(b))
 
 		for dec.Scan() {
-			log.Println(meta.GetPathInSchema(), dec.Value())
+			// log.Println(meta.GetPathInSchema(), dec.Value())
 		}
 
 		if err := dec.Err(); err != nil {
-			panic(fmt.Errorf("%s: plain_dictionary: %s", meta.GetPathInSchema(), err))
+			return fmt.Errorf("plain_dictionary: %s", err)
 		}
 
 	default:
 		panic("Not supported type for " + header.GetEncoding().String())
 	}
+
+	return nil
 }

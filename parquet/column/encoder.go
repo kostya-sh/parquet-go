@@ -2,17 +2,15 @@ package column
 
 import (
 	"bytes"
-	"io"
 
 	"github.com/kostya-sh/parquet-go/parquet/encoding"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
-// you can only have one dictionary page per each column chunk
-type Encoder interface {
-}
+// Note: you can only have one dictionary page per each column chunk
 
-type defaultEncoder struct {
+//Encoder
+type Encoder struct {
 	Schema   *thrift.SchemaElement
 	Metadata *thrift.ColumnMetaData
 
@@ -21,13 +19,8 @@ type defaultEncoder struct {
 }
 
 // NewEncoder
-func NewEncoder(schema *thrift.SchemaElement) Encoder {
-	return &defaultEncoder{Schema: schema, Metadata: thrift.NewColumnMetaData()}
-}
-
-func (e *defaultEncoder) WriteChunk(w io.Writer, offset int, name string) (int, error) {
-
-	return 0, nil
+func NewEncoder(schema *thrift.SchemaElement) *Encoder {
+	return &Encoder{Schema: schema, Metadata: thrift.NewColumnMetaData()}
 }
 
 func NewColumnChunk(name string) (*thrift.ColumnChunk, bytes.Buffer) {

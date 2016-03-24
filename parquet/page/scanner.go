@@ -9,52 +9,55 @@ import (
 	"strings"
 
 	"github.com/golang/snappy"
-	"github.com/kostya-sh/parquet-go/parquet/encoding"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
 // Scanner
 type Scanner interface {
 	Scan() bool
-	DataPage() (DataPage, bool)
-	DictionaryPage() (DictionaryPage, bool)
-	IndexPage() (IndexPage, bool)
+	DataPage() (*DataPage, bool)
+	DictionaryPage() (*DictionaryPage, bool)
+	IndexPage() (*IndexPage, bool)
 	Err() error
 }
 
 type scanner struct {
+	schema     *thrift.SchemaElement
 	r          io.Reader
-	dictionary DictionaryPage
-	dataPage   DataPage
-	indexPage  IndexPage
+	dictionary *DictionaryPage
+	dataPage   *DataPage
+	indexPage  *IndexPage
+	codec      thrift.CompressionCodec
+	err        error
 }
 
-func NewScanner(r io.Reader, codec thrift.CompressionCodec) Scanner {
-	return &scanner{r: r, codec: codec}
+func NewScanner(schema *thrift.SchemaElement, codec thrift.CompressionCodec, r io.Reader) Scanner {
+	return &scanner{schema: schema, r: r, codec: codec}
 }
 
-// read another page in the column chunk
-func (s *scanner) Scan() (err error) {
+// read another page inside the column chunk
+func (s *scanner) Scan() bool {
 	var (
 		header thrift.PageHeader
-		codec  thrift.CompressionCodec
 	)
 
 	s.dictionary = nil
 	s.dataPage = nil
 	s.indexPage = nil
 
-	err = header.Read(s.r)
+	err := header.Read(s.r)
 	if err != nil {
 		if strings.HasSuffix(err.Error(), "EOF") { // FIXME: find a better way to detect io.EOF
-			return io.EOF
+			s.setErr(io.EOF)
+			return false
 		}
-		return fmt.Errorf("column scanner: could not read chunk header: %s", err)
+		s.setErr(fmt.Errorf("column scanner: could not read chunk header: %s", err))
+		return false
 	}
 
 	// setup reader
 	r := io.LimitReader(s.r, int64(header.CompressedPageSize))
-	r, err := compressionReader(r, s.codec)
+	r, err = compressionReader(r, s.codec)
 	if err != nil {
 		s.setErr(err)
 		return false
@@ -63,20 +66,17 @@ func (s *scanner) Scan() (err error) {
 	rb := bufio.NewReader(r)
 
 	// read the page
-	page, err := s.readPage(rb)
-	if err != nil {
+	if err := s.readPage(rb, &header); err != nil {
 		s.setErr(err)
 		return false
 	}
-
-	s.page = page
 
 	// check if we consumed all the data from the limit reader as a safe guard
 	if n, err := io.Copy(ioutil.Discard, rb); err != nil {
 		s.setErr(err)
 		return false
 	} else if n > 0 {
-		err := fmt.Errorf("not all the data was consumed.")
+		err := fmt.Errorf("not all the data was consumed")
 		s.setErr(err)
 		return false
 	}
@@ -88,10 +88,12 @@ func (s *scanner) Scan() (err error) {
 func compressionReader(r io.Reader, codec thrift.CompressionCodec) (io.Reader, error) {
 	switch codec {
 	case thrift.CompressionCodec_GZIP:
-		r, err = gzip.NewReader(r)
+		r, err := gzip.NewReader(r)
 		if err != nil {
 			return nil, fmt.Errorf("could not create gzip reader:%s", err)
 		}
+		return r, nil
+
 	case thrift.CompressionCodec_LZO:
 		// https://github.com/rasky/go-lzo/blob/master/decompress.go#L149			s.r = r
 		return nil, fmt.Errorf("NYI")
@@ -99,108 +101,74 @@ func compressionReader(r io.Reader, codec thrift.CompressionCodec) (io.Reader, e
 	case thrift.CompressionCodec_SNAPPY:
 		r = snappy.NewReader(r)
 		return r, nil
+
 	case thrift.CompressionCodec_UNCOMPRESSED:
 		// use the same reader
 		return r, nil
+
 	default:
 		return nil, fmt.Errorf("unknown compression format %s", codec)
 	}
 }
 
-// readPage
-func (s *scanner) readPage() (Page, error) {
-	t := s.header.Type
+func (s *scanner) readPage(r *bufio.Reader, header *thrift.PageHeader) error {
 
-	switch t {
+	switch header.GetType() {
 
 	case thrift.PageType_INDEX_PAGE:
-		return nil, fmt.Errorf("WARNING IndexPage not yet implemented")
+		if !header.IsSetIndexPageHeader() {
+			return nil
+		}
+
+		s.indexPage = NewIndexPage(header.GetIndexPageHeader())
+		// TODO read indexPage
+		return nil
 
 	case thrift.PageType_DICTIONARY_PAGE:
-		if !s.header.IsSetDictionaryPageHeader() {
-			return nil, fmt.Errorf("bad file format:DictionaryPageHeader flag was not set")
+		if !header.IsSetDictionaryPageHeader() {
+			return fmt.Errorf("bad file format:DictionaryPageHeader flag was not set")
 		}
-		return s.readDictionaryPage()
+		dictHeader := header.GetDictionaryPageHeader()
+		s.dictionary = NewDictionaryPage(s.schema.GetType(), dictHeader)
+		return s.dictionary.Decode(r)
 
 	case thrift.PageType_DATA_PAGE_V2:
 		panic("nyi")
 
 	case thrift.PageType_DATA_PAGE:
 		if !header.IsSetDataPageHeader() {
-			return nil, fmt.Errorf("bad file format: DataPageHeader flag was not set")
+			return fmt.Errorf("bad file format: DataPageHeader flag was not set")
 		}
-		return s.readDataPage()
+		s.dataPage = NewDataPage(s.schema, header.GetDataPageHeader())
+		return s.dataPage.Decode(r)
 
 	default:
-		return nil, fmt.Errorf("unknown PageHeader.PageType: %s", t)
+		return fmt.Errorf("unknown PageHeader.PageType: %s", header.GetType())
 	}
-
-	return nil
 }
 
-func (s *scanner) DataPage() (DataPage, bool) {
-	return s.page, true
+func (s *scanner) DataPage() (*DataPage, bool) {
+	return s.dataPage, s.dataPage != nil
 }
 
-func (s *scanner) DictionaryPage() (DictionaryPage, bool) {
-	return s.page, true
+func (s *scanner) DictionaryPage() (*DictionaryPage, bool) {
+	return s.dictionary, s.dictionary != nil
 }
 
-func (s *scanner) IndexPage() (IndexPage, bool) {
-	return s.page, true
+func (s *scanner) IndexPage() (*IndexPage, bool) {
+	return s.indexPage, s.indexPage != nil
 }
 
-func (s *Scanner) setErr(err error) {
+func (s *scanner) setErr(err error) {
 	if s.err == nil || s.err == io.EOF {
 		s.err = err
 	}
 }
 
 // Err returns the first non io.EOF error encountered while scanning the data inside a rowGroup
-func (s *Scanner) Err() error {
+func (s *scanner) Err() error {
 	if s.err == io.EOF {
 		return nil
 	}
 	return s.err
-}
-
-// Read a dictionary page. There is only one dictionary page for each column chunk
-func (s *scanner) readDictionaryPage() (*DictionaryPage, error) {
-
-	count := int(s.header.GetNumValues())
-	dictEnc := s.header.GetEncoding()
-
-	switch dictEnc {
-	case thrift.Encoding_PLAIN_DICTIONARY:
-		t := meta.GetType()
-		count := int(header.GetNumValues())
-		decoder := encoding.NewPlainDecoder(s.r, t, count)
-		page := NewDictionaryPage()
-
-		switch meta.GetType() {
-
-		case thrift.Type_INT32:
-			read, err := d.DecodeInt32(page.valuesInt32)
-			if err != nil || read != count {
-				panic("unexpected")
-			}
-		case thrift.Type_INT64:
-			read, err := d.DecodeInt64(page.valuesInt64)
-			if err != nil || read != count {
-				panic("unexpected")
-			}
-		case thrift.Type_BYTE_ARRAY, thrift.Type_FIXED_LEN_BYTE_ARRAY:
-			read, err := d.DecodeStr(page.valuesString)
-			if err != nil || read != count {
-				panic("unexpected")
-			}
-		case thrift.Type_DOUBLE:
-		case thrift.Type_FLOAT:
-		case thrift.Type_INT96:
-		default:
-			panic("dictionary encoding " + dictEnc.String() + "not yet supported") // FIXME
-		}
-
-		return nil, nil
-	}
 }

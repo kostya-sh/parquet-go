@@ -31,9 +31,10 @@ type Scanner struct {
 	schema         *thrift.SchemaElement
 	chunks         []*thrift.ColumnChunk
 	cursor         int
-	dictionaryLUT  []string // Look Up Table for dictionary encoded column chunks
 	totalPagesRead int
 	err            error
+	currentChunk   chunk
+	//dictionaryLUT  []string // Look Up Table for dictionary encoded column chunks
 }
 
 // NewScanner returns a Scanner that reads from r
@@ -84,11 +85,13 @@ func (s *Scanner) Scan() bool {
 	}
 
 	// substitute the original reader with a limited one to get io.EOF
-	r = io.LimitReader(s.rs, meta.TotalCompressedSize)
+	r := io.LimitReader(s.rs, meta.TotalCompressedSize)
 
 	pageScanner := page.NewScanner(r, meta.GetCodec())
 
 	c := new(chunk)
+
+	c.numValues = meta.GetNumValues()
 
 	for pageScanner.Scan() {
 		if page, ok := pageScanner.DataPage(); ok {
@@ -107,6 +110,7 @@ func (s *Scanner) Scan() bool {
 	}
 
 	// chunk is ready to be decoded
+	s.currentChunk = chunk
 
 	s.cursor++
 
@@ -114,9 +118,42 @@ func (s *Scanner) Scan() bool {
 }
 
 type chunk struct {
+	numValues  int64
 	data       []*page.DataPage
 	dictionary *page.DictionaryPage
 	index      *page.IndexPage
+}
+
+// NumValues returns the number of values in the current chunk
+func (c *Scanner) NumValues() int64 {
+	if c.currentChunk == nil {
+		return 0
+	}
+
+	return c.currentChunk.numValues
+}
+
+// column.Scanner.ReadInt32 returns all the values in the current chunk
+func (s *Scanner) ReadInt32([]int32) bool {
+	if s.chunk == nil {
+		return false
+	}
+
+	// s.currentChunk
+}
+
+func (s *Scanner) Int32() ([]int32, bool) {
+	alloc := make(s.chunk.meta, []int32)
+	ok := s.ReadInt32(alloc)
+	return alloc, ok
+}
+
+func (s *Scanner) ReadInt64([]int64) bool {
+
+}
+
+func (s *Scanner) ReadInt64([]int64) bool {
+
 }
 
 // // read another page in the column chunk
