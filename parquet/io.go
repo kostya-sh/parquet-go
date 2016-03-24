@@ -5,6 +5,25 @@ import (
 	"io"
 )
 
+// // CountingWriter counts the number of bytes written to it.
+// type CountingWriter struct {
+// 	W io.Writer // underlying writer
+// 	N int64     // total # of bytes written
+// }
+
+// // CountingWriter wraps an existing io.Writer
+// func NewCountingWriter(w io.Writer) *CountingWriter {
+// 	return &CountingWriter{W: w, N: 0}
+// }
+
+// // Write implements the io.Writer interface.
+// func (wc *CountingWriter) Write(p []byte) (int, error) {
+// 	n, err := wc.W.Write(p)
+// 	wc.N += int64(n)
+// 	return n, err
+// }
+
+// ReadSeekCloser
 type ReadSeekCloser interface {
 	io.ReadSeeker
 	io.Closer
@@ -90,27 +109,4 @@ func (a *accumulator) WriteString(value interface{}) error {
 		return fmt.Errorf("invalid value expected bool")
 	}
 	return nil
-}
-
-// CountingWriter counts the number of bytes written to it.
-type CountingWriter struct {
-	W io.Writer // underlying writer
-	N int64     // total # of bytes written
-}
-
-// CountingWriter wraps an existing io.Writer
-func NewCountingWriter(w io.Writer) *CountingWriter {
-	return &CountingWriter{W: w, N: 0}
-}
-
-// Write implements the io.Writer interface.
-func (wc *CountingWriter) Write(p []byte) (int, error) {
-	n, err := wc.W.Write(p)
-	wc.N += int64(n)
-	return n, err
-}
-
-type WriteOffsetter interface {
-	io.Writer
-	Offset() int64
 }

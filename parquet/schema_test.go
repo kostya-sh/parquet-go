@@ -6,15 +6,15 @@ import (
 	"os"
 	"testing"
 
-	pf "github.com/kostya-sh/parquet-go/parquetformat"
+	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
 func int32Ptr(v int32) *int32 {
 	return &v
 }
 
-func createFileMetaData(schema ...*pf.SchemaElement) *pf.FileMetaData {
-	return &pf.FileMetaData{Schema: schema}
+func createFileMetaData(schema ...*thrift.SchemaElement) *thrift.FileMetaData {
+	return &thrift.FileMetaData{Schema: schema}
 }
 
 func TestCreateSchema(t *testing.T) {
@@ -40,63 +40,63 @@ func TestCreateSchema(t *testing.T) {
 }
 
 func TestCreateInvalidSchemas(t *testing.T) {
-	invalidFileMetaDatas := []*pf.FileMetaData{
+	invalidFileMetaDatas := []*thrift.FileMetaData{
 		// empty schema array
 		createFileMetaData(),
 
 		// nil NumChildren
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test"},
+			&thrift.SchemaElement{Name: "test"},
 		),
 
 		// negative NumChildren
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(-1)},
+			&thrift.SchemaElement{Name: "test", NumChildren: int32Ptr(-1)},
 		),
 
 		// invalid NumChildren (more then SchemaElement elements)
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(3)},
+			&thrift.SchemaElement{Name: "test", NumChildren: int32Ptr(3)},
 		),
 
 		// no repetition_type for a leaf
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
-			&pf.SchemaElement{Type: typeBoolean, Name: "f1"},
+			&thrift.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
+			&thrift.SchemaElement{Type: typeBoolean, Name: "f1"},
 		),
 
 		// NumChildren is too small
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test1", NumChildren: int32Ptr(1)},
-			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1"},
-			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f2"},
+			&thrift.SchemaElement{Name: "test1", NumChildren: int32Ptr(1)},
+			&thrift.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1"},
+			&thrift.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f2"},
 		),
 
 		// no TypeLength for fixed_len_byte_array
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test1", NumChildren: int32Ptr(1)},
-			&pf.SchemaElement{Type: typeFixedLenByteArray, RepetitionType: frtRequired, Name: "f1"},
+			&thrift.SchemaElement{Name: "test1", NumChildren: int32Ptr(1)},
+			&thrift.SchemaElement{Type: typeFixedLenByteArray, RepetitionType: frtRequired, Name: "f1"},
 		),
 
 		// int32 with converted_type = UTF8
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
-			&pf.SchemaElement{Type: typeInt32, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctUTF8},
+			&thrift.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
+			&thrift.SchemaElement{Type: typeInt32, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctUTF8},
 		),
 		// boolean with converted_type = MAP
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
-			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctMap},
+			&thrift.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
+			&thrift.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctMap},
 		),
 		// boolean with converted_type = LIST
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
-			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctList},
+			&thrift.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
+			&thrift.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctList},
 		),
 		// boolean with converted_type = MAP_KEY_VALUE
 		createFileMetaData(
-			&pf.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
-			&pf.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctMapKeyValue},
+			&thrift.SchemaElement{Name: "test", NumChildren: int32Ptr(1)},
+			&thrift.SchemaElement{Type: typeBoolean, RepetitionType: frtRequired, Name: "f1", ConvertedType: ctMapKeyValue},
 		),
 	}
 
@@ -110,7 +110,7 @@ func TestCreateInvalidSchemas(t *testing.T) {
 	}
 }
 
-func mustCreateSchema(meta *pf.FileMetaData) *Schema {
+func mustCreateSchema(meta *thrift.FileMetaData) *Schema {
 	s, err := schemaFromFileMetaData(meta)
 	if err != nil {
 		panic(err)
@@ -120,63 +120,63 @@ func mustCreateSchema(meta *pf.FileMetaData) *Schema {
 
 func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 	s := mustCreateSchema(createFileMetaData(
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			Name:        "test.Message",
 			NumChildren: int32Ptr(10),
 		},
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			Type:           typeBoolean,
 			RepetitionType: frtRequired,
 			Name:           "RequiredBoolean",
 		},
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			Type:           typeInt32,
 			RepetitionType: frtOptional,
 			Name:           "OptionalInt32",
 		},
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			Type:           typeInt64,
 			RepetitionType: frtRepeated,
 			Name:           "RepeatedInt64",
 		},
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			Type:           typeInt96,
 			RepetitionType: frtOptional,
 			Name:           "OptionalInt96",
 		},
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			Type:           typeFloat,
 			RepetitionType: frtOptional,
 			Name:           "OptionalFloat",
 		},
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			Type:           typeDouble,
 			RepetitionType: frtOptional,
 			Name:           "OptionalDouble",
 		},
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			Type:           typeByteArray,
 			RepetitionType: frtOptional,
 			Name:           "OptionalByteArray",
 		},
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			Type:           typeFixedLenByteArray,
 			TypeLength:     int32Ptr(10),
 			RepetitionType: frtOptional,
 			Name:           "OptionalFixedLenByteArray",
 		},
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			Type:           typeByteArray,
 			RepetitionType: frtRequired,
 			Name:           "RequiredString",
 			ConvertedType:  ctUTF8,
 		},
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			RepetitionType: frtRequired,
 			Name:           "RequiredGroup",
 			NumChildren:    int32Ptr(1),
 		},
-		&pf.SchemaElement{
+		&thrift.SchemaElement{
 			Type:           typeInt32,
 			RepetitionType: frtOptional,
 			Name:           "OptionalInt32",
@@ -204,51 +204,51 @@ func TestCreateSchemaFromFileMetaDataAndMarshal(t *testing.T) {
 }
 
 var dremelPaperExampleMeta = createFileMetaData(
-	&pf.SchemaElement{
+	&thrift.SchemaElement{
 		Name:        "Document",
 		NumChildren: int32Ptr(3),
 	},
-	&pf.SchemaElement{
+	&thrift.SchemaElement{
 		Name:           "DocId",
 		Type:           typeInt64,
 		RepetitionType: frtRequired,
 	},
-	&pf.SchemaElement{
+	&thrift.SchemaElement{
 		Name:           "Links",
 		RepetitionType: frtOptional,
 		NumChildren:    int32Ptr(2),
 	},
-	&pf.SchemaElement{
+	&thrift.SchemaElement{
 		Name:           "Backward",
 		Type:           typeInt64,
 		RepetitionType: frtRepeated,
 	},
-	&pf.SchemaElement{
+	&thrift.SchemaElement{
 		Name:           "Forward",
 		Type:           typeInt64,
 		RepetitionType: frtRepeated,
 	},
-	&pf.SchemaElement{
+	&thrift.SchemaElement{
 		Name:           "Name",
 		RepetitionType: frtRepeated,
 		NumChildren:    int32Ptr(2),
 	},
-	&pf.SchemaElement{
+	&thrift.SchemaElement{
 		Name:           "Language",
 		RepetitionType: frtRepeated,
 		NumChildren:    int32Ptr(2),
 	},
-	&pf.SchemaElement{
+	&thrift.SchemaElement{
 		Name:           "Code",
 		Type:           typeByteArray,
 		RepetitionType: frtRequired,
 	},
-	&pf.SchemaElement{
+	&thrift.SchemaElement{
 		Name:           "Country",
 		Type:           typeByteArray,
 		RepetitionType: frtOptional,
 	},
-	&pf.SchemaElement{
+	&thrift.SchemaElement{
 		Name:           "Url",
 		Type:           typeByteArray,
 		RepetitionType: frtOptional,
@@ -391,13 +391,13 @@ func TestreadFileMetaData(t *testing.T) {
 		t.Errorf("Schema size: was %d, expected 2", len(m.Schema))
 	}
 	fieldType := *m.Schema[1].Type
-	if fieldType != pf.Type_BOOLEAN {
+	if fieldType != thrift.Type_BOOLEAN {
 		t.Errorf("Field type: was %s, expected BOOLEAN", fieldType)
 	}
 }
 
 // func TestCanWriteSchemaWithNoColumns(t *testing.T) {
-// 	c := NewEncoder([]*pf.ColumnChunk{})
+// 	c := NewEncoder([]*thrift.ColumnChunk{})
 // 	var b bytes.Buffer
 
 // 	if err := c.Write(&b); err != nil {
@@ -415,7 +415,7 @@ func TestreadFileMetaData(t *testing.T) {
 // }
 
 // func TestCanWriteSchemaWithOneColumnAndNoRows(t *testing.T) {
-// 	c := NewEncoder([]*pf.ColumnChunk{})
+// 	c := NewEncoder([]*thrift.ColumnChunk{})
 
 // 	var b bytes.Buffer
 

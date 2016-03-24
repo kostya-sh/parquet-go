@@ -8,7 +8,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/kostya-sh/parquet-go/parquetformat"
+	"github.com/kostya-sh/parquet-go/parquet/column"
+	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
 const (
@@ -21,7 +22,7 @@ var (
 	ErrNotParquetFile = errors.New("not a parquet file: invalid header")
 )
 
-// writeFile
+// writeHeader
 func writeHeader(w io.Writer) error {
 	_, err := w.Write(parquetMagic)
 	if err != nil {
@@ -36,7 +37,7 @@ func writeHeader(w io.Writer) error {
 // Write it to the file and record the set.
 // Plain Encoder needs only data pages
 //  WriteInt()
-func writeFileMetadata(w io.Writer, meta *parquetformat.FileMetaData) error {
+func writeFileMetadata(w io.Writer, meta *thrift.FileMetaData) error {
 	// write metadata
 	n, err := meta.Write(w)
 	if err != nil {
@@ -57,14 +58,14 @@ func writeFileMetadata(w io.Writer, meta *parquetformat.FileMetaData) error {
 	return nil
 }
 
-// readFileMetaData reads parquetformat.FileMetaData object from r that provides
+// readFileMetaData reads thrift.FileMetaData object from r that provides
 // read interface to data in parquet format.
 //
 // Parquet format is described here:
 // https://github.com/apache/parquet-format/blob/master/README.md
 // Note that the File Metadata is at the END of the file.
 //
-func readFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
+func readFileMetaData(r io.ReadSeeker) (*thrift.FileMetaData, error) {
 	_, err := r.Seek(0, os.SEEK_SET)
 	if err != nil {
 		return nil, fmt.Errorf("read metadata: error seeking to header: %s", err)
@@ -112,7 +113,7 @@ func readFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read metadata: error seeking to file: %s", err)
 	}
-	var meta parquetformat.FileMetaData
+	var meta thrift.FileMetaData
 	err = meta.Read(io.LimitReader(r, int64(footerLength)))
 	if err != nil {
 		return nil, fmt.Errorf("read metadata: error reading file: %s", err)
@@ -121,33 +122,58 @@ func readFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
 	return &meta, nil
 }
 
-type file struct {
-	r    ReadSeekCloser
-	meta *parquetformat.FileMetaData
+// FileDescriptor implements ReadSeekCloser
+type FileDescriptor struct {
+	ReadSeekCloser
+	meta   *thrift.FileMetaData
+	schema *Schema
 }
 
-func OpenFile(path string) (ReadSeekCloser, error) {
+// OpenFile reads the content of a file in parquet format
+func OpenFile(path string) (*FileDescriptor, error) {
 	r, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open %s: %s", path, err)
+		return nil, fmt.Errorf("could not open %s: %s", path, err)
 	}
 
 	meta, err := readFileMetaData(r)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read metadata %s: %s", path, err)
+		return nil, fmt.Errorf("could not read metadata %s: %s", path, err)
 	}
 
-	return &file{r, meta}, err
+	schema, err := schemaFromFileMetaData(meta)
+	if err != nil {
+		return nil, fmt.Errorf("could not read schema %s: %s", path, err)
+	}
+
+	return &FileDescriptor{ReadSeekCloser: r, meta: meta, schema: schema}, err
 }
 
-func (f *file) Close() error {
-	return f.r.Close()
+// Schema returns the current schema encoded in the parquet file
+func (fd *FileDescriptor) Schema() *Schema {
+	return fd.schema
 }
 
-func (f *file) Read(p []byte) (int, error) {
-	return f.r.Read(p)
+// ColumnScanner returns a single scanner across all the Row Groups
+func (fd *FileDescriptor) ColumnScanner(colname string) (*column.Scanner, error) {
+	elementSchema := fd.Schema().ColumnByName(colname).SchemaElement
+
+	chunks, err := fd.meta.GetColumnChunks(colname)
+	if err != nil {
+		return fmt.Errorf("could not get columnChunks: %s", err)
+	}
+
+	return column.NewScanner(fd, elementSchema, chunks)
 }
 
-func (f *file) Seek(p int64, x int) (int64, error) {
-	return f.r.Seek(p, x)
-}
+// func (fd *FileDescriptor) Close() error {
+// 	return fd.r.Close()
+// }
+
+// func (fd *FileDescriptor) Read(p []byte) (int, error) {
+// 	return fd.r.Read(p)
+// }
+
+// func (fd *FileDescriptor) Seek(p int64, x int) (int64, error) {
+// 	return fd.r.Seek(p, x)
+// }

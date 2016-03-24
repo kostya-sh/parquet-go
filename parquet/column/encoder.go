@@ -1,27 +1,28 @@
 package column
 
-// you can only have one dictionary page per each column chunk
 import (
 	"bytes"
 	"io"
 
 	"github.com/kostya-sh/parquet-go/parquet/encoding"
-	pf "github.com/kostya-sh/parquet-go/parquetformat"
+	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
+// you can only have one dictionary page per each column chunk
 type Encoder interface {
 }
 
 type defaultEncoder struct {
-	Schema   *pf.SchemaElement
-	Metadata *pf.ColumnMetaData
+	Schema   *thrift.SchemaElement
+	Metadata *thrift.ColumnMetaData
 
 	dDecoder *encoding.RLE32Decoder
 	rDecoder *encoding.RLE32Decoder
 }
 
-func NewEncoder(schema *pf.SchemaElement) Encoder {
-	return &defaultEncoder{Schema: schema, Metadata: pf.NewColumnMetaData()}
+// NewEncoder
+func NewEncoder(schema *thrift.SchemaElement) Encoder {
+	return &defaultEncoder{Schema: schema, Metadata: thrift.NewColumnMetaData()}
 }
 
 func (e *defaultEncoder) WriteChunk(w io.Writer, offset int, name string) (int, error) {
@@ -29,7 +30,7 @@ func (e *defaultEncoder) WriteChunk(w io.Writer, offset int, name string) (int, 
 	return 0, nil
 }
 
-func NewColumnChunk(name string) (*pf.ColumnChunk, bytes.Buffer) {
+func NewColumnChunk(name string) (*thrift.ColumnChunk, bytes.Buffer) {
 	// values := make([]int32, 100)
 	// for i := 0; i < 100; i++ {
 	// 	values[i] = int32(i)
@@ -70,15 +71,15 @@ func NewColumnChunk(name string) (*pf.ColumnChunk, bytes.Buffer) {
 	// }
 
 	// // Page Header
-	// header := pf.NewPageHeader()
+	// header := thrift.NewPageHeader()
 	// header.CompressedPageSize = int32(compressed.Len())
 	// header.UncompressedPageSize = int32(b.Len())
-	// header.Type = pf.PageType_DATA_PAGE
-	// header.DataPageHeader = pf.NewDataPageHeader()
+	// header.Type = thrift.PageType_DATA_PAGE
+	// header.DataPageHeader = thrift.NewDataPageHeader()
 	// header.DataPageHeader.NumValues = int32(100)
-	// header.DataPageHeader.Encoding = pf.Encoding_PLAIN
-	// header.DataPageHeader.DefinitionLevelEncoding = pf.Encoding_BIT_PACKED
-	// header.DataPageHeader.RepetitionLevelEncoding = pf.Encoding_BIT_PACKED
+	// header.DataPageHeader.Encoding = thrift.Encoding_PLAIN
+	// header.DataPageHeader.DefinitionLevelEncoding = thrift.Encoding_BIT_PACKED
+	// header.DataPageHeader.RepetitionLevelEncoding = thrift.Encoding_BIT_PACKED
 
 	// if _, err := header.Write(&final); err != nil {
 	// 	log.Fatal(err)
@@ -92,18 +93,18 @@ func NewColumnChunk(name string) (*pf.ColumnChunk, bytes.Buffer) {
 	// // ColumnChunk
 	// offset := 0
 	// filename := "thisfile.parquet"
-	chunk := pf.NewColumnChunk()
+	chunk := thrift.NewColumnChunk()
 	// chunk.FileOffset = int64(offset)
 	// chunk.FilePath = &filename
-	// chunk.MetaData = pf.NewColumnMetaData()
+	// chunk.MetaData = thrift.NewColumnMetaData()
 	// chunk.MetaData.TotalCompressedSize = int64(compressed.Len())
 	// chunk.MetaData.TotalUncompressedSize = int64(b.Len())
-	// chunk.MetaData.Codec = pf.CompressionCodec_SNAPPY
+	// chunk.MetaData.Codec = thrift.CompressionCodec_SNAPPY
 
 	// chunk.MetaData.DataPageOffset = 0
 	// chunk.MetaData.DictionaryPageOffset = nil
 
-	// chunk.MetaData.Type = pf.Type_INT32
+	// chunk.MetaData.Type = thrift.Type_INT32
 	// chunk.MetaData.PathInSchema = []string{name}
 
 	return chunk, pageBuffer

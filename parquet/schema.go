@@ -7,11 +7,15 @@ import (
 	"io"
 	"strings"
 
-	"github.com/kostya-sh/parquet-go/parquetformat"
+	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
 func strptr(v string) *string {
 	return &v
+}
+
+func normalizeType(str string) string {
+	return strings.ToUpper(str)
 }
 
 // Levels struct combines definition level (D) and repetion level (R).
@@ -23,7 +27,7 @@ type Levels struct {
 
 // Schema describes structure of the data that is stored in a parquet file.
 //
-// A Schema can be created from a parquetformat.FileMetaData. Information that
+// A Schema can be created from a thrift.FileMetaData. Information that
 // is stored in RowGroups part of FileMetaData is not needed for the schema
 // creation.
 // TODO(ksh): provide a way to read FileMetaData without RowGroups.
@@ -40,6 +44,7 @@ var (
 	ErrBadFormat = errors.New("invalid format. format is `name: type [original type] REQUIRED|OPTIONAL`")
 )
 
+// NewSchema create an empty schema.
 func NewSchema() *Schema {
 	return &Schema{
 		root:    group{},
@@ -47,20 +52,18 @@ func NewSchema() *Schema {
 	}
 }
 
-func normalizeType(str string) string {
-	return strings.ToUpper(str)
-}
-
-// Columns return the name of all the columns.
+// Columns return the name of all the columns in this schema.
 func (s *Schema) Columns() []string {
 	var names []string
-	for k, _ := range s.columns {
+	for k := range s.columns {
 		names = append(names, k)
 	}
 	return names
 }
 
-// spec name: type [original type] REQUIRED
+// AddColumn adds a column with the given specifications format
+// format is
+//          name: type [original type] REQUIRED
 func (s *Schema) AddColumn(format string) error {
 	values := strings.SplitN(format, ":", 2)
 	if len(values) != 2 {
@@ -70,12 +73,12 @@ func (s *Schema) AddColumn(format string) error {
 	name := values[0]
 	spec := values[1]
 
-	el := parquetformat.NewSchemaElement()
+	el := thrift.NewSchemaElement()
 	el.Name = name
 
 	values = strings.Split(strings.TrimSpace(spec), " ")
 
-	originalType, err := parquetformat.TypeFromString(normalizeType(values[0]))
+	originalType, err := thrift.TypeFromString(normalizeType(values[0]))
 	if err != nil {
 		return fmt.Errorf("could not add column: bad type: %s (%s)", err, values[0])
 	}
@@ -83,12 +86,12 @@ func (s *Schema) AddColumn(format string) error {
 
 	switch len(values) {
 	case 3:
-		convertedType, err := parquetformat.ConvertedTypeFromString(normalizeType(values[1]))
+		convertedType, err := thrift.ConvertedTypeFromString(normalizeType(values[1]))
 		if err != nil {
 			return fmt.Errorf("could not add column: bad converted type: %s", err)
 		}
 
-		repetitionType, err := parquetformat.FieldRepetitionTypeFromString(normalizeType(values[2]))
+		repetitionType, err := thrift.FieldRepetitionTypeFromString(normalizeType(values[2]))
 		if err != nil {
 			return fmt.Errorf("could not add column: bad repetition type: %s", err)
 		}
@@ -96,7 +99,7 @@ func (s *Schema) AddColumn(format string) error {
 		el.ConvertedType = &convertedType
 		el.RepetitionType = &repetitionType
 	case 2:
-		repetitionType, err := parquetformat.FieldRepetitionTypeFromString(normalizeType(values[1]))
+		repetitionType, err := thrift.FieldRepetitionTypeFromString(normalizeType(values[1]))
 		if err != nil {
 			return fmt.Errorf("could not add column: bad repetition type: %s", err)
 		}
@@ -119,23 +122,23 @@ func (s *Schema) AddColumn(format string) error {
 type ColumnDescriptor struct {
 	// MaxLevels contains maximum definition and repetition levels for this column
 	MaxLevels     Levels
-	SchemaElement *parquetformat.SchemaElement
+	SchemaElement *thrift.SchemaElement
 
 	index int
 }
 
-func (schema *Schema) createMetadata() *parquetformat.FileMetaData {
+func (schema *Schema) createMetadata() *thrift.FileMetaData {
 	root_children := int32(1)
 
-	root := parquetformat.NewSchemaElement()
+	root := thrift.NewSchemaElement()
 	root.Name = "root"
 	root.NumChildren = &root_children
 
 	// the root of the schema does not have to have a repetition type.
 	// All the other elements do.
-	elements := []*parquetformat.SchemaElement{root}
+	elements := []*thrift.SchemaElement{root}
 
-	//typeint := parquetformat.Type_INT32
+	//typeint := thrift.Type_INT32
 
 	//offset := len(PARQUET_MAGIC)
 
@@ -160,24 +163,22 @@ func (schema *Schema) createMetadata() *parquetformat.FileMetaData {
 
 	// 	group.AddColumn(cc)
 
-	// 	columnDescriptor := parquetformat.NewSchemaElement()
+	// 	columnDescriptor := thrift.NewSchemaElement()
 	// 	columnDescriptor.Name = cc.GetMetaData().PathInSchema[0]
 	// 	columnDescriptor.NumChildren = nil
 	// 	columnDescriptor.Type = &typeint
-	// 	required := parquetformat.FieldRepetitionType_REQUIRED
+	// 	required := thrift.FieldRepetitionType_REQUIRED
 	// 	columnDescriptor.RepetitionType = &required
 
 	// 	schema = append(schema, columnDescriptor)
 	// }
 
-	rowGroup := NewRowGroup([]Page{})
-
 	// write metadata at then end of the file in thrift format
-	meta := parquetformat.FileMetaData{
+	meta := thrift.FileMetaData{
 		Version:          0,
 		Schema:           elements,
-		RowGroups:        []*parquetformat.RowGroup{rowGroup},
-		KeyValueMetadata: []*parquetformat.KeyValue{},
+		RowGroups:        []*thrift.RowGroup{},
+		KeyValueMetadata: []*thrift.KeyValue{},
 		CreatedBy:        strptr("go-0.1"), // go-parquet version 1.0 (build 6cf94d29b2b7115df4de2c06e2ab4326d721eb55)
 	}
 
@@ -185,9 +186,7 @@ func (schema *Schema) createMetadata() *parquetformat.FileMetaData {
 }
 
 // schemaFromFileMetaData creates a Schema from meta.
-func schemaFromFileMetaData(meta *parquetformat.FileMetaData) (*Schema, error) {
-	fmt.Printf("%#v\n", meta)
-
+func schemaFromFileMetaData(meta *thrift.FileMetaData) (*Schema, error) {
 	s := Schema{}
 	end, err := s.root.create(meta.Schema, 0)
 	if err != nil {
@@ -232,20 +231,20 @@ func (s *Schema) ColumnByPath(path []string) *ColumnDescriptor {
 // DisplayString returns a string representation of s using textual format
 // similar to that described in the Dremel paper and used by parquet-mr project.
 func (s *Schema) DisplayString() string {
-	b := new(bytes.Buffer)
-	s.writeTo(b, "")
+	var b bytes.Buffer
+	s.writeTo(&b, "")
 	return b.String()
 }
 
 type schemaElement interface {
-	create(schema []*parquetformat.SchemaElement, start int) (next int, err error)
+	create(schema []*thrift.SchemaElement, start int) (next int, err error)
 
 	writeTo(w io.Writer, indent string)
 }
 
 // group of fields
 type group struct {
-	schemaElement *parquetformat.SchemaElement
+	schemaElement *thrift.SchemaElement
 	children      []schemaElement
 	index         int
 }
@@ -253,10 +252,10 @@ type group struct {
 // primitive field
 type primitive struct {
 	index         int
-	schemaElement *parquetformat.SchemaElement
+	schemaElement *thrift.SchemaElement
 }
 
-func (g *group) create(schema []*parquetformat.SchemaElement, start int) (int, error) {
+func (g *group) create(schema []*thrift.SchemaElement, start int) (int, error) {
 	if len(schema) == 0 {
 		return 0, nil
 	}
@@ -351,20 +350,20 @@ func (g *group) calcMaxLevels() map[string]Levels {
 		case *primitive:
 			s := c.schemaElement
 			var levels Levels
-			if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
+			if *s.RepetitionType != thrift.FieldRepetitionType_REQUIRED {
 				levels.D = 1
 			}
-			if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
+			if *s.RepetitionType == thrift.FieldRepetitionType_REPEATED {
 				levels.R = 1
 			}
 			lvls[s.Name] = levels
 		case *group:
 			s := c.schemaElement
 			for k, v := range c.calcMaxLevels() {
-				if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
+				if *s.RepetitionType != thrift.FieldRepetitionType_REQUIRED {
 					v.D++
 				}
-				if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
+				if *s.RepetitionType == thrift.FieldRepetitionType_REPEATED {
 					v.R++
 				}
 				lvls[s.Name+"."+k] = v
@@ -376,8 +375,8 @@ func (g *group) calcMaxLevels() map[string]Levels {
 	return lvls
 }
 
-func (g *group) makeSchemaElements() map[string]*parquetformat.SchemaElement {
-	m := make(map[string]*parquetformat.SchemaElement)
+func (g *group) makeSchemaElements() map[string]*thrift.SchemaElement {
+	m := make(map[string]*thrift.SchemaElement)
 	for _, child := range g.children {
 		switch c := child.(type) {
 		case *primitive:
@@ -410,7 +409,7 @@ func (s *Schema) writeTo(w io.Writer, indent string) {
 	s.root.marshalChildren(w, indent)
 }
 
-func (p *primitive) create(schema []*parquetformat.SchemaElement, start int) (int, error) {
+func (p *primitive) create(schema []*thrift.SchemaElement, start int) (int, error) {
 	s := schema[start]
 
 	// TODO: validate Name is not empty
@@ -421,7 +420,7 @@ func (p *primitive) create(schema []*parquetformat.SchemaElement, start int) (in
 
 	t := *s.Type
 
-	if t == parquetformat.Type_FIXED_LEN_BYTE_ARRAY {
+	if t == thrift.Type_FIXED_LEN_BYTE_ARRAY {
 		if s.TypeLength == nil {
 			return 0, fmt.Errorf("schema[%d].TypeLength = nil for type FIXED_LEN_BYTE_ARRAY", start)
 			// TODO: check length is positive
@@ -432,10 +431,10 @@ func (p *primitive) create(schema []*parquetformat.SchemaElement, start int) (in
 		// validate ConvertedType
 		ct := *s.ConvertedType
 		switch {
-		case (ct == parquetformat.ConvertedType_UTF8 && t != parquetformat.Type_BYTE_ARRAY) ||
-			(ct == parquetformat.ConvertedType_MAP) ||
-			(ct == parquetformat.ConvertedType_MAP_KEY_VALUE) ||
-			(ct == parquetformat.ConvertedType_LIST):
+		case (ct == thrift.ConvertedType_UTF8 && t != thrift.Type_BYTE_ARRAY) ||
+			(ct == thrift.ConvertedType_MAP) ||
+			(ct == thrift.ConvertedType_MAP_KEY_VALUE) ||
+			(ct == thrift.ConvertedType_LIST):
 			return 0, fmt.Errorf("%s field %s cannot be annotated with %s", t, s.Name, ct)
 		}
 		// TODO: validate U[INT]{8,16,32,64}
@@ -459,7 +458,7 @@ func (p *primitive) writeTo(w io.Writer, indent string) {
 	fmt.Fprint(w, strings.ToLower(s.RepetitionType.String()))
 	fmt.Fprint(w, " ")
 	fmt.Fprint(w, strings.ToLower(s.Type.String()))
-	if *s.Type == parquetformat.Type_FIXED_LEN_BYTE_ARRAY {
+	if *s.Type == thrift.Type_FIXED_LEN_BYTE_ARRAY {
 		fmt.Fprintf(w, "(%d)", *s.TypeLength)
 	}
 	fmt.Fprint(w, " ")
@@ -467,7 +466,7 @@ func (p *primitive) writeTo(w io.Writer, indent string) {
 	if s.ConvertedType != nil {
 		fmt.Fprint(w, " (")
 		fmt.Fprint(w, s.ConvertedType.String())
-		if *s.ConvertedType == parquetformat.ConvertedType_DECIMAL {
+		if *s.ConvertedType == thrift.ConvertedType_DECIMAL {
 			fmt.Fprintf(w, "(%d,%d)", s.Precision, s.Scale)
 		}
 		fmt.Fprint(w, ")")

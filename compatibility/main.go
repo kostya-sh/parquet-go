@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/kostya-sh/parquet-go/parquet"
-	"github.com/kostya-sh/parquet-go/parquetformat"
+	"github.com/kostya-sh/parquet-go/parquet/thrift"
 	"github.com/linkedin/goavro"
 )
 
@@ -149,7 +149,7 @@ func main() {
 		log.Println("error", err)
 	}
 
-	var columns []*parquetformat.ColumnChunk
+	var columns []*thrift.ColumnChunk
 	var column_chunks []bytes.Buffer
 
 	for _, f := range record.Fields {

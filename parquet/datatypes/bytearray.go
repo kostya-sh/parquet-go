@@ -1,14 +1,6 @@
 package datatypes
 
-import (
-	"encoding/binary"
-	"fmt"
-	"io"
-	"io/ioutil"
-
-	"github.com/kostya-sh/parquet-go/parquetformat"
-)
-
+/*
 type byteArrayPlainDecoder struct {
 	data []byte
 	pos  int
@@ -65,6 +57,7 @@ type ByteArrayColumnChunkReader struct {
 	rDecoder *rle32Decoder
 }
 
+// NewByteArrayColumnChunkReader
 func NewByteArrayColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *parquetformat.ColumnChunk) (*ByteArrayColumnChunkReader, error) {
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("data in another file: '%s'", *chunk.FilePath)
@@ -133,6 +126,7 @@ func (cr *ByteArrayColumnChunkReader) PageHeader() *parquetformat.PageHeader {
 	return cr.header
 }
 
+// readDataPage returns the content of the current DataPage
 func (cr *ByteArrayColumnChunkReader) readDataPage() ([]byte, error) {
 	var err error
 	n := cr.r.n
@@ -152,7 +146,7 @@ func (cr *ByteArrayColumnChunkReader) readDataPage() ([]byte, error) {
 		return nil, fmt.Errorf("null DataPageHeader in %+v", ph)
 	}
 	if dph.Encoding != parquetformat.Encoding_PLAIN {
-		return nil, fmt.Errorf("unsupported encoding %s for BOOLEAN type", dph.Encoding)
+		return nil, fmt.Errorf("unsupported encoding %s", dph.Encoding)
 	}
 
 	size := int64(ph.CompressedPageSize)
@@ -290,3 +284,4 @@ func (cr *ByteArrayColumnChunkReader) Value() interface{} {
 func (cr *ByteArrayColumnChunkReader) Err() error {
 	return cr.err
 }
+*/

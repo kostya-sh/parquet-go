@@ -31,3 +31,6 @@ MIT - see LICENSE
 So the problem is to first have a schema and then write the information and keep this information to then write them at the end of the file.
 
 
+# TODO
+
+- [ ] Support for crc inside Page (easy)

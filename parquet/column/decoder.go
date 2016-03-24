@@ -3,21 +3,10 @@ package column
 import (
 	"io"
 
-	"bufio"
-	"compress/gzip"
-	"encoding/binary"
-	"fmt"
-
-	"io/ioutil"
-	"log"
 	"os"
-	"strings"
 
-	"github.com/golang/snappy"
-	"github.com/kostya-sh/parquet-go/encoding/bitpacking"
-	"github.com/kostya-sh/parquet-go/encoding/rle"
-	"github.com/kostya-sh/parquet-go/parquet/encoding"
-	"github.com/kostya-sh/parquet-go/parquetformat"
+	"github.com/kostya-sh/parquet-go/parquet/page"
+	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
 /*
@@ -36,13 +25,12 @@ var Config = struct {
 	Debug: true,
 }
 
-// Scanner implements the logic to deserialize columns in the parquet format
+// Scanner implements the logic to de-serialize columns in the parquet format
 type Scanner struct {
 	rs             io.ReadSeeker // The reader provided by the client.
-	r              io.Reader
-	chunk          *parquetformat.ColumnChunk
-	meta           *parquetformat.ColumnMetaData
-	schema         *parquetformat.SchemaElement
+	schema         *thrift.SchemaElement
+	chunks         []*thrift.ColumnChunk
+	cursor         int
 	dictionaryLUT  []string // Look Up Table for dictionary encoded column chunks
 	totalPagesRead int
 	err            error
@@ -50,8 +38,8 @@ type Scanner struct {
 
 // NewScanner returns a Scanner that reads from r
 // and interprets the stream as described in the ColumnChunk parquet format
-func NewScanner(rs io.ReadSeeker, chunk *parquetformat.ColumnChunk, schema *parquetformat.SchemaElement) *Scanner {
-	return &Scanner{rs: rs, r: nil, chunk: chunk, meta: chunk.MetaData, schema: schema}
+func NewScanner(rs io.ReadSeeker, schema *thrift.SchemaElement, chunks []*thrift.ColumnChunk) *Scanner {
+	return &Scanner{rs: rs, schema: schema, chunks: chunks}
 }
 
 // setErr records the first error encountered.
@@ -62,6 +50,7 @@ func (s *Scanner) setErr(err error) {
 	}
 }
 
+// Err returns the first non io.EOF error encountered while scanning the data inside a rowGroup
 func (s *Scanner) Err() error {
 	if s.err == io.EOF {
 		return nil
@@ -69,295 +58,137 @@ func (s *Scanner) Err() error {
 	return s.err
 }
 
+// Scan reads an entire column chunk
 func (s *Scanner) Scan() bool {
-	log.Println(s.meta.GetPathInSchema(), s.meta)
 
-	if s.totalPagesRead == 0 {
-		columnStart := s.meta.GetDataPageOffset()
-
-		if s.meta.IsSetDictionaryPageOffset() {
-			if columnStart > s.meta.GetDictionaryPageOffset() {
-				columnStart = s.meta.GetDictionaryPageOffset()
-			}
-		}
-
-		_, err := s.rs.Seek(columnStart, os.SEEK_SET)
-		if err != nil {
-			s.setErr(err)
-			return false
-		}
-
-		// substitute the original reader with a limited one to get io.EOF
-		// when the chunk is read
-		s.r = io.LimitReader(s.rs, s.meta.TotalCompressedSize)
+	if s.cursor >= len(s.chunks) {
+		return false
 	}
 
-	for {
-		if err := s.nextPage(); err != nil {
-			s.setErr(err)
-			if err == io.EOF {
-				log.Printf("Scanner: %s (%s): total pages read: %d", s.meta.GetPathInSchema(), s.meta.Type, s.totalPagesRead)
-			}
-			return false
-		}
+	meta := s.chunks[s.cursor].MetaData
 
-		s.totalPagesRead++
+	offset := meta.GetDataPageOffset()
+
+	if meta.IsSetDictionaryPageOffset() && offset > meta.GetDictionaryPageOffset() {
+		offset = meta.GetDictionaryPageOffset()
 	}
 
-	log.Printf("Scanner: %s (%s): total pages read: %d", s.meta.GetPathInSchema(), s.meta.Type, s.totalPagesRead)
+	if meta.IsSetIndexPageOffset() && offset > meta.GetIndexPageOffset() {
+		offset = meta.GetIndexPageOffset()
+	}
+
+	_, err := s.rs.Seek(columnStart, os.SEEK_SET)
+	if err != nil {
+		s.setErr(err)
+		return false
+	}
+
+	// substitute the original reader with a limited one to get io.EOF
+	r = io.LimitReader(s.rs, meta.TotalCompressedSize)
+
+	pageScanner := page.NewScanner(r, meta.GetCodec())
+
+	c := new(chunk)
+
+	for pageScanner.Scan() {
+		if page, ok := pageScanner.DataPage(); ok {
+			chunk.data = append(chunk.data, page)
+		}
+		if index, ok := pageScanner.IndexPage(); ok {
+			chunk.index = index
+		}
+		if dictionary, ok := pageScanner.DictionaryPage(); ok {
+			chunk.dictionary = dictionary
+		}
+	}
+
+	if err := pageScanner.Err(); err != nil {
+		return false
+	}
+
+	// chunk is ready to be decoded
+
+	s.cursor++
+
 	return true
 }
 
-// read another page in the column chunk
-func (s *Scanner) nextPage() (err error) {
-
-	r := s.r
-
-	var header parquetformat.PageHeader
-	err = header.Read(r)
-	if err != nil {
-		if strings.HasSuffix(err.Error(), "EOF") { // FIXME: find a better way to detect io.EOF
-			return io.EOF
-		}
-		return fmt.Errorf("column scanner: could not read chunk header: %s", err)
-	}
-
-	r = io.LimitReader(r, int64(header.CompressedPageSize))
-
-	log.Printf("%s %s %#v\n", s.meta.GetPathInSchema(), "header: ", header)
-
-	// handle compressed data
-	switch s.meta.Codec {
-	case parquetformat.CompressionCodec_GZIP:
-		r, err = gzip.NewReader(r)
-		if err != nil {
-			return err
-		}
-	case parquetformat.CompressionCodec_LZO:
-		// https://github.com/rasky/go-lzo/blob/master/decompress.go#L149			s.r = r
-		panic("NYI")
-
-	case parquetformat.CompressionCodec_SNAPPY:
-		r = snappy.NewReader(r)
-	case parquetformat.CompressionCodec_UNCOMPRESSED:
-		// use the limit reader
-	}
-
-	// this is important so that the decoder use the same ByteReader
-	rb := bufio.NewReader(r)
-
-	switch header.Type {
-	case parquetformat.PageType_INDEX_PAGE:
-		panic("nyi")
-
-	case parquetformat.PageType_DICTIONARY_PAGE:
-		if !header.IsSetDictionaryPageHeader() {
-			panic("unexpected DictionaryPageHeader was not set")
-		}
-
-		s.readDictionaryPage(header.DictionaryPageHeader, rb)
-	case parquetformat.PageType_DATA_PAGE_V2:
-		panic("nyi")
-
-	case parquetformat.PageType_DATA_PAGE:
-		if !header.IsSetDataPageHeader() {
-			panic("unexpected DataPageHeader was not set")
-		}
-
-		/* header, rb =*/ s.readDataPage(header.DataPageHeader, rb)
-	default:
-		panic("parquet.Scanner: unknown PageHeader.PageType")
-	}
-
-	if n, err := io.Copy(ioutil.Discard, rb); err != nil {
-		return err
-	} else if n > 0 {
-		panic("not all the data was consumed.")
-	}
-
-	return nil
+type chunk struct {
+	data       []*page.DataPage
+	dictionary *page.DictionaryPage
+	index      *page.IndexPage
 }
 
-// Read a dictionary page. There is only one dictionary page for each column chunk
-func (s *Scanner) readDictionaryPage(header *parquetformat.DictionaryPageHeader, rb *bufio.Reader) error {
-	count := int(header.GetNumValues())
-	dictEnc := header.GetEncoding()
+// // read another page in the column chunk
+// func (s *Scanner) nextPage() (err error) {
+// 	meta := s.chunks[0].MetaData
 
-	log.Println(s.meta.PathInSchema, ": dictionary.page ", count, dictEnc)
+// 	r := s.rs
 
-	switch dictEnc {
-	case parquetformat.Encoding_PLAIN_DICTIONARY:
-		// read the values encoded as Plain
-		d := encoding.NewPlainDecoder(rb, s.meta.GetType(), int(header.GetNumValues()))
+// 	var header thrift.PageHeader
+// 	err = header.Read(r)
+// 	if err != nil {
+// 		if strings.HasSuffix(err.Error(), "EOF") { // FIXME: find a better way to detect io.EOF
+// 			return io.EOF
+// 		}
+// 		return fmt.Errorf("column scanner: could not read chunk header: %s", err)
+// 	}
 
-		switch s.meta.GetType() {
-		case parquetformat.Type_INT32:
-			out := make([]int32, 0, count)
-			read, err := d.DecodeInt32(out)
-			if err != nil || read != count {
-				panic("unexpected")
-			}
+// 	r = io.LimitReader(r, int64(header.CompressedPageSize))
 
-			for idx, value := range out {
-				log.Printf("%d %d", idx, value)
-			}
+// 	log.Printf("%s %s %#v\n", meta.GetPathInSchema(), "header: ", header)
 
-		case parquetformat.Type_INT64:
-			out := make([]int64, 0, count)
-			read, err := d.DecodeInt64(out)
-			if err != nil || read != count {
-				panic("unexpected")
-			}
+// 	// handle compressed data
+// 	switch meta.Codec {
+// 	case thrift.CompressionCodec_GZIP:
+// 		r, err = gzip.NewReader(r)
+// 		if err != nil {
+// 			return err
+// 		}
+// 	case thrift.CompressionCodec_LZO:
+// 		// https://github.com/rasky/go-lzo/blob/master/decompress.go#L149			s.r = r
+// 		panic("NYI")
 
-			for idx, value := range out {
-				log.Printf("%d %d", idx, value)
-			}
-		case parquetformat.Type_BYTE_ARRAY, parquetformat.Type_FIXED_LEN_BYTE_ARRAY:
-			out := make([]string, 0, count)
-			read, err := d.DecodeStr(out)
-			if err != nil || read != count {
-				panic("unexpected")
-			}
+// 	case thrift.CompressionCodec_SNAPPY:
+// 		r = snappy.NewReader(r)
+// 	case thrift.CompressionCodec_UNCOMPRESSED:
+// 		// use the limit reader
+// 	}
 
-			for idx, value := range out {
-				log.Printf("%d %s", idx, value)
-			}
+// 	// this is important so that the decoder use the same ByteReader
+// 	rb := bufio.NewReader(r)
 
-		case parquetformat.Type_INT96:
-			log.Println("Warning: skipping not supported type int96 in plain encoding dictionary")
-			return nil
-		default:
+// 	switch header.Type {
+// 	case thrift.PageType_INDEX_PAGE:
+// 		panic("nyi")
 
-		}
-	default:
-		panic("dictionary encoding " + dictEnc.String() + "not yet supported") // FIXME
-	}
+// 	case thrift.PageType_DICTIONARY_PAGE:
+// 		if !header.IsSetDictionaryPageHeader() {
+// 			panic("unexpected DictionaryPageHeader was not set")
+// 		}
 
-	return nil
-}
+// 		s.readDictionaryPage(header.DictionaryPageHeader, rb)
+// 	case thrift.PageType_DATA_PAGE_V2:
+// 		panic("nyi")
 
-// readDataPage
-func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.Reader) {
-	log.Printf("%s %v\n", s.meta.PathInSchema, header)
+// 	case thrift.PageType_DATA_PAGE:
+// 		if !header.IsSetDataPageHeader() {
+// 			panic("unexpected DataPageHeader was not set")
+// 		}
 
-	count := int(header.GetNumValues())
+// 		/* header, rb =*/ s.readDataPage(header.DataPageHeader, rb)
+// 	default:
+// 		panic("parquet.Scanner: unknown PageHeader.PageType")
+// 	}
 
-	log.Println(s.meta.PathInSchema, "data.page.header.num_values:", count)
+// 	if n, err := io.Copy(ioutil.Discard, rb); err != nil {
+// 		return err
+// 	} else if n > 0 {
+// 		panic("not all the data was consumed.")
+// 	}
 
-	// only levels that are repeated need a Repetition level:
-	// optional or required fields are never repeated
-	// and can be skipped while attributing repetition levels.
-	if s.schema.GetRepetitionType() == parquetformat.FieldRepetitionType_REPEATED {
-		repEnc := header.GetRepetitionLevelEncoding()
-		switch repEnc {
-
-		case parquetformat.Encoding_BIT_PACKED:
-			dec := bitpacking.NewDecoder(rb, 1) // FIXME 1 ?
-			for dec.Scan() {
-				log.Println("repetition level decoding:", dec.Value())
-			}
-
-			if err := dec.Err(); err != nil {
-				log.Println(err)
-			}
-		default:
-			log.Println("WARNING could not handle %s", repEnc)
-		}
-	}
-
-	// a required field is always defined and does not need a definition level.
-	if s.schema.GetRepetitionType() != parquetformat.FieldRepetitionType_REQUIRED {
-		defEnc := header.GetDefinitionLevelEncoding()
-		switch defEnc {
-		case parquetformat.Encoding_RLE:
-			dec := rle.NewDecoder(rb)
-
-			for dec.Scan() {
-				log.Println("definition level decoding:", dec.Value())
-			}
-
-			if err := dec.Err(); err != nil {
-				log.Println(err)
-			}
-
-		default:
-			log.Println("WARNING could not handle %s", defEnc)
-		}
-	}
-
-	// FIXME there is something at the beginning of the data page. 4 bytes.. ?
-	var dummy int32
-	err := binary.Read(rb, binary.LittleEndian, &dummy)
-	if err != nil {
-		log.Printf("column chunk: %s\n", err)
-	}
-
-	switch header.Encoding {
-	case parquetformat.Encoding_BIT_PACKED:
-
-	case parquetformat.Encoding_DELTA_BINARY_PACKED:
-	case parquetformat.Encoding_DELTA_BYTE_ARRAY:
-	case parquetformat.Encoding_DELTA_LENGTH_BYTE_ARRAY:
-	case parquetformat.Encoding_PLAIN:
-		d := encoding.NewPlainDecoder(rb, s.meta.GetType(), int(header.NumValues))
-		switch s.meta.GetType() {
-
-		case parquetformat.Type_INT32:
-			out := make([]int32, 0, count)
-			read, err := d.DecodeInt32(out)
-			if err != nil || read != count {
-				panic("unexpected")
-			}
-			for idx, value := range out {
-				log.Printf("%d %d", idx, value)
-			}
-
-		case parquetformat.Type_INT64:
-			out := make([]int64, 0, count)
-
-			read, err := d.DecodeInt64(out)
-			if err != nil || read != count {
-				panic("unexpected")
-			}
-			for idx, value := range out {
-				log.Printf("%d %d", idx, value)
-			}
-
-		case parquetformat.Type_BYTE_ARRAY, parquetformat.Type_FIXED_LEN_BYTE_ARRAY:
-			s.dictionaryLUT = make([]string, 0, count)
-			read, err := d.DecodeStr(s.dictionaryLUT)
-			if err != nil || read != count {
-				panic("unexpected")
-			}
-
-		case parquetformat.Type_INT96:
-			panic("not supported type int96")
-		default:
-		}
-	case parquetformat.Encoding_RLE:
-
-	case parquetformat.Encoding_RLE_DICTIONARY:
-		fallthrough
-	case parquetformat.Encoding_PLAIN_DICTIONARY:
-		b, err := rb.ReadByte()
-		if err != nil {
-			panic(err)
-		}
-
-		dec := rle.NewHybridBitPackingRLEDecoder(rb, int(b))
-
-		for dec.Scan() {
-			log.Println(s.meta.GetPathInSchema(), dec.Value())
-		}
-
-		if err := dec.Err(); err != nil {
-			panic(fmt.Errorf("%s: plain_dictionary: %s", s.meta.GetPathInSchema(), err))
-		}
-
-	default:
-		panic("Not supported type for " + header.GetEncoding().String())
-	}
-}
+// 	return nil
+// }
 
 // import (
 // 	"encoding/binary"
@@ -365,7 +196,7 @@ func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.R
 // 	"io"
 // 	"io/ioutil"
 
-// 	"github.com/kostya-sh/parquet-go/parquetformat"
+// 	"github.com/kostya-sh/parquet-go/thrift"
 // )
 
 // // TODO: add other commons methods
@@ -395,7 +226,7 @@ func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.R
 // 	atLastPage     bool
 // 	valuesRead     int64
 // 	dataPageOffset int64
-// 	header         *parquetformat.PageHeader
+// 	header         *thrift.PageHeader
 
 // 	// decoders
 // 	decoder  *booleanPlainDecoder
@@ -403,7 +234,7 @@ func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.R
 // 	rDecoder *rle32Decoder
 // }
 
-// func NewBooleanColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *parquetformat.ColumnChunk) (*BooleanColumnChunkReader, error) {
+// func NewBooleanColumnChunkReader(r io.ReadSeeker, cs *ColumnSchema, chunk *thrift.ColumnChunk) (*BooleanColumnChunkReader, error) {
 // 	if chunk.FilePath != nil {
 // 		return nil, fmt.Errorf("data in another file: '%s'", *chunk.FilePath)
 // 	}
@@ -415,7 +246,7 @@ func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.R
 // 		return nil, fmt.Errorf("missing ColumnMetaData")
 // 	}
 
-// 	if meta.Type != parquetformat.Type_BOOLEAN {
+// 	if meta.Type != thrift.Type_BOOLEAN {
 // 		return nil, fmt.Errorf("wrong type, expected BOOLEAN was %s", meta.Type)
 // 	}
 
@@ -425,7 +256,7 @@ func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.R
 // 	}
 
 // 	// uncompress
-// 	if meta.Codec != parquetformat.CompressionCodec_UNCOMPRESSED {
+// 	if meta.Codec != thrift.CompressionCodec_UNCOMPRESSED {
 // 		return nil, fmt.Errorf("unsupported compression codec: %s", meta.Codec)
 // 	}
 
@@ -439,7 +270,7 @@ func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.R
 // 		decoder:        newBooleanPlainDecoder(),
 // 	}
 
-// 	if *schemaElement.RepetitionType == parquetformat.FieldRepetitionType_REQUIRED {
+// 	if *schemaElement.RepetitionType == thrift.FieldRepetitionType_REQUIRED {
 // 		// TODO: also check that len(Path) = maxD
 // 		// For data that is required, the definition levels are not encoded and
 // 		// always have the value of the max definition level.
@@ -448,7 +279,7 @@ func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.R
 // 	} else {
 // 		cr.dDecoder = newRLE32Decoder(bitWidth(cr.maxLevels.D))
 // 	}
-// 	if cr.curLevels.D == 0 && *schemaElement.RepetitionType != parquetformat.FieldRepetitionType_REPEATED {
+// 	if cr.curLevels.D == 0 && *schemaElement.RepetitionType != thrift.FieldRepetitionType_REPEATED {
 // 		// TODO: I think we need to check all schemaElements in the path
 // 		cr.curLevels.R = 0
 // 		// TODO: clarify the following comment from parquet-format/README:
@@ -467,7 +298,7 @@ func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.R
 // }
 
 // // PageHeader returns page header of the current page.
-// func (cr *BooleanColumnChunkReader) PageHeader() *parquetformat.PageHeader {
+// func (cr *BooleanColumnChunkReader) PageHeader() *thrift.PageHeader {
 // 	return cr.header
 // }
 
@@ -478,18 +309,18 @@ func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.R
 // 	if _, err := cr.r.rs.Seek(cr.dataPageOffset, 0); err != nil {
 // 		return nil, err
 // 	}
-// 	ph := parquetformat.PageHeader{}
+// 	ph := thrift.PageHeader{}
 // 	if err := ph.Read(cr.r); err != nil {
 // 		return nil, err
 // 	}
-// 	if ph.Type != parquetformat.PageType_DATA_PAGE {
+// 	if ph.Type != thrift.PageType_DATA_PAGE {
 // 		return nil, fmt.Errorf("DATA_PAGE type expected, but was %s", ph.Type)
 // 	}
 // 	dph := ph.DataPageHeader
 // 	if dph == nil {
 // 		return nil, fmt.Errorf("null DataPageHeader in %+v", ph)
 // 	}
-// 	if dph.Encoding != parquetformat.Encoding_PLAIN {
+// 	if dph.Encoding != thrift.Encoding_PLAIN {
 // 		return nil, fmt.Errorf("unsupported encoding %s for BOOLEAN type", dph.Encoding)
 // 	}
 
@@ -537,7 +368,7 @@ func (s *Scanner) readDataPage(header *parquetformat.DataPageHeader, rb *bufio.R
 // 		}
 // 		//fmt.Printf("%v\n", data)
 // 		start := 0
-// 		// TODO: it looks like parquetformat README is incorrect
+// 		// TODO: it looks like thrift README is incorrect
 // 		// first R then D
 // 		if cr.rDecoder != nil {
 // 			// decode definition levels data

@@ -1,9 +1,12 @@
 package datatypes
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/kostya-sh/parquet-go/parquet/encoding"
+)
 
 // PLAIN encoding for BOOLEAN type: bit-packed, LSB first
-
 type booleanPlainDecoder struct {
 	data []byte
 
@@ -21,11 +24,11 @@ func (d *booleanPlainDecoder) init(data []byte) {
 }
 
 func (d *booleanPlainDecoder) next() (value bool, err error) {
-	if d.pos >= len(d.data)*8 { // TODO: this can overflow, reimplement
+	if d.pos >= len(d.data)*8 { // TODO: this can overflow, re-implement
 		return false, fmt.Errorf("boolean/plain: no more data")
 	}
 	if d.pos%8 == 0 {
-		d.values = unpack8int32_1(d.data[d.pos/8 : d.pos/8+1])
+		d.values = encoding.Unpack8Int32FuncForWidth(1)(d.data[d.pos/8 : d.pos/8+1])
 	}
 	value = false
 	if d.values[d.pos%8] == 1 {

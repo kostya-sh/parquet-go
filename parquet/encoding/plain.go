@@ -6,7 +6,7 @@ import (
 	"io"
 	"log"
 
-	"github.com/kostya-sh/parquet-go/parquetformat"
+	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
 // type Decoder interface {
@@ -30,12 +30,12 @@ import (
 
 type Decoder struct {
 	r     io.Reader
-	t     parquetformat.Type
+	t     thrift.Type
 	count int
 }
 
 // NewPlainDecoder creates a new PageDecoder
-func NewPlainDecoder(r io.Reader, t parquetformat.Type, numValues int) *Decoder {
+func NewPlainDecoder(r io.Reader, t thrift.Type, numValues int) *Decoder {
 	return &Decoder{r, t, numValues}
 }
 
@@ -45,7 +45,7 @@ func (d *Decoder) DecodeInt32(out []int32) (int, error) {
 
 	switch d.t {
 
-	case parquetformat.Type_INT32:
+	case thrift.Type_INT32:
 		var err error = nil
 
 		for i := 0; i < count; i++ {
@@ -70,7 +70,7 @@ func (d *Decoder) DecodeInt64(out []int64) (int, error) {
 
 	switch d.t {
 
-	case parquetformat.Type_INT64:
+	case thrift.Type_INT64:
 		var err error = nil
 
 		for i := 0; i < count; i++ {
@@ -95,7 +95,7 @@ func (d *Decoder) DecodeStr(out []string) (int, error) {
 	count := d.count
 
 	switch d.t {
-	case parquetformat.Type_BYTE_ARRAY:
+	case thrift.Type_BYTE_ARRAY:
 		var size int32
 
 		for i := 0; i < count; i++ {
@@ -139,8 +139,8 @@ func (p *plain) NumValues() int {
 	return p.numValues
 }
 
-func (p *plain) Type() parquetformat.Encoding {
-	return parquetformat.Encoding_PLAIN
+func (p *plain) Type() thrift.Encoding {
+	return thrift.Encoding_PLAIN
 }
 
 /*

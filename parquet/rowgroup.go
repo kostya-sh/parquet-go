@@ -1,19 +1,18 @@
 package parquet
 
 import (
-	"bufio"
 	"io"
 
 	"github.com/kostya-sh/parquet-go/parquet/column"
-	"github.com/kostya-sh/parquet-go/parquetformat"
+	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
 // RowGroupScanner
 type RowGroupScanner struct {
 	r        io.ReadSeeker
 	idx      int
-	rowGroup *parquetformat.RowGroup
-	columns  []*parquetformat.SchemaElement
+	rowGroup *thrift.RowGroup
+	columns  []*thrift.SchemaElement
 }
 
 func (rg *RowGroupScanner) NewColumnScanners() []*column.Scanner {
@@ -27,39 +26,22 @@ func (rg *RowGroupScanner) NewColumnScanners() []*column.Scanner {
 	return columnScanners
 }
 
-type RowGroup struct {
-	pages []Page
-}
+// func newrow(pages []Page) *thrift.RowGroup {
+// 	rowGroup := thrift.NewRowGroup()
+// 	var total int64 = 0
+// 	var numRows int64 = 0
+// 	var columns []*thrift.SchemaElement
 
-func NewRowGroup(w io.Writer) *RowGroup {
-	return &RowGroup{
-		buffer: bufio.NewWriter(w),
-	}
-}
+// 	for idx, page := range pages {
+// 		total += int64(page.CompressedSize())
+// 		numRows = math.MaxInt(numRows, page.NumValues())
+// 		columns = append(columns, columns[i].SchemaElement)
+// 	}
 
-// func (rg *RowGroup) newDataPage(col *ColumnDescriptor) dataPage {
+// 	rowGroup.TotalByteSize = total
+// 	rowGroup.NumRows = numRows
+// 	rowGroup.Columns = columns
+// 	rowGroup.SortingColumns = []*thrift.SortingColumn{} // Not supported yet
 
+// 	return rowGroup
 // }
-func (*) MarshalThrift(w WriteOffsetter) error {
-
-}
-
-func newrow(columns []*ColumnDescriptor, pages []Page) *parquetformat.RowGroup {
-	rowGroup := parquetformat.NewRowGroup()
-	var total int64 = 0
-	var numRows int64 = 0
-	var columns []*parquetformat.SchemaElement
-
-	for idx, page := range pages {
-		total += int64(page.CompressedSize())
-		numRows = math.MaxInt(numRows, page.NumValues())
-		columns = append(columns, columns[i].SchemaElement)
-	}
-
-	rowGroup.TotalByteSize = total
-	rowGroup.NumRows = numRows
-	rowGroup.Columns = columns
-	rowGroup.SortingColumns = []*parquetformat.SortingColumn{} // Not supported yet
-
-	return rowGroup
-}

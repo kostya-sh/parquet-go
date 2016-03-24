@@ -19,11 +19,12 @@ package encoding
 //   bit value: 10001000 11000110 11111010
 //   bit label: HIDEFABC RMNOJKLG VWXSTUPQ
 
-type unpack8int32Func func(data []byte) [8]int32
+// Unpack8int32Func
+type Unpack8int32Func func(data []byte) [8]int32
 
 // returns function that can be used to unpack bit packed data using bit width w
 // TODO: better name
-func unpack8Int32FuncForWidth(w int) unpack8int32Func {
+func Unpack8Int32FuncForWidth(w int) Unpack8int32Func {
 	// TODO: use static array of functions instead of switch
 	switch w {
 	case 1:

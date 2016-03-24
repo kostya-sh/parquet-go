@@ -34,7 +34,7 @@ var unpack8int32Tests = []struct {
 
 func TestUnpack8int32(t *testing.T) {
 	for _, test := range unpack8int32Tests {
-		unpacker := unpack8Int32FuncForWidth(test.width)
+		unpacker := Unpack8Int32FuncForWidth(test.width)
 		if got := unpacker(test.data); got != test.values {
 			t.Errorf("got %v, want %v", got, test.values)
 		}

@@ -22,7 +22,7 @@ import (
 type RLE32Decoder struct {
 	bitWidth   int
 	byteWidth  int
-	bpUnpacker unpack8int32Func
+	bpUnpacker Unpack8int32Func
 
 	data []byte
 	pos  int
@@ -45,7 +45,7 @@ func NewRLE32Decoder(w int) *RLE32Decoder {
 	d := RLE32Decoder{
 		bitWidth:   w,
 		byteWidth:  (w + 7) / 8,
-		bpUnpacker: unpack8Int32FuncForWidth(w),
+		bpUnpacker: Unpack8Int32FuncForWidth(w),
 	}
 	return &d
 }
