@@ -58,7 +58,7 @@ func (p *DataPage) Decode(rb *bufio.Reader) error {
 			dec := rle.NewDecoder(rb)
 
 			for dec.Scan() {
-				log.Println("definition level decoding:", dec.Value())
+				dec.Value()
 			}
 
 			if err := dec.Err(); err != nil {
@@ -77,6 +77,8 @@ func (p *DataPage) Decode(rb *bufio.Reader) error {
 		log.Printf("column chunk: %s\n", err)
 	}
 
+	log.Printf("%s:%s: %s", schema.GetName(), schema.GetType(), header.GetEncoding())
+
 	// Handle DataPageEncoding
 	switch header.Encoding {
 	case thrift.Encoding_BIT_PACKED:
@@ -94,6 +96,7 @@ func (p *DataPage) Decode(rb *bufio.Reader) error {
 			if err != nil || read != count {
 				panic("unexpected")
 			}
+
 			for idx, value := range out {
 				log.Printf("%d %d", idx, value)
 			}
@@ -111,10 +114,11 @@ func (p *DataPage) Decode(rb *bufio.Reader) error {
 
 		case thrift.Type_BYTE_ARRAY, thrift.Type_FIXED_LEN_BYTE_ARRAY:
 			// s.dictionaryLUT = make([]string, 0, count)
-			// read, err := d.DecodeStr(s.dictionaryLUT)
-			// if err != nil || read != count {
-			// 	panic("unexpected")
-			// }
+			out := make([]string, 0, count)
+			read, err := d.DecodeStr(out)
+			if err != nil || read != count {
+				panic("unexpected")
+			}
 
 		case thrift.Type_INT96:
 			panic("not supported type int96")
@@ -133,7 +137,7 @@ func (p *DataPage) Decode(rb *bufio.Reader) error {
 		dec := rle.NewHybridBitPackingRLEDecoder(rb, int(b))
 
 		for dec.Scan() {
-			// log.Println(meta.GetPathInSchema(), dec.Value())
+			log.Println(dec.Value())
 		}
 
 		if err := dec.Err(); err != nil {

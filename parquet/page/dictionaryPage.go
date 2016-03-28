@@ -25,11 +25,16 @@ func NewDictionaryPage(t thrift.Type, header *thrift.DictionaryPageHeader) *Dict
 	count := int(header.NumValues)
 	switch t {
 	case thrift.Type_INT32:
-		return &DictionaryPage{t: t, valuesInt32: make([]int32, 0, count), count: count}
+		return &DictionaryPage{
+			t:           t,
+			header:      header,
+			valuesInt32: make([]int32, 0, count),
+			count:       count,
+		}
 	case thrift.Type_INT64:
-		return &DictionaryPage{t: t, valuesInt64: make([]int64, 0, count), count: count}
+		return &DictionaryPage{t: t, header: header, valuesInt64: make([]int64, 0, count), count: count}
 	case thrift.Type_BYTE_ARRAY, thrift.Type_FIXED_LEN_BYTE_ARRAY:
-		return &DictionaryPage{t: t, valuesString: make([]string, 0, count), count: count}
+		return &DictionaryPage{t: t, header: header, valuesString: make([]string, 0, count), count: count}
 	default:
 		log.Println("Warning: skipping not supported type ", t, " in plain encoding dictionaryPage")
 		return nil

@@ -41,6 +41,10 @@ func (s *scanner) Scan() bool {
 		header thrift.PageHeader
 	)
 
+	if s.err != nil {
+		return false
+	}
+
 	s.dictionary = nil
 	s.dataPage = nil
 	s.indexPage = nil

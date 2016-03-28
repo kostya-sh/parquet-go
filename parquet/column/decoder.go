@@ -60,6 +60,10 @@ func (s *Scanner) Scan() bool {
 		return false
 	}
 
+	if s.err != nil {
+		return false
+	}
+
 	meta := s.chunks[s.cursor].MetaData
 
 	offset := meta.GetDataPageOffset()
@@ -100,6 +104,7 @@ func (s *Scanner) Scan() bool {
 	}
 
 	if err := pageScanner.Err(); err != nil {
+		s.setErr(err)
 		return false
 	}
 
@@ -119,12 +124,12 @@ type chunk struct {
 }
 
 // NumValues returns the number of values in the current chunk
-func (c *Scanner) NumValues() int64 {
-	if c.currentChunk == nil {
+func (s *Scanner) NumValues() int64 {
+	if s.currentChunk == nil {
 		return 0
 	}
 
-	return c.currentChunk.numValues
+	return s.currentChunk.numValues
 }
 
 // column.Scanner.ReadInt32 returns all the values in the current chunk
@@ -149,8 +154,19 @@ func (s *Scanner) ReadInt64([]int64) bool {
 
 // ReadString
 func (s *Scanner) ReadString([]int64) bool {
-
 	return true
+}
+
+func (s *Scanner) Bool() ([]bool, bool) {
+	return nil, true
+}
+
+func (s *Scanner) Int64() ([]int64, bool) {
+	return nil, true
+}
+
+func (s *Scanner) String() ([]string, bool) {
+	return nil, true
 }
 
 // // read another page in the column chunk

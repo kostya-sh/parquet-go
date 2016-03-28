@@ -24,7 +24,11 @@ func checkColumnValues(t *testing.T, path string, columnIdx int, expected []cell
 
 	schema := fd.Schema()
 	columns := schema.Columns()
-	scanner := fd.ColumnScanner(columns[columnIdx])
+	scanner, err := fd.ColumnScanner(columns[columnIdx])
+
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// for i, rg := range m.RowGroups {
 	// 	cc := rg.Columns[c]

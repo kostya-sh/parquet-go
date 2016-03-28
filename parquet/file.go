@@ -154,6 +154,12 @@ func (fd *FileDescriptor) Schema() *Schema {
 	return fd.schema
 }
 
+// Type returns the type of the current column scanner
+func (fd *FileDescriptor) ColumnType(colname string) Type {
+	schema := fd.Schema().ColumnByName(colname).SchemaElement
+	return parquetType(schema.GetType())
+}
+
 // ColumnScanner returns a single scanner across all the Row Groups
 func (fd *FileDescriptor) ColumnScanner(colname string) (*column.Scanner, error) {
 	elementSchema := fd.Schema().ColumnByName(colname).SchemaElement

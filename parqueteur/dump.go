@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"log"
 
 	"github.com/kostya-sh/parquet-go/parquet"
 )
@@ -32,28 +32,55 @@ func runDump(cmd *Command, args []string) error {
 		return fmt.Errorf("%s: no files", args[0])
 	}
 
-	r, err := os.Open(args[0])
+	fd, err := parquet.OpenFile(args[0])
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer fd.Close()
 
-	decoder := parquet.NewDecoder(r)
+	for _, col := range fd.Schema().Columns() {
+		log.Printf("Reading %s", col)
 
-	// log.Println(chunk.MetaData.GetPathInSchema(), chunk.MetaData.GetType(), chunk.MetaData.GetNumValues())
+		// will iterate across row groups
+		scanner, err := fd.ColumnScanner(col)
+		if err != nil {
+			log.Printf("error reading ", col, err)
+		}
 
-	for _, rowGroupScanner := range decoder.NewRowGroupScanner() {
-		for _, scanner := range rowGroupScanner.NewColumnScanners() {
-
-			for scanner.Scan() {
-
-			}
-
-			if err := scanner.Err(); err != nil {
-				fmt.Printf("%s: invalid input: %s\n", os.Args[0], err)
+		for scanner.Scan() {
+			switch fd.ColumnType(col) {
+			case parquet.Boolean:
+				scanner.Bool()
+			case parquet.Int64:
+				scanner.Int64() // get all the values
+			case parquet.Int32:
+				value, ok := scanner.Int32() // get all the values
+				if ok {
+					log.Println(value)
+				}
+			case parquet.ByteArray, parquet.FixedLenByteArray:
+				scanner.String()
 			}
 		}
+
+		if err := scanner.Err(); err != nil {
+			log.Printf("error reading ", col, err)
+		}
+
 	}
+
+	// for _, rowGroupScanner := range decoder.NewRowGroupScanner() {
+	// 	for _, scanner := range rowGroupScanner.NewColumnScanners() {
+
+	// 		for scanner.Scan() {
+
+	// 		}
+
+	// 		if err := scanner.Err(); err != nil {
+	// 			fmt.Printf("%s: invalid input: %s\n", os.Args[0], err)
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }

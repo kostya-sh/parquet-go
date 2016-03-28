@@ -58,7 +58,7 @@ func (d *Decoder) DecodeInt32(out []int32) (int, error) {
 			out = append(out, value)
 		}
 	default:
-		log.Println("unsupported string format: ", d.t, " for type int32")
+		return -1, fmt.Errorf("unsupported string format: %s for type int32", d.t)
 	}
 
 	return count, nil
@@ -71,10 +71,10 @@ func (d *Decoder) DecodeInt64(out []int64) (int, error) {
 	switch d.t {
 
 	case thrift.Type_INT64:
-		var err error = nil
+		var err error
 
 		for i := 0; i < count; i++ {
-			var value int64 = 0
+			var value int64
 			err = binary.Read(d.r, binary.LittleEndian, &value)
 			if err != nil {
 				panic(fmt.Sprintf("expected %d int64 but got only %d: %s", count, i, err)) // FIXME
@@ -110,13 +110,13 @@ func (d *Decoder) DecodeStr(out []string) (int, error) {
 			}
 
 			value := string(p[:n])
-			log.Println("plain:str:", value)
 			out = append(out, value)
 		}
 
 	default:
 		log.Println("unsupported string format: ", d.t, " for type string")
 	}
+
 	return count, nil
 }
 

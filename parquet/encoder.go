@@ -26,6 +26,64 @@ var (
 	ctList                = thrift.ConvertedTypePtr(thrift.ConvertedType_LIST)
 )
 
+type Type int64
+
+const (
+	Boolean           Type = 0
+	Int32             Type = 1
+	Int64             Type = 2
+	Int96             Type = 3
+	Float             Type = 4
+	Double            Type = 5
+	ByteArray         Type = 6
+	FixedLenByteArray Type = 7
+)
+
+func (p Type) String() string {
+	switch p {
+	case Boolean:
+		return "BOOLEAN"
+	case Int32:
+		return "INT32"
+	case Int64:
+		return "INT64"
+	case Int96:
+		return "INT96"
+	case Float:
+		return "FLOAT"
+	case Double:
+		return "DOUBLE"
+	case ByteArray:
+		return "BYTE_ARRAY"
+	case FixedLenByteArray:
+		return "FIXED_LEN_BYTE_ARRAY"
+	}
+	return "<UNSET>"
+}
+
+func parquetType(t thrift.Type) Type {
+	switch t {
+	case thrift.Type_BOOLEAN:
+		return Boolean
+	case thrift.Type_INT32:
+		return Int32
+	case thrift.Type_INT64:
+		return Int64
+	case thrift.Type_INT96:
+		return Int96
+	case thrift.Type_FLOAT:
+		return Float
+	case thrift.Type_DOUBLE:
+		return Double
+	case thrift.Type_BYTE_ARRAY:
+		return ByteArray
+	case thrift.Type_FIXED_LEN_BYTE_ARRAY:
+		return FixedLenByteArray
+	default:
+		return Boolean
+	}
+}
+
 // Encoder
 type Encoder interface {
 	WriteRecords(records []map[string]interface{}) error
