@@ -52,25 +52,20 @@ func TestDecoder(t *testing.T) {
 	}
 }
 
-// // Single RLE run: 1-bit per value, 10 x 0
-// func TestSingleRLERun_10x0_1bit(t *testing.T) {
-// 	d := NewDecoder(bytes.NewBuffer([]byte{0x14, 0x00}))
+// Single RLE run: 1-bit per value, 10 x 0
+func TestSingleRLERun_10x0_1bit(t *testing.T) {
+	d := NewHybridBitPackingRLEDecoder(bytes.NewBuffer([]byte{0x14, 0x00}))
 
-// 	for i := 0; i < 10; i++ {
-// 		if !d.Scan() {
-// 			t.Fatalf("want 10 values, got %d", i)
-// 		}
+	out := make([]uint64, 0, 10)
 
-// 		i32 := d.Value()
-// 		if i32 != 0 {
-// 			t.Errorf("value #%d: got %d, want 0", i+1, i32)
-// 		}
-// 	}
+	if err := d.Read(out, 1); err != nil {
+		t.Fatalf("could not read from buffer %s", err)
+	}
 
-// 	if d.Scan() {
-// 		t.Fatalf("Got more than 10 values")
-// 	}
-// }
+	if l := len(out); l != 10 {
+		t.Fatalf("want 10 values, got %d", l)
+	}
+}
 
 // // Single RLE run: 20-bits per value, 300x1
 // func TestSingleRLERun_300x1_20bit(t *testing.T) {

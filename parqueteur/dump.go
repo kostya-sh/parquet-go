@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/kostya-sh/parquet-go/parquet"
+	"github.com/kostya-sh/parquet-go/parquet/datatypes"
 )
 
 var cmdDump = &Command{
@@ -38,35 +40,49 @@ func runDump(cmd *Command, args []string) error {
 	}
 	defer fd.Close()
 
+	rowGroup := make(map[string]datatypes.Accumulator)
+
+	minValue := math.MaxInt32
+
 	for _, col := range fd.Schema().Columns() {
 		log.Printf("Reading %s", col)
 
 		// will iterate across row groups
 		scanner, err := fd.ColumnScanner(col)
 		if err != nil {
-			log.Printf("error reading ", col, err)
+			log.Printf("error reading %s: %s", col, err)
 		}
 
+		// provide a simple
+		acc := scanner.NewAccumulator()
+
+		// scans one chunk at the time
 		for scanner.Scan() {
-			switch fd.ColumnType(col) {
-			case parquet.Boolean:
-				scanner.Bool()
-			case parquet.Int64:
-				scanner.Int64() // get all the values
-			case parquet.Int32:
-				value, ok := scanner.Int32() // get all the values
-				if ok {
-					log.Println(value)
-				}
-			case parquet.ByteArray, parquet.FixedLenByteArray:
-				scanner.String()
+			// read all the data
+			if err := scanner.Decode(acc); err != nil {
+				log.Printf("error decoding %s", err)
 			}
 		}
 
 		if err := scanner.Err(); err != nil {
-			log.Printf("error reading ", col, err)
+			log.Printf("error reading %s: %s", col, err)
 		}
 
+		rowGroup[col] = acc
+
+		if v := scanner.NumValues(); minValue > int(v) {
+			minValue = int(v)
+		}
+	}
+
+	for i := 0; i < minValue; i++ {
+		for k, col := range rowGroup {
+			if v, ok := col.Get(i); ok {
+				fmt.Printf("%s: %#v \n", k, v)
+			}
+		}
+
+		fmt.Printf("\n\n")
 	}
 
 	// for _, rowGroupScanner := range decoder.NewRowGroupScanner() {

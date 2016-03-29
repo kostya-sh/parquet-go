@@ -80,7 +80,7 @@ func (s *scanner) Scan() bool {
 		s.setErr(err)
 		return false
 	} else if n > 0 {
-		err := fmt.Errorf("not all the data was consumed")
+		err := fmt.Errorf("not all the data was consumed for page %s", header.GetType())
 		s.setErr(err)
 		return false
 	}
@@ -144,7 +144,7 @@ func (s *scanner) readPage(r *bufio.Reader, header *thrift.PageHeader) error {
 			return fmt.Errorf("bad file format: DataPageHeader flag was not set")
 		}
 		s.dataPage = NewDataPage(s.schema, header.GetDataPageHeader())
-		return s.dataPage.Decode(r)
+		return s.dataPage.ReadAll(r)
 
 	default:
 		return fmt.Errorf("unknown PageHeader.PageType: %s", header.GetType())

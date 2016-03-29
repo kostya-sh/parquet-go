@@ -6,6 +6,40 @@ import (
 	"testing"
 )
 
+func TestMaxBitWidth(t *testing.T) {
+	type test struct {
+		bitWidth uint
+		maxValue uint32
+	}
+
+	tc := []test{
+		{0, 0},
+		{1, 1},
+		{2, 2},
+		{2, 3},
+		{3, 4},
+		{3, 5},
+		{3, 6},
+		{3, 7},
+		{4, 8},
+		{4, 15},
+		{5, 16},
+		{5, 31},
+		{6, 32},
+		{6, 63},
+		{7, 64},
+		{7, 127},
+		{8, 128},
+		{8, 255},
+	}
+
+	for idx, tt := range tc {
+		if v := GetBitWidthFromMaxInt(tt.maxValue); v != tt.bitWidth {
+			t.Fatalf("%d case not met %d != %d", idx, v, tt.bitWidth)
+		}
+	}
+}
+
 func rle32DecodeAll(w int, data []byte, count int) (a []int32, err error) {
 	d := NewRLE32Decoder(w)
 	d.init(data)

@@ -79,6 +79,23 @@ func (d *Decoder) Err() error {
 	return d.err
 }
 
+// func GetInt32(r io.Reader, bitWidth uint) int32 {
+// 	br := newBitReader(r)
+// 	return br.ReadBits(uint)
+// 	length, err := binary.ReadUvarint(rb)
+// 	if err != nil {
+// 		return -1
+// 	}
+
+// 	log.Printf("repetition encoded length: %d", length)
+// 	for i := uint64(0); i < length; i++ {
+// 		if _, err := rb.ReadByte(); err != nil {
+// 			return nil, nil, err
+// 		}
+// 	}
+
+// }
+
 // An Encoder serializes data in the RLE format.
 type Encoder struct {
 	w     RLEWriter // where to send the data

@@ -4,180 +4,243 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 
+	"github.com/kostya-sh/parquet-go/parquet/encoding/rle"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
-// type Decoder interface {
-// 	Bool() bool
-// 	Int32() int32
-// 	Int64() int64
-// 	//	Float() float
-// 	//	Double() double
-// 	Byte() []byte
-// }
-
-// Plain
-
-// Dictionary Encoding
-
-// Delta Bit Packing
-
-// Delta Length Byte Array
-
-// Delta Byte Array
-
-type Decoder struct {
-	r     io.Reader
-	t     thrift.Type
-	count int
+// Decoder interface
+type Decoder interface {
+	DecodeBool([]bool) (count uint, err error)
+	DecodeInt32([]int32) (count uint, err error)
+	DecodeInt64([]int64) (count uint, err error)
+	//	DecodeInt96([]int64, []int32) (count uint, err error)
+	//DecodeString([]string) (count uint, err error)
+	DecodeByteArray([][]byte) (count uint, err error)
+	DecodeFloat32([]float32) (count uint, err error)
+	DecodeFloat64([]float64) (count uint, err error)
 }
 
-// NewPlainDecoder creates a new PageDecoder
-func NewPlainDecoder(r io.Reader, t thrift.Type, numValues int) *Decoder {
-	return &Decoder{r, t, numValues}
+func trailingZeros(i uint32) uint32 {
+	var count uint32
+
+	mask := uint32(1 << 31)
+	for mask&i != mask {
+		mask >>= 1
+		count++
+	}
+	return count
+}
+
+func GetBitWidthFromMaxInt(i uint32) uint {
+	return uint(32 - trailingZeros(i))
+}
+
+func min(a, b uint) uint {
+	if a > b {
+		return b
+	}
+	return a
+}
+
+// Plain
+type plainDecoder struct {
+	r     io.Reader
+	count uint
+}
+
+// NewPlainDecoder creates a new Decoder that uses the PLAIN=0 encoding
+func NewPlainDecoder(r io.Reader, numValues uint) Decoder {
+	return &plainDecoder{r, numValues}
+}
+
+// DecodeBool
+func (d *plainDecoder) DecodeBool(out []bool) (uint, error) {
+	dec := rle.NewHybridBitPackingRLEDecoder(d.r)
+	outx := make([]uint64, 0, d.count)
+	err := dec.Read(outx, 1)
+	if err != nil {
+		return 0, err
+	}
+
+	for i := 0; i < len(outx) && i < len(out); i++ {
+		out[i] = outx[i] != 0
+	}
+
+	return uint(len(outx)), nil
 }
 
 // DecodeInt32
-func (d *Decoder) DecodeInt32(out []int32) (int, error) {
+func (d *plainDecoder) DecodeInt32(out []int32) (uint, error) {
 	count := d.count
 
-	switch d.t {
-
-	case thrift.Type_INT32:
-		var err error = nil
-
-		for i := 0; i < count; i++ {
-			var value int32 = 0
-			err = binary.Read(d.r, binary.LittleEndian, &value)
-			if err != nil {
-				panic(fmt.Sprintf("expected %d int32 but got only %d: %s", count, i, err)) // FIXME
-			}
-
-			out = append(out, value)
+	for i := uint(0); i < count; i++ {
+		var value int32
+		err := binary.Read(d.r, binary.LittleEndian, &value)
+		if err != nil {
+			return i, fmt.Errorf("expected %d int32 but got only %d: %s", count, i, err) // FIXME
 		}
-	default:
-		return -1, fmt.Errorf("unsupported string format: %s for type int32", d.t)
+
+		out[i] = value
 	}
 
 	return count, nil
 }
 
 // DecodeInt64
-func (d *Decoder) DecodeInt64(out []int64) (int, error) {
+func (d *plainDecoder) DecodeInt64(out []int64) (uint, error) {
 	count := d.count
+	var value int64
 
-	switch d.t {
-
-	case thrift.Type_INT64:
-		var err error
-
-		for i := 0; i < count; i++ {
-			var value int64
-			err = binary.Read(d.r, binary.LittleEndian, &value)
-			if err != nil {
-				panic(fmt.Sprintf("expected %d int64 but got only %d: %s", count, i, err)) // FIXME
-			}
-
-			out = append(out, value)
+	for i := uint(0); i < min(count, uint(len(out))); i++ {
+		err := binary.Read(d.r, binary.LittleEndian, &value)
+		if err != nil {
+			return i, fmt.Errorf("expected %d int64 but got only %d: %s", count, i, err) // FIXME
 		}
 
-	default:
-		log.Println("unsupported string format: ", d.t, " for type int64")
+		out[i] = value
 	}
 
 	return count, nil
 }
 
 // DecodeStr , returns the number of element read, or error
-func (d *Decoder) DecodeStr(out []string) (int, error) {
+func (d *plainDecoder) DecodeString(out []string) (uint, error) {
 	count := d.count
 
-	switch d.t {
-	case thrift.Type_BYTE_ARRAY:
-		var size int32
+	var size int32
 
-		for i := 0; i < count; i++ {
-			err := binary.Read(d.r, binary.LittleEndian, &size)
-			if err != nil {
-				panic(err)
-			}
-			p := make([]byte, size)
-			n, err := d.r.Read(p)
-			if err != nil {
-				return i, fmt.Errorf("plain decoder: short read: %s", err)
-			}
-
-			value := string(p[:n])
-			out = append(out, value)
+	for i := uint(0); i < min(count, uint(len(out))); i++ {
+		err := binary.Read(d.r, binary.LittleEndian, &size)
+		if err != nil {
+			return 0, err
+		}
+		p := make([]byte, size)
+		n, err := d.r.Read(p)
+		if err != nil {
+			return i, fmt.Errorf("plain decoder: short read: %s", err)
 		}
 
-	default:
-		log.Println("unsupported string format: ", d.t, " for type string")
+		out[i] = string(p[:n])
+	}
+
+	return count, nil
+}
+
+// DecodeStr , returns the number of element read, or error
+func (d *plainDecoder) DecodeByteArray(out [][]byte) (uint, error) {
+	count := d.count
+
+	var size int32
+
+	for i := uint(0); i < min(count, uint(len(out))); i++ {
+		err := binary.Read(d.r, binary.LittleEndian, &size)
+		if err != nil {
+			return 0, err
+		}
+		p := make([]byte, size)
+		n, err := d.r.Read(p)
+		if err != nil {
+			return i, fmt.Errorf("plain decoder: short read: %s", err)
+		}
+		out[i] = p[:n]
+	}
+
+	return count, nil
+}
+
+// DecodeFloat32 returns the number of elements read, or error
+// The data has to be 4 bytes IEEE little endian back to back
+func (d *plainDecoder) DecodeFloat32(out []float32) (uint, error) {
+	count := d.count
+
+	var value float32
+
+	for i := uint(0); i < min(count, uint(len(out))); i++ {
+		err := binary.Read(d.r, binary.LittleEndian, &value)
+		if err != nil {
+			return i, fmt.Errorf("plain decoder: binary.Read: %s", err)
+		}
+
+		out[i] = value
+	}
+
+	return count, nil
+}
+
+// DecodeFloat64 returns the number of elements read, or error
+// The data has to be 8 bytes IEEE little endian back to back
+func (d *plainDecoder) DecodeFloat64(out []float64) (uint, error) {
+	count := d.count
+
+	var value float64
+
+	for i := uint(0); i < min(count, uint(len(out))); i++ {
+		err := binary.Read(d.r, binary.LittleEndian, &value)
+		if err != nil {
+			return 0, fmt.Errorf("plain decoder: binary.Read: %s", err)
+		}
+		out[i] = value
 	}
 
 	return count, nil
 }
 
 // plain Encoder
-type plain struct {
+type plainEncoder struct {
 	numValues int
 }
 
 // NewPlainEncoder creates an encoder that uses the Plain encoding to store data
 // inside a DataPage
 func NewPlainEncoder() Encoder {
-	return &plain{}
+	return &plainEncoder{}
 }
 
-func (p *plain) Flush() error {
+func (p *plainEncoder) Flush() error {
 	return nil
 }
 
-func (p *plain) NumValues() int {
+func (p *plainEncoder) NumValues() int {
 	return p.numValues
 }
 
-func (p *plain) Type() thrift.Encoding {
+func (p *plainEncoder) Type() thrift.Encoding {
 	return thrift.Encoding_PLAIN
 }
 
-/*
-- BOOLEAN: 1 bit boolean
-- INT32: 32 bit signed int
-- INT64: 64 bit signed int
-- INT96: 96 bit signed int
-- FLOAT: IEEE 32-bit floating point values
-- DOUBLE: IEEE 64-bit floating point values
-- BYTE_ARRAY: arbitrarily long byte arrays
-*/
-func (e *plain) WriteBool(w io.Writer, v []bool) error {
+// WriteBool
+func (e *plainEncoder) WriteBool(w io.Writer, v []bool) error {
 	e.numValues += len(v)
 	return binary.Write(w, binary.LittleEndian, v)
 }
 
-func (e *plain) WriteInt32(w io.Writer, v []int32) error {
+// WriteInt32
+func (e *plainEncoder) WriteInt32(w io.Writer, v []int32) error {
 	e.numValues += len(v)
 	return binary.Write(w, binary.LittleEndian, v)
 }
 
-func (e *plain) WriteInt64(w io.Writer, v []int64) error {
+// WriteInt64
+func (e *plainEncoder) WriteInt64(w io.Writer, v []int64) error {
 	e.numValues += len(v)
 	return binary.Write(w, binary.LittleEndian, v)
 }
 
-func (e *plain) WriteFloat32(w io.Writer, v []float32) error {
+// WriteFloat32
+func (e *plainEncoder) WriteFloat32(w io.Writer, v []float32) error {
 	e.numValues += len(v)
 	return binary.Write(w, binary.LittleEndian, v)
 }
 
-func (e *plain) WriteFloat64(w io.Writer, v []float64) error {
+// WriteFloat64
+func (e *plainEncoder) WriteFloat64(w io.Writer, v []float64) error {
 	e.numValues += len(v)
 	return binary.Write(w, binary.LittleEndian, v)
 }
 
-func (e *plain) WriteByteArray(w io.Writer, v [][]byte) error {
+// WriteByteArray
+func (e *plainEncoder) WriteByteArray(w io.Writer, v [][]byte) error {
 	e.numValues += len(v)
 	for _, b := range v {
 		err := binary.Write(w, binary.LittleEndian, len(b))

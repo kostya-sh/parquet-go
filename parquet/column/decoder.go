@@ -1,10 +1,12 @@
 package column
 
 import (
+	"fmt"
 	"io"
 
 	"os"
 
+	"github.com/kostya-sh/parquet-go/parquet/datatypes"
 	"github.com/kostya-sh/parquet-go/parquet/page"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
@@ -123,6 +125,17 @@ type chunk struct {
 	index      *page.IndexPage
 }
 
+func (c *chunk) Decode(acc datatypes.Accumulator) error {
+
+	for _, dataPage := range c.data {
+		if err := dataPage.Decode(c.dictionary, acc); err != nil {
+			return fmt.Errorf("dataPage: %s", err)
+		}
+	}
+
+	return nil
+}
+
 // NumValues returns the number of values in the current chunk
 func (s *Scanner) NumValues() int64 {
 	if s.currentChunk == nil {
@@ -133,41 +146,45 @@ func (s *Scanner) NumValues() int64 {
 }
 
 // column.Scanner.ReadInt32 returns all the values in the current chunk
-func (s *Scanner) ReadInt32([]int32) bool {
+func (s *Scanner) Decode(acc datatypes.Accumulator) error {
 	if s.currentChunk == nil {
-		return false
+		return fmt.Errorf("no chunk")
 	}
 
-	return true
+	return s.currentChunk.Decode(acc)
 }
 
-func (s *Scanner) Int32() ([]int32, bool) {
-	alloc := make([]int32, 0, s.NumValues())
-	ok := s.ReadInt32(alloc)
-	return alloc, ok
+func (s *Scanner) NewAccumulator() datatypes.Accumulator {
+	return datatypes.NewSimpleAccumulator(s.schema.GetType())
 }
 
-// ReadInt64
-func (s *Scanner) ReadInt64([]int64) bool {
-	return true
-}
+// func (s *Scanner) Int32() ([]int32, bool) {
+// 	alloc := make([]int32, 0, s.NumValues())
+// 	ok := s.ReadInt32(alloc)
+// 	return alloc, ok
+// }
 
-// ReadString
-func (s *Scanner) ReadString([]int64) bool {
-	return true
-}
+// // ReadInt64
+// func (s *Scanner) ReadInt64([]int64) bool {
+// 	return true
+// }
 
-func (s *Scanner) Bool() ([]bool, bool) {
-	return nil, true
-}
+// // ReadString
+// func (s *Scanner) ReadString([]int64) bool {
+// 	return true
+// }
 
-func (s *Scanner) Int64() ([]int64, bool) {
-	return nil, true
-}
+// func (s *Scanner) Bool() ([]bool, bool) {
+// 	return nil, true
+// }
 
-func (s *Scanner) String() ([]string, bool) {
-	return nil, true
-}
+// func (s *Scanner) Int64() ([]int64, bool) {
+// 	return nil, true
+// }
+
+// func (s *Scanner) String() ([]string, bool) {
+// 	return nil, true
+// }
 
 // // read another page in the column chunk
 // func (s *Scanner) nextPage() (err error) {
