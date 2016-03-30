@@ -261,28 +261,3 @@ func (e *defaultPageEncoder) WriteByteArray(values [][]byte) error {
 
 	return nil
 }
-
-// // Page Encoders by type
-// type boolPageEncoder struct {
-// }
-
-// type int32PageEncoder struct {
-// }
-
-// type int64PageEncoder struct {
-// }
-
-// type int96PageEncoder struct {
-// }
-
-// type floatPageEncoder struct {
-// }
-
-// type doublePageEncoder struct {
-// }
-
-// type byteArrayPageEncoder struct {
-// }
-
-// type fixedLenByteArrayPageEncoder struct {
-// }

@@ -33,4 +33,9 @@ So the problem is to first have a schema and then write the information and keep
 
 # TODO
 
-- [ ] Support for crc inside Page (easy)
+- [ ] Support Old BitEncoding (Encoder / Decoder)
+- [ ] Support DataPageV2 (Encoder / Decoder)
+- [ ] Support for crc inside Page
+- [ ] Support for nested levels
+- [ ] Support int96
+- [ ] Support LZO

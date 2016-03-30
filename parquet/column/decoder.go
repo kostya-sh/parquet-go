@@ -11,26 +11,14 @@ import (
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
-/*
-- BOOLEAN: 1 bit boolean
-- INT32: 32 bit signed int
-- INT64: 64 bit signed int
-- INT96: 96 bit signed int
-- FLOAT: IEEE 32-bit floating point values
-- DOUBLE: IEEE 64-bit floating point values
-- BYTE_ARRAY: arbitrarily long byte arrays
-*/
-
 // Scanner implements the logic to de-serialize columns in the parquet format
 type Scanner struct {
-	rs             io.ReadSeeker // The reader provided by the client.
-	schema         *thrift.SchemaElement
-	chunks         []*thrift.ColumnChunk
-	cursor         int
-	totalPagesRead int
-	err            error
-	currentChunk   *chunk
-	//dictionaryLUT  []string // Look Up Table for dictionary encoded column chunks
+	rs           io.ReadSeeker // The reader provided by the client.
+	schema       *thrift.SchemaElement
+	chunks       []*thrift.ColumnChunk
+	cursor       int
+	err          error
+	currentChunk *chunk
 }
 
 // NewScanner returns a Scanner that reads from r

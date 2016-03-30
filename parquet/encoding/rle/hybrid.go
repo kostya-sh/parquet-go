@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 
 	"github.com/kostya-sh/parquet-go/parquet/encoding/bitpacking"
 )
@@ -21,11 +20,11 @@ func NewHybridBitPackingRLEEncoder(w io.Writer) *HybridBitPackingRLEEncoder {
 
 func (e *HybridBitPackingRLEEncoder) Write(count uint64, value int64) (err error) {
 	var (
-		indicator uint64 = count<<1 | 0
+		indicator int64 = int64(count<<1 | 0)
 		i         int
 	)
 
-	i = binary.PutUvarint(e.buffer, indicator)
+	i = binary.PutVarint(e.buffer, indicator)
 	i, err = e.w.Write(e.buffer[:i])
 	if err != nil {
 		return err
@@ -36,7 +35,7 @@ func (e *HybridBitPackingRLEEncoder) Write(count uint64, value int64) (err error
 }
 
 // ReadInt64 .
-func ReadInt64(r io.Reader, bitWidth uint) ([]int64, error) {
+func ReadInt64(r io.Reader, bitWidth uint, count uint) ([]int64, error) {
 	var out []int64
 
 	byteWidth := (bitWidth + uint(7)) / uint(8)
@@ -50,7 +49,6 @@ func ReadInt64(r io.Reader, bitWidth uint) ([]int64, error) {
 
 		// run := <bit-packed-run> | <rle-run>
 		header, err := binary.ReadVarint(br)
-		log.Printf("indicatorValue: %d\n", header)
 
 		if err == io.EOF {
 			break
@@ -63,8 +61,6 @@ func ReadInt64(r io.Reader, bitWidth uint) ([]int64, error) {
 			// we always bit-pack a multiple of 8 values at a time, so we only store the number of values / 8
 			// bit-pack-count := (number of values in this run) / 8
 			literalCount := int32(header>>1) * 8
-
-			log.Printf("literalCount: %d\n", literalCount)
 
 			r := bitpacking.NewDecoder(br, int(bitWidth))
 			for i := int32(0); i < literalCount; i++ {
@@ -86,8 +82,6 @@ func ReadInt64(r io.Reader, bitWidth uint) ([]int64, error) {
 			}
 			value := unpackLittleEndianInt32(p)
 
-			log.Printf("repeatCount: %d, value:%d \n", repeatCount, value)
-
 			for i := int32(0); i < repeatCount; i++ {
 				out = append(out, int64(value))
 			}
@@ -95,11 +89,14 @@ func ReadInt64(r io.Reader, bitWidth uint) ([]int64, error) {
 		}
 	}
 
-	log.Println("RLE:", out)
-	return out, nil
+	if uint(len(out)) < count {
+		return nil, fmt.Errorf("could not decode %d values only %d", count, len(out))
+	}
+
+	return out[:count], nil
 }
 
-func ReadUint64(r io.Reader, bitWidth uint) ([]uint64, error) {
+func ReadUint64(r io.Reader, bitWidth uint, count uint) ([]uint64, error) {
 	var out []uint64
 
 	byteWidth := (bitWidth + uint(7)) / uint(8)
@@ -154,7 +151,11 @@ func ReadUint64(r io.Reader, bitWidth uint) ([]uint64, error) {
 		}
 	}
 
-	return out, nil
+	if uint(len(out)) < count {
+		return nil, fmt.Errorf("could not decode %d values only %d", count, len(out))
+	}
+
+	return out[:count], nil
 }
 
 func unpackLittleEndianInt32(bytes []byte) int32 {

@@ -18,8 +18,6 @@ type Dictionary interface {
 	MapBool(keys []uint64, out []bool) error
 	MapInt32(keys []uint64, out []int32) error
 	MapInt64(keys []uint64, out []int64) error
-	// Int96
-	//MapString(keys []uint64, out []string) error
 	MapByteArray(keys []uint64, out [][]byte) error
 	MapFloat32(keys []uint64, out []float32) error
 	MapFloat64(keys []uint64, out []float64) error
@@ -38,13 +36,13 @@ func (d *plainDictionaryDecoder) readKeys() ([]uint64, error) {
 		return nil, err
 	}
 
-	keys, err := rle.ReadUint64(d.rb, uint(bitWidth))
+	keys, err := rle.ReadUint64(d.rb, uint(bitWidth), d.count)
 
 	if err != nil {
 		return nil, fmt.Errorf("rle: could not read %d values with bitWidth %d: %s", d.count, uint(bitWidth), err)
 	}
 
-	return keys[:d.count], nil
+	return keys, nil
 }
 
 func (d *plainDictionaryDecoder) DecodeBool(out []bool) (uint, error) {

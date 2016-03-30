@@ -11,7 +11,7 @@ import (
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
-// Scanner
+// Scanner scans through pages inside a single column chunk
 type Scanner interface {
 	Scan() bool
 	DataPage() (*DataPage, bool)
@@ -34,7 +34,8 @@ func NewScanner(schema *thrift.SchemaElement, codec thrift.CompressionCodec, r i
 	return &scanner{schema: schema, r: r, codec: codec}
 }
 
-// read another page inside the column chunk
+// Scan reads the next page inside the column chunk. returns false if no more data pages
+// are present or if an error occurred.
 func (s *scanner) Scan() bool {
 	var (
 		header thrift.PageHeader
@@ -88,7 +89,7 @@ func (s *scanner) Scan() bool {
 	return true
 }
 
-//
+// returns a reader for the right compression
 func compressionReader(r io.Reader, codec thrift.CompressionCodec) (io.Reader, error) {
 	switch codec {
 	case thrift.CompressionCodec_GZIP:

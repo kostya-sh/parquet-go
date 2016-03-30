@@ -3,7 +3,6 @@ package column
 import (
 	"bytes"
 
-	"github.com/kostya-sh/parquet-go/parquet/encoding"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
@@ -13,9 +12,6 @@ import (
 type Encoder struct {
 	Schema   *thrift.SchemaElement
 	Metadata *thrift.ColumnMetaData
-
-	dDecoder *encoding.RLE32Decoder
-	rDecoder *encoding.RLE32Decoder
 }
 
 // NewEncoder

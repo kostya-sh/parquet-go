@@ -9,40 +9,6 @@ import (
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
-// Decoder interface
-type Decoder interface {
-	DecodeBool([]bool) (count uint, err error)
-	DecodeInt32([]int32) (count uint, err error)
-	DecodeInt64([]int64) (count uint, err error)
-	//	DecodeInt96([]int64, []int32) (count uint, err error)
-	//DecodeString([]string) (count uint, err error)
-	DecodeByteArray([][]byte) (count uint, err error)
-	DecodeFloat32([]float32) (count uint, err error)
-	DecodeFloat64([]float64) (count uint, err error)
-}
-
-func trailingZeros(i uint32) uint32 {
-	var count uint32
-
-	mask := uint32(1 << 31)
-	for mask&i != mask {
-		mask >>= 1
-		count++
-	}
-	return count
-}
-
-func GetBitWidthFromMaxInt(i uint32) uint {
-	return uint(32 - trailingZeros(i))
-}
-
-func min(a, b uint) uint {
-	if a > b {
-		return b
-	}
-	return a
-}
-
 // Plain
 type plainDecoder struct {
 	r     io.Reader

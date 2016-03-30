@@ -2,151 +2,90 @@ package rle
 
 import (
 	"bytes"
+	"math"
+	"reflect"
 	"testing"
 )
 
-var testcases = []struct {
-	count int
-	value int64
-}{
-	{1, 1},
-	{100, 0},
-	{10, 1024},
-}
-
-func TestDecoder(t *testing.T) {
-
-	// for idx, tc := range testcases {
-	// 	b := make([]byte, 9)
-	// 	var w bytes.Buffer
-
-	// 	enc := NewHybridBitPackingRLEEncoder(&w)
-
-	// 	renc := Encoder(enc)
-	// 	for i := 0; i < 100; i++ {
-	// 		renc.Encode(10)
-	// 	}
-
-	// 	renc.Flush()
-
-	// 	j := binary.PutUvarint(b, uint64(tc.count<<1))
-
-	// 	b[j] = byte(tc.value)
-
-	// 	d := NewDecoder(bytes.NewBuffer(b[:j+1]))
-
-	// 	for i := 0; i < tc.count; i++ {
-	// 		if !d.Scan() {
-	// 			t.Fatalf("%d: want %d values, got %d", idx, tc.count, i)
-	// 		}
-
-	// 		if v := d.Value(); v != tc.value {
-	// 			t.Fatalf("%d: value got %d, want %d", idx, v, tc.value)
-	// 		}
-	// 	}
-
-	// 	if d.Scan() {
-	// 		t.Fatalf("Got more than %d values", tc.count)
-	// 	}
-	// }
-}
-
-// Single RLE run: 1-bit per value, 10 x 0
-func TestSingleRLERun_10x0_1bit(t *testing.T) {
-	out, err := ReadInt64(bytes.NewBuffer([]byte{0x02, 0x00, 0x00, 0x00, 0x14, 0x00}), 1)
-	if err != nil {
-		t.Fatalf("could not read: %s", err)
+func TestMaxBitWidth(t *testing.T) {
+	type test struct {
+		bitWidth uint
+		maxValue uint32
 	}
 
-	if l := len(out); l != 10 {
-		t.Fatalf("want 10 values, got %d", l)
+	tc := []test{
+		{0, 0},
+		{1, 1},
+		{2, 2},
+		{2, 3},
+		{3, 4},
+		{3, 5},
+		{3, 6},
+		{3, 7},
+		{4, 8},
+		{4, 15},
+		{5, 16},
+		{5, 31},
+		{6, 32},
+		{6, 63},
+		{7, 64},
+		{7, 127},
+		{8, 128},
+		{8, 255},
 	}
 
-	for i := 0; i < 10; i++ {
-		if out[i] != 0 {
-			t.Fatalf("expected all zeros")
+	for idx, tt := range tc {
+		if v := uint(math.Log2(float64(tt.maxValue + 1))); v != tt.bitWidth {
+			t.Fatalf("%d case not met %d != %d", idx, v, tt.bitWidth)
 		}
 	}
 }
 
-// Single RLE run: 20-bits per value, 300x1
-func TestSingleRLERun_300x1_20bit(t *testing.T) {
-	out, err := ReadInt64(bytes.NewBuffer([]byte{0x03, 0x00, 0x00, 0x00, 0xD8, 0x04, 0x01}), 1)
-	if err != nil {
-		t.Fatalf("could not read: %s", err)
+func repeatInt32(count int, value int64) (a []int64) {
+	for i := 0; i < count; i++ {
+		a = append(a, value)
 	}
-
-	if l := len(out); l < 300 || l > 300 {
-		t.Fatalf("want 300 values, got %d", l)
-	}
-
-	for i := 0; i < 300; i++ {
-		if out[i] != 1 {
-			t.Fatalf("expected all ones")
-		}
-	}
-
+	return
 }
 
-// 100 1s followed by 100 0s:
-// <varint(100 << 1)> <1, padded to 1 byte>  <varint(100 << 1)> <0, padded to 1 byte>
-//  - (total 4 bytes)
-// func TestSinlgeRLERun_100x1_100x0_1bit(t *testing.T) {
-// 	b := make([]byte, 4)
-// 	i := binary.PutVarint(b, (100<<1)|0x1)
-// 	//	i += binary.PutVarint(b[i:], 0x1)
-// 	i += binary.PutVarint(b[i:], (100<<1)|0x0)
-// 	//	i += binary.PutVarint(b[i:], 0x0)
+func TestRLEDecoder(t *testing.T) {
+	var tests = []struct {
+		width  uint
+		data   []byte
+		values []int64
+	}{
+		// Single RLE run: 1-bit per value, 10 x 0
+		{1, []byte{0x14, 0x00}, repeatInt32(10, 0)},
 
-// 	t.Logf("%#v", b[:i])
+		// Single RLE run: 20-bits per value, 300x1
+		{20, []byte{0xD8, 0x04, 0x01, 0x00, 0x00}, repeatInt32(300, 1)},
 
-// 	d := NewDecoder(bytes.NewBuffer(b[:i]))
+		// 2 RLE runs: 1-bit per value, 10x0, 9x1
+		{1, []byte{0x14, 0x00, 0x12, 0x01}, append(repeatInt32(10, 0), repeatInt32(9, 1)...)},
 
-// 	for i := 0; i < 100; i++ {
-// 		if !d.Scan() {
-// 			t.Fatalf("want 300 values, got %d", i)
-// 		}
+		// 1 bit-packed run: 3 bits per value, 0,1,2,3,4,5,6,7
+		{3, []byte{0x03, 0x88, 0xC6, 0xFA}, []int64{0, 1, 2, 3, 4, 5, 6, 7}},
 
-// 		i32 := d.Value()
-// 		if i32 != 1 {
-// 			t.Errorf("value #%d: got %d, want 1", i+1, i32)
-// 		}
-// 	}
+		// RLE run, bit packed run, RLE run: 2 bits per 8x1, 0, 1, 2, 3, 1, 2, 1, 0, 10x2
+		{
+			2,
+			[]byte{0x10, 0x01, 0x03, 0xE4, 0x19, 0x14, 0x02},
+			[]int64{
+				1, 1, 1, 1, 1, 1, 1, 1,
+				0, 1, 2, 3, 1, 2, 1, 0,
+				2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+			},
+		},
+	}
 
-// 	for i := 0; i < 100; i++ {
-// 		if !d.Scan() {
-// 			t.Fatalf("want 300 values, got %d", i)
-// 		}
+	for i, test := range tests {
+		values, err := ReadInt64(bytes.NewReader(test.data), test.width, uint(len(test.values)))
+		if err != nil {
+			t.Errorf("test %d. unexpected error: %s", i, err)
+		}
+		if !reflect.DeepEqual(values, test.values) {
+			t.Errorf("test %d. got %v, want %v", i, values, test.values)
+		}
 
-// 		i32 := d.Value()
-// 		if i32 != 0 {
-// 			t.Errorf("value #%d: got %d, want 0", i+1, i32)
-// 		}
-// 	}
-
-// 	if d.Scan() {
-// 		t.Fatalf("Got more than 300 values")
-// 	}
-// }
-
-// // alternating 1s and 0s (200 total):
-// // 200 ints = 25 groups of 8
-// // <varint((25 << 1) | 1)> <25 bytes of values, bitpacked>
-// // (total 26 bytes, 1 byte overhead)
-
-// func TestRLEncoder(t *testing.T) {
-// 	b := make([]byte, 4)
-// 	i := binary.PutVarint(b, 100<<1)
-
-// 	bb := bytes.NewBuffer(b[:i])
-
-// 	e := NewEncoder(bb)
-
-// 	if err := e.Encode(1); err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	if err := e.Flush(); err != nil {
-// 		t.Fatal(err)
-// 	}
-// }
+	}
+}

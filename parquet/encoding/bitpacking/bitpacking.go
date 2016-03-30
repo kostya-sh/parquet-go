@@ -1,4 +1,4 @@
-package encoding
+package bitpacking
 
 // Encoding/decoding bit-packed int32
 

@@ -43,37 +43,6 @@ func (p *DataPage) ReadAll(r io.Reader) error {
 
 func (p *DataPage) readDefinitionAndRepetitionLevels(rb *bufio.Reader) (repetition []uint64, defintion []uint64, err error) {
 
-	// Definition Levels
-	// For data that is required, the definition levels are skipped.
-	// If encoded, it will always have the value of the max definition level.
-	if p.schema.GetRepetitionType() != thrift.FieldRepetitionType_REQUIRED {
-		defEnc := p.header.GetDefinitionLevelEncoding()
-		switch defEnc {
-		case thrift.Encoding_RLE:
-			p.maxDefinitionLevels = 0
-			// length of the <encoded-data> in bytes stored as 4 bytes little endian
-			var length uint32
-
-			if err := binary.Read(rb, binary.LittleEndian, &length); err != nil {
-				return nil, nil, err
-			}
-
-			lr := io.LimitReader(rb, int64(length))
-
-			_, err := rle.ReadUint64(lr, 1)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			if n, _ := io.Copy(ioutil.Discard, lr); n > 0 {
-				log.Println("WARNING not all data was consumed in RLE encoder")
-			}
-
-		default:
-			return nil, nil, fmt.Errorf("WARNING could not handle %s", defEnc)
-		}
-	}
-
 	// Repetition Levels
 	// only levels that are repeated need a Repetition level:
 	// optional or required fields are never repeated
@@ -91,6 +60,37 @@ func (p *DataPage) readDefinitionAndRepetitionLevels(rb *bufio.Reader) (repetiti
 			}
 		default:
 			return nil, nil, fmt.Errorf("WARNING could not handle %s", repEnc)
+		}
+	}
+
+	// Definition Levels
+	// For data that is required, the definition levels are skipped.
+	// If encoded, it will always have the value of the max definition level.
+	if p.schema.GetRepetitionType() != thrift.FieldRepetitionType_REQUIRED {
+		defEnc := p.header.GetDefinitionLevelEncoding()
+		switch defEnc {
+		case thrift.Encoding_RLE:
+			p.maxDefinitionLevels = 0
+			// length of the <encoded-data> in bytes stored as 4 bytes little endian
+			var length uint32
+
+			if err := binary.Read(rb, binary.LittleEndian, &length); err != nil {
+				return nil, nil, err
+			}
+
+			lr := io.LimitReader(rb, int64(length))
+
+			_, err := rle.ReadUint64(lr, 1, uint(p.header.GetNumValues()))
+			if err != nil {
+				return nil, nil, err
+			}
+
+			if n, _ := io.Copy(ioutil.Discard, lr); n > 0 {
+				log.Println("WARNING not all data was consumed in RLE encoder")
+			}
+
+		default:
+			return nil, nil, fmt.Errorf("WARNING could not handle %s", defEnc)
 		}
 	}
 

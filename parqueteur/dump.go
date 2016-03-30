@@ -53,7 +53,7 @@ func runDump(cmd *Command, args []string) error {
 			log.Printf("error reading %s: %s", col, err)
 		}
 
-		// provide a simple
+		// provide a simple accumulator
 		acc := scanner.NewAccumulator()
 
 		// scans one chunk at the time
