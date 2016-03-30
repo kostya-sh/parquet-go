@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strings"
 
 	"github.com/kostya-sh/parquet-go/parquet"
 	"github.com/kostya-sh/parquet-go/parquet/datatypes"
@@ -45,7 +46,6 @@ func runDump(cmd *Command, args []string) error {
 	minValue := math.MaxInt32
 
 	for _, col := range fd.Schema().Columns() {
-		log.Printf("Reading %s", col)
 
 		// will iterate across row groups
 		scanner, err := fd.ColumnScanner(col)
@@ -75,14 +75,18 @@ func runDump(cmd *Command, args []string) error {
 		}
 	}
 
+	columns := fd.Schema().Columns()
+
+	fmt.Println(strings.Join(columns, ","))
+
 	for i := 0; i < minValue; i++ {
-		for k, col := range rowGroup {
+		for _, colname := range columns {
+			col := rowGroup[colname]
 			if v, ok := col.Get(i); ok {
-				fmt.Printf("%s: %#v \n", k, v)
+				fmt.Printf("%v, ", v)
 			}
 		}
-
-		fmt.Printf("\n\n")
+		fmt.Printf("\n")
 	}
 
 	// for _, rowGroupScanner := range decoder.NewRowGroupScanner() {

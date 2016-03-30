@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/kostya-sh/parquet-go/parquet/encoding/rle"
+	"github.com/kostya-sh/parquet-go/parquet/encoding/bitpacking"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
@@ -56,18 +56,19 @@ func NewPlainDecoder(r io.Reader, numValues uint) Decoder {
 
 // DecodeBool
 func (d *plainDecoder) DecodeBool(out []bool) (uint, error) {
-	dec := rle.NewHybridBitPackingRLEDecoder(d.r)
-	outx := make([]uint64, 0, d.count)
-	err := dec.Read(outx, 1)
-	if err != nil {
-		return 0, err
+	dec := bitpacking.NewDecoder(d.r, 1)
+
+	for i := uint(0); i < d.count; i++ {
+		if dec.Scan() {
+			out[i] = dec.Value() == 1
+		}
+
+		if err := dec.Err(); err != nil {
+			return i, err
+		}
 	}
 
-	for i := 0; i < len(outx) && i < len(out); i++ {
-		out[i] = outx[i] != 0
-	}
-
-	return uint(len(outx)), nil
+	return d.count, nil
 }
 
 // DecodeInt32
@@ -106,11 +107,10 @@ func (d *plainDecoder) DecodeInt64(out []int64) (uint, error) {
 
 // DecodeStr , returns the number of element read, or error
 func (d *plainDecoder) DecodeString(out []string) (uint, error) {
-	count := d.count
-
+	var count uint
 	var size int32
 
-	for i := uint(0); i < min(count, uint(len(out))); i++ {
+	for i := uint(0); i < min(d.count, uint(len(out))); i++ {
 		err := binary.Read(d.r, binary.LittleEndian, &size)
 		if err != nil {
 			return 0, err
@@ -122,6 +122,7 @@ func (d *plainDecoder) DecodeString(out []string) (uint, error) {
 		}
 
 		out[i] = string(p[:n])
+		count++
 	}
 
 	return count, nil
@@ -129,11 +130,11 @@ func (d *plainDecoder) DecodeString(out []string) (uint, error) {
 
 // DecodeStr , returns the number of element read, or error
 func (d *plainDecoder) DecodeByteArray(out [][]byte) (uint, error) {
-	count := d.count
+	var count uint
 
 	var size int32
 
-	for i := uint(0); i < min(count, uint(len(out))); i++ {
+	for i := uint(0); i < min(d.count, uint(len(out))); i++ {
 		err := binary.Read(d.r, binary.LittleEndian, &size)
 		if err != nil {
 			return 0, err
@@ -144,6 +145,7 @@ func (d *plainDecoder) DecodeByteArray(out [][]byte) (uint, error) {
 			return i, fmt.Errorf("plain decoder: short read: %s", err)
 		}
 		out[i] = p[:n]
+		count++
 	}
 
 	return count, nil
@@ -152,17 +154,18 @@ func (d *plainDecoder) DecodeByteArray(out [][]byte) (uint, error) {
 // DecodeFloat32 returns the number of elements read, or error
 // The data has to be 4 bytes IEEE little endian back to back
 func (d *plainDecoder) DecodeFloat32(out []float32) (uint, error) {
-	count := d.count
+	var count uint
 
 	var value float32
 
-	for i := uint(0); i < min(count, uint(len(out))); i++ {
+	for i := uint(0); i < min(d.count, uint(len(out))); i++ {
 		err := binary.Read(d.r, binary.LittleEndian, &value)
 		if err != nil {
 			return i, fmt.Errorf("plain decoder: binary.Read: %s", err)
 		}
 
 		out[i] = value
+		count++
 	}
 
 	return count, nil
@@ -171,16 +174,17 @@ func (d *plainDecoder) DecodeFloat32(out []float32) (uint, error) {
 // DecodeFloat64 returns the number of elements read, or error
 // The data has to be 8 bytes IEEE little endian back to back
 func (d *plainDecoder) DecodeFloat64(out []float64) (uint, error) {
-	count := d.count
+	var count uint
 
 	var value float64
 
-	for i := uint(0); i < min(count, uint(len(out))); i++ {
+	for i := uint(0); i < min(d.count, uint(len(out))); i++ {
 		err := binary.Read(d.r, binary.LittleEndian, &value)
 		if err != nil {
 			return 0, fmt.Errorf("plain decoder: binary.Read: %s", err)
 		}
 		out[i] = value
+		count++
 	}
 
 	return count, nil

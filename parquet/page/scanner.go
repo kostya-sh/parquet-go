@@ -1,7 +1,6 @@
 package page
 
 import (
-	"bufio"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -66,17 +65,18 @@ func (s *scanner) Scan() bool {
 		s.setErr(err)
 		return false
 	}
-	// this is important so that the decoder use the same ByteReader
-	rb := bufio.NewReader(r)
 
 	// read the page
-	if err := s.readPage(rb, &header); err != nil {
+	if err := s.readPage(r, &header); err != nil {
 		s.setErr(err)
 		return false
 	}
 
 	// check if we consumed all the data from the limit reader as a safe guard
-	if n, err := io.Copy(ioutil.Discard, rb); err != nil {
+	if n, err := io.Copy(ioutil.Discard, r); err != nil {
+		if err == io.EOF {
+			return true
+		}
 		s.setErr(err)
 		return false
 	} else if n > 0 {
@@ -115,7 +115,7 @@ func compressionReader(r io.Reader, codec thrift.CompressionCodec) (io.Reader, e
 	}
 }
 
-func (s *scanner) readPage(r *bufio.Reader, header *thrift.PageHeader) error {
+func (s *scanner) readPage(r io.Reader, header *thrift.PageHeader) error {
 
 	switch header.GetType() {
 

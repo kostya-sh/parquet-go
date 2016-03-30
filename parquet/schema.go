@@ -36,8 +36,9 @@ type Levels struct {
 // split into multiple parquet files metadata can be stored in a separate
 // file. Usually this file is called "_common_metadata".
 type Schema struct {
-	root    group
-	columns map[string]ColumnDescriptor
+	root            group
+	columns         map[string]ColumnDescriptor
+	columnsSequence []string
 }
 
 var (
@@ -54,11 +55,7 @@ func NewSchema() *Schema {
 
 // Columns return the name of all the columns in this schema.
 func (s *Schema) Columns() []string {
-	var names []string
-	for k := range s.columns {
-		names = append(names, k)
-	}
-	return names
+	return s.columnsSequence
 }
 
 // AddColumn adds a column with the given specifications format
@@ -206,6 +203,7 @@ func schemaFromFileMetaData(meta *thrift.FileMetaData) (*Schema, error) {
 		if !ok {
 			panic("should not happen")
 		}
+		s.columnsSequence = append(s.columnsSequence, name)
 		s.columns[name] = ColumnDescriptor{MaxLevels: lvls, SchemaElement: se}
 	}
 

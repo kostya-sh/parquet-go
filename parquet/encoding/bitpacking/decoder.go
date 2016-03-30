@@ -16,13 +16,11 @@ type Decoder struct {
 	err       error
 }
 
-func NewDecoder(r io.Reader, n int) *Decoder {
-	// the number of bytes required to encode one value
-	// with the current bitWidth
+func NewDecoder(r io.Reader, bitWidth int) *Decoder {
 	return &Decoder{
 		r:         bufio.NewReader(r),
-		bitWidth:  uint(n),
-		byteWidth: (n + 7) / 8,
+		bitWidth:  uint(bitWidth),
+		byteWidth: (bitWidth + 7) / 8,
 	}
 }
 

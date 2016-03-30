@@ -12,6 +12,7 @@ import (
 	"github.com/kostya-sh/parquet-go/parquet/datatypes"
 	"github.com/kostya-sh/parquet-go/parquet/encoding"
 	"github.com/kostya-sh/parquet-go/parquet/encoding/bitpacking"
+	"github.com/kostya-sh/parquet-go/parquet/encoding/rle"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
@@ -30,58 +31,43 @@ func NewDataPage(schema *thrift.SchemaElement, header *thrift.DataPageHeader) *D
 }
 
 func (p *DataPage) ReadAll(r io.Reader) error {
+	// r = dump(r)
 	b, err := ioutil.ReadAll(r)
 	if err != nil {
-		return err
+		panic(err)
 	}
-
-	for i := 0; i+4 < len(b); i += 4 {
-		fmt.Printf("%.4d: %.2x %.2x %.2x %.2x\n", i, b[i], b[i+1], b[i+2], b[i+3])
-	}
-
-	p.rb = bufio.NewReader(bytes.NewReader(b))
+	r = bytes.NewReader(b)
+	p.rb = bufio.NewReader(r)
 	return nil
 }
 
 func (p *DataPage) readDefinitionAndRepetitionLevels(rb *bufio.Reader) (repetition []uint64, defintion []uint64, err error) {
 
-	var length uint32
-	err = binary.Read(rb, binary.LittleEndian, &length)
-	if err != nil {
-		return nil, nil, err
-	}
-	// err = binary.Read(rb, binary.LittleEndian, &length)
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
-
-	return nil, nil, err // #FIXME
-
 	// Definition Levels
 	// For data that is required, the definition levels are skipped.
 	// If encoded, it will always have the value of the max definition level.
 	if p.schema.GetRepetitionType() != thrift.FieldRepetitionType_REQUIRED {
-		log.Println(p.schema, p.schema.GetRepetitionType())
 		defEnc := p.header.GetDefinitionLevelEncoding()
 		switch defEnc {
 		case thrift.Encoding_RLE:
 			p.maxDefinitionLevels = 0
+			// length of the <encoded-data> in bytes stored as 4 bytes little endian
+			var length uint32
 
-			// bitWidth := encoding.GetBitWidthFromMaxInt(p.maxDefinitionLevels)
-			// var length uint32
+			if err := binary.Read(rb, binary.LittleEndian, &length); err != nil {
+				return nil, nil, err
+			}
 
-			// err := binary.Read(rb, binary.LittleEndian, length)
-			// if err != nil {
-			// 	return nil, nil, err
-			// }
+			lr := io.LimitReader(rb, int64(length))
 
-			// log.Println("length", length)
+			_, err := rle.ReadUint64(lr, 1)
+			if err != nil {
+				return nil, nil, err
+			}
 
-			// for i := uint32(0); i < length; i++ {
-			// 	if _, err := rb.ReadByte(); err != nil {
-			// 		return nil, nil, err
-			// 	}
-			// }
+			if n, _ := io.Copy(ioutil.Discard, lr); n > 0 {
+				log.Println("WARNING not all data was consumed in RLE encoder")
+			}
 
 		default:
 			return nil, nil, fmt.Errorf("WARNING could not handle %s", defEnc)
@@ -108,24 +94,12 @@ func (p *DataPage) readDefinitionAndRepetitionLevels(rb *bufio.Reader) (repetiti
 		}
 	}
 
-	for i := 0; i < 0; i++ {
-		c, err := rb.ReadByte()
-		log.Println(c, err)
-	}
-	// FIXME there is something at the beginning of the data page. 4 bytes.. ?
-	// var dummy int32
-	// if err := binary.Read(rb, binary.LittleEndian, &dummy); err != nil {
-	// }
-	// log.Printf(" dangling value %d", dummy)
-
 	return []uint64{}, []uint64{}, nil
 }
 
 func (p *DataPage) createDecoder(rb *bufio.Reader, page *DictionaryPage) (encoding.Decoder, error) {
 
 	numValues := uint(p.header.NumValues)
-
-	log.Println("encoding:", p.header.Encoding.String(), " :", numValues)
 
 	switch p.header.Encoding {
 	case thrift.Encoding_BIT_PACKED:

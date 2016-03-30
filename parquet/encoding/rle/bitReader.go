@@ -20,12 +20,12 @@ type bitReader struct {
 
 // newBitReader returns a new bitReader reading from r. If r is not
 // already an io.ByteReader, it will be converted via a bufio.Reader.
-func newBitReader(r io.Reader) bitReader {
+func newBitReader(r io.Reader) *bitReader {
 	byter, ok := r.(io.ByteReader)
 	if !ok {
 		byter = bufio.NewReader(r)
 	}
-	return bitReader{r: byter}
+	return &bitReader{r: byter}
 }
 
 // ReadBits64 reads the given number of bits and returns them in the
@@ -73,4 +73,8 @@ func (br *bitReader) ReadBit() bool {
 }
 func (br *bitReader) Err() error {
 	return br.err
+}
+
+func (br *bitReader) ReadByte() (byte, error) {
+	return br.r.ReadByte()
 }

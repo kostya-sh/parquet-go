@@ -38,14 +38,13 @@ func (d *plainDictionaryDecoder) readKeys() ([]uint64, error) {
 		return nil, err
 	}
 
-	dec := rle.NewHybridBitPackingRLEDecoder(d.rb)
-	keys := make([]uint64, d.count)
+	keys, err := rle.ReadUint64(d.rb, uint(bitWidth))
 
-	if err := dec.Read(keys, uint(bitWidth)); err != nil {
+	if err != nil {
 		return nil, fmt.Errorf("rle: could not read %d values with bitWidth %d: %s", d.count, uint(bitWidth), err)
 	}
 
-	return keys, nil
+	return keys[:d.count], nil
 }
 
 func (d *plainDictionaryDecoder) DecodeBool(out []bool) (uint, error) {

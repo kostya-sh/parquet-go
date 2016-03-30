@@ -69,6 +69,8 @@ func (p *DictionaryPage) NumValues() int32 {
 //Decode Read a dictionary page. There is only one dictionary page for each column chunk
 func (p *DictionaryPage) Decode(r io.Reader) error {
 
+	// r = dump(r)
+
 	count := p.count
 	_type := p.t
 
@@ -119,8 +121,7 @@ func (p *DictionaryPage) Decode(r io.Reader) error {
 }
 
 func (p *DictionaryPage) MapBool(keys []uint64, out []bool) error {
-
-	for i := 0; i < len(keys); i++ {
+	for i := 0; i < len(out); i++ {
 		k := keys[i]
 		if k >= uint64(len(p.valuesBool)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesBool))
@@ -132,7 +133,7 @@ func (p *DictionaryPage) MapBool(keys []uint64, out []bool) error {
 }
 
 func (p *DictionaryPage) MapInt32(keys []uint64, out []int32) error {
-	for i := 0; i < len(keys); i++ {
+	for i := 0; i < len(out); i++ {
 		k := keys[i]
 		if k >= uint64(len(p.valuesInt32)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesInt32))
@@ -144,7 +145,7 @@ func (p *DictionaryPage) MapInt32(keys []uint64, out []int32) error {
 }
 
 func (p *DictionaryPage) MapInt64(keys []uint64, out []int64) error {
-	for i := 0; i < len(keys); i++ {
+	for i := 0; i < len(out); i++ {
 		k := keys[i]
 		if k >= uint64(len(p.valuesInt64)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesInt64))
@@ -156,7 +157,7 @@ func (p *DictionaryPage) MapInt64(keys []uint64, out []int64) error {
 }
 
 func (p *DictionaryPage) MapFloat32(keys []uint64, out []float32) error {
-	for i := 0; i < len(keys); i++ {
+	for i := 0; i < len(out); i++ {
 		k := keys[i]
 		if k >= uint64(len(p.valuesFloat32)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesFloat32))
@@ -168,7 +169,7 @@ func (p *DictionaryPage) MapFloat32(keys []uint64, out []float32) error {
 }
 
 func (p *DictionaryPage) MapFloat64(keys []uint64, out []float64) error {
-	for i := 0; i < len(keys); i++ {
+	for i := 0; i < len(out); i++ {
 		k := keys[i]
 		if k >= uint64(len(p.valuesFloat64)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesFloat64))
@@ -180,7 +181,7 @@ func (p *DictionaryPage) MapFloat64(keys []uint64, out []float64) error {
 }
 
 func (p *DictionaryPage) MapByteArray(keys []uint64, out [][]byte) error {
-	for i := 0; i < len(keys); i++ {
+	for i := 0; i < len(out); i++ {
 		k := keys[i]
 		if k >= uint64(len(p.valuesByteArray)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesByteArray))
@@ -192,7 +193,7 @@ func (p *DictionaryPage) MapByteArray(keys []uint64, out [][]byte) error {
 }
 
 // func (p *DictionaryPage) MapString(keys []uint64, out []string) error {
-// 	for i := 0; i < len(keys); i++ {
+// 	for i := 0; i < len(out); i++ {
 // 		k := keys[i]
 // 		if k >= uint64(len(p.valuesString)) {
 // 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesString))
