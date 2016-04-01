@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/kostya-sh/parquet-go/parquet/datatypes"
 	"github.com/kostya-sh/parquet-go/parquet/encoding/rle"
 )
 
@@ -18,6 +19,7 @@ type Dictionary interface {
 	MapBool(keys []uint64, out []bool) error
 	MapInt32(keys []uint64, out []int32) error
 	MapInt64(keys []uint64, out []int64) error
+	MapInt96(keys []uint64, out []datatypes.Int96) error
 	MapByteArray(keys []uint64, out [][]byte) error
 	MapFloat32(keys []uint64, out []float32) error
 	MapFloat64(keys []uint64, out []float64) error
@@ -69,6 +71,14 @@ func (d *plainDictionaryDecoder) DecodeInt64(out []int64) (uint, error) {
 	return uint(len(keys)), d.dictionary.MapInt64(keys, out)
 }
 
+func (d *plainDictionaryDecoder) DecodeInt96(out []datatypes.Int96) (uint, error) {
+	keys, err := d.readKeys()
+	if err != nil {
+		return 0, fmt.Errorf("could not read dictionary keys: %s", err)
+	}
+	return uint(len(keys)), d.dictionary.MapInt96(keys, out)
+}
+
 func (d *plainDictionaryDecoder) DecodeFloat32(out []float32) (uint, error) {
 	keys, err := d.readKeys()
 	if err != nil {
@@ -92,4 +102,17 @@ func (d *plainDictionaryDecoder) DecodeByteArray(out [][]byte) (uint, error) {
 	}
 
 	return uint(len(keys)), d.dictionary.MapByteArray(keys, out)
+}
+
+func (d *plainDictionaryDecoder) DecodeFixedByteArray(out [][]byte, _ uint) (uint, error) {
+	keys, err := d.readKeys()
+	if err != nil {
+		return 0, fmt.Errorf("could not read dictionary keys: %s", err)
+	}
+
+	return uint(len(keys)), d.dictionary.MapByteArray(keys, out)
+}
+
+func (d *plainDictionaryDecoder) String() string {
+	return "plainDictionaryDecoder"
 }

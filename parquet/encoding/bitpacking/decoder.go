@@ -9,18 +9,18 @@ import (
 type Decoder struct {
 	r         *bufio.Reader
 	bitWidth  uint // encoded bits
-	byteWidth int  // min number of bytes required to encode one <bitWidth> encoded value
+	byteWidth uint // min number of bytes required to encode one <bitWidth> encoded value
 	value     int64
 	buff      []byte
 	bits      uint // number of bits read from the current byte
 	err       error
 }
 
-func NewDecoder(r io.Reader, bitWidth int) *Decoder {
+func NewDecoder(r io.Reader, bitWidth uint) *Decoder {
 	return &Decoder{
 		r:         bufio.NewReader(r),
-		bitWidth:  uint(bitWidth),
-		byteWidth: (bitWidth + 7) / 8,
+		bitWidth:  bitWidth,
+		byteWidth: (bitWidth + uint(7)) / uint(8),
 	}
 }
 
@@ -32,7 +32,7 @@ func (d *Decoder) Scan() bool {
 	}
 
 	if d.buff == nil {
-		d.buff, err = d.r.Peek(d.byteWidth)
+		d.buff, err = d.r.Peek(int(d.byteWidth))
 		if err != nil {
 			d.setErr(err)
 			return false
@@ -67,7 +67,7 @@ func (d *Decoder) Scan() bool {
 				d.bits = missingBits
 
 				// read next buffer
-				d.buff, err = d.r.Peek(d.byteWidth)
+				d.buff, err = d.r.Peek(int(d.byteWidth))
 				if err != nil {
 					d.setErr(err)
 					return false

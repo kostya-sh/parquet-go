@@ -3,7 +3,9 @@ package page
 import (
 	"fmt"
 	"io"
+	"log"
 
+	"github.com/kostya-sh/parquet-go/parquet/datatypes"
 	"github.com/kostya-sh/parquet-go/parquet/encoding"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
@@ -15,15 +17,19 @@ type DictionaryPage struct {
 	valuesBool      []bool
 	valuesInt32     []int32
 	valuesInt64     []int64
+	valuesInt96     []datatypes.Int96
 	valuesByteArray [][]byte
 	valuesFloat32   []float32
 	valuesFloat64   []float64
 	count           uint
+	typeLength      uint
 }
 
 // NewDictionaryPage
-func NewDictionaryPage(t thrift.Type, header *thrift.DictionaryPageHeader) *DictionaryPage {
+func NewDictionaryPage(schema *thrift.SchemaElement, header *thrift.DictionaryPageHeader) *DictionaryPage {
 	count := uint(header.NumValues)
+
+	t := schema.GetType()
 	switch t {
 	case thrift.Type_BOOLEAN:
 		return &DictionaryPage{
@@ -41,8 +47,10 @@ func NewDictionaryPage(t thrift.Type, header *thrift.DictionaryPageHeader) *Dict
 		}
 	case thrift.Type_INT64:
 		return &DictionaryPage{t: t, header: header, valuesInt64: make([]int64, count), count: count}
-	case thrift.Type_BYTE_ARRAY, thrift.Type_FIXED_LEN_BYTE_ARRAY:
+	case thrift.Type_BYTE_ARRAY:
 		return &DictionaryPage{t: t, header: header, valuesByteArray: make([][]byte, count), count: count}
+	case thrift.Type_FIXED_LEN_BYTE_ARRAY:
+		return &DictionaryPage{t: t, header: header, valuesByteArray: make([][]byte, count), typeLength: uint(schema.GetTypeLength()), count: count}
 	case thrift.Type_FLOAT:
 		return &DictionaryPage{t: t, header: header, valuesFloat32: make([]float32, count), count: count}
 	case thrift.Type_DOUBLE:
@@ -51,8 +59,7 @@ func NewDictionaryPage(t thrift.Type, header *thrift.DictionaryPageHeader) *Dict
 		return &DictionaryPage{
 			t:           t,
 			header:      header,
-			valuesInt64: make([]int64, count),
-			valuesInt32: make([]int32, count),
+			valuesInt96: make([]datatypes.Int96, count),
 			count:       count,
 		}
 	default:
@@ -74,6 +81,8 @@ func (p *DictionaryPage) Decode(r io.Reader) error {
 	count := p.count
 	_type := p.t
 
+	log.Println("dictionaryPage.Decode:", p.header.GetEncoding(), p.t, count)
+
 	switch p.header.GetEncoding() {
 
 	case thrift.Encoding_PLAIN_DICTIONARY:
@@ -94,11 +103,22 @@ func (p *DictionaryPage) Decode(r io.Reader) error {
 			if err != nil || read != count {
 				return fmt.Errorf("could not read all dataPage encoded values")
 			}
-		case thrift.Type_BYTE_ARRAY, thrift.Type_FIXED_LEN_BYTE_ARRAY:
+		case thrift.Type_INT96:
+			read, err := decoder.DecodeInt96(p.valuesInt96)
+			if err != nil || read != count {
+				return fmt.Errorf("could not read all dataPage encoded values")
+			}
+		case thrift.Type_BYTE_ARRAY:
 			read, err := decoder.DecodeByteArray(p.valuesByteArray)
 			if err != nil || read != count {
 				return fmt.Errorf("could not read all dataPage encoded values")
 			}
+		case thrift.Type_FIXED_LEN_BYTE_ARRAY:
+			read, err := decoder.DecodeFixedByteArray(p.valuesByteArray, p.typeLength)
+			if err != nil || read != count {
+				return fmt.Errorf("could not read all dataPage encoded values")
+			}
+
 		case thrift.Type_DOUBLE:
 			read, err := decoder.DecodeFloat64(p.valuesFloat64)
 			if err != nil || read != count {
@@ -109,7 +129,6 @@ func (p *DictionaryPage) Decode(r io.Reader) error {
 			if err != nil || read != count {
 				return fmt.Errorf("could not read all dataPage encoded values")
 			}
-		case thrift.Type_INT96:
 		default:
 			return fmt.Errorf("dictionary type " + _type.String() + "not yet supported") // FIXME
 		}
@@ -151,6 +170,18 @@ func (p *DictionaryPage) MapInt64(keys []uint64, out []int64) error {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesInt64))
 		}
 		out[i] = p.valuesInt64[k]
+	}
+
+	return nil
+}
+
+func (p *DictionaryPage) MapInt96(keys []uint64, out []datatypes.Int96) error {
+	for i := 0; i < len(out); i++ {
+		k := keys[i]
+		if k >= uint64(len(p.valuesInt96)) {
+			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesInt64))
+		}
+		out[i] = p.valuesInt96[k]
 	}
 
 	return nil

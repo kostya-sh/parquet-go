@@ -72,9 +72,9 @@ func genbyte(maxsize int, n int) [][]byte {
 func TestCodec(t *testing.T) {
 	schema := NewSchema()
 	var buff bytes.Buffer
-	schema.AddColumn("station: string REQUIRED")
-	schema.AddColumn("timestamp: long REQUIRED")
-	schema.AddColumn("temperature: int REQUIRED")
+	schema.AddColumnFromSpec("station: string REQUIRED")
+	schema.AddColumnFromSpec("timestamp: long REQUIRED")
+	schema.AddColumnFromSpec("temperature: int REQUIRED")
 
 	enc := NewEncoder(schema, &buff)
 
@@ -87,6 +87,11 @@ func TestCodec(t *testing.T) {
 	}
 
 	err := enc.WriteRecords(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err := enc.Close()
 	if err != nil {
 		t.Fatal(err)
 	}

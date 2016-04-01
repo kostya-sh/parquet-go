@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/kostya-sh/parquet-go/parquet"
-	"github.com/kostya-sh/parquet-go/parquet/datatypes"
+	"github.com/kostya-sh/parquet-go/parquet/memory"
 )
 
 var cmdDump = &Command{
@@ -41,7 +41,7 @@ func runDump(cmd *Command, args []string) error {
 	}
 	defer fd.Close()
 
-	rowGroup := make(map[string]datatypes.Accumulator)
+	rowGroup := make(map[string]memory.Accumulator)
 
 	minValue := math.MaxInt32
 

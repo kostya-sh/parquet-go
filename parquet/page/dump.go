@@ -1,32 +1,25 @@
 //build +debug
 package page
 
-import (
-	"bytes"
-	"fmt"
-	"io"
-	"io/ioutil"
-)
+// func dump(r io.Reader) io.Reader {
+// 	b, err := ioutil.ReadAll(r)
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-func dump(r io.Reader) io.Reader {
-	b, err := ioutil.ReadAll(r)
-	if err != nil {
-		panic(err)
-	}
+// 	i := 0
+// 	for i+3 < len(b) {
+// 		fmt.Printf("%.4d: %.2x %.2x %.2x %.2x\n", i, b[i], b[i+1], b[i+2], b[i+3])
+// 		i += 4
+// 	}
 
-	i := 0
-	for i+3 < len(b) {
-		fmt.Printf("%.4d: %.2x %.2x %.2x %.2x\n", i, b[i], b[i+1], b[i+2], b[i+3])
-		i += 4
-	}
+// 	if i < len(b) {
+// 		fmt.Printf("%.4d:", i)
+// 		for j := i; j < len(b); j++ {
+// 			fmt.Printf(" %.2x", b[j])
+// 		}
+// 		fmt.Printf("\n")
+// 	}
 
-	if i < len(b) {
-		fmt.Printf("%.4d:", i)
-		for j := i; j < len(b); j++ {
-			fmt.Printf(" %.2x", b[j])
-		}
-		fmt.Printf("\n")
-	}
-
-	return bytes.NewReader(b)
-}
+// 	return bytes.NewReader(b)
+// }

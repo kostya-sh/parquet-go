@@ -85,15 +85,15 @@ type EncodingPreferences struct {
 func NewPageEncoder(preferences EncodingPreferences) PageEncoder {
 	switch preferences.CompressionCodec {
 	case "lzo":
-		panic("not yet supported")
+		panic("lzo not yet supported")
 	case "gzip":
-
+		// supported see below
 	case "snappy":
-		panic("not yet supported")
+		// supported see below
 	case "":
-
+		// supported
 	default:
-		panic("compression codec not supported")
+		panic("compression codec " + preferences.CompressionCodec + " not supported")
 	}
 
 	var encoder PageEncoder

@@ -1,6 +1,10 @@
 package encoding
 
-import "io"
+import (
+	"io"
+
+	"github.com/kostya-sh/parquet-go/parquet/datatypes"
+)
 
 // Encoder interface
 type Encoder interface {
@@ -18,8 +22,9 @@ type Decoder interface {
 	DecodeBool([]bool) (count uint, err error)
 	DecodeInt32([]int32) (count uint, err error)
 	DecodeInt64([]int64) (count uint, err error)
-	//DecodeInt96([]int64, []int32) (count uint, err error)
+	DecodeInt96([]datatypes.Int96) (count uint, err error)
 	DecodeByteArray([][]byte) (count uint, err error)
+	DecodeFixedByteArray([][]byte, uint) (count uint, err error)
 	DecodeFloat32([]float32) (count uint, err error)
 	DecodeFloat64([]float64) (count uint, err error)
 }

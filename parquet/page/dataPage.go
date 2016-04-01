@@ -9,10 +9,10 @@ import (
 	"io/ioutil"
 	"log"
 
-	"github.com/kostya-sh/parquet-go/parquet/datatypes"
 	"github.com/kostya-sh/parquet-go/parquet/encoding"
 	"github.com/kostya-sh/parquet-go/parquet/encoding/bitpacking"
 	"github.com/kostya-sh/parquet-go/parquet/encoding/rle"
+	"github.com/kostya-sh/parquet-go/parquet/memory"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
@@ -124,12 +124,12 @@ func (p *DataPage) createDecoder(rb *bufio.Reader, page *DictionaryPage) (encodi
 	panic("NYI")
 }
 
-func (p *DataPage) Decode(page *DictionaryPage, accumulator datatypes.Accumulator) error {
+func (p *DataPage) Decode(page *DictionaryPage, accumulator memory.Accumulator) error {
 
 	p.readDefinitionAndRepetitionLevels(p.rb)
 	d, err := p.createDecoder(p.rb, page)
 	if err != nil {
-		return fmt.Errorf("could not create error %s", err)
+		return fmt.Errorf("could not create decoder: %s", err)
 	}
 	return accumulator.Accumulate(d, uint(p.header.GetNumValues()))
 }

@@ -9,30 +9,30 @@ import (
 	"github.com/kostya-sh/parquet-go/parquet/encoding/bitpacking"
 )
 
-type HybridBitPackingRLEEncoder struct {
-	w      *bufio.Writer
-	buffer []byte
-}
+// type HybridBitPackingRLEEncoder struct {
+// 	w      *bufio.Writer
+// 	buffer []byte
+// }
 
-func NewHybridBitPackingRLEEncoder(w io.Writer) *HybridBitPackingRLEEncoder {
-	return &HybridBitPackingRLEEncoder{bufio.NewWriter(w), make([]byte, binary.MaxVarintLen64)}
-}
+// func NewHybridBitPackingRLEEncoder(w io.Writer) *HybridBitPackingRLEEncoder {
+// 	return &HybridBitPackingRLEEncoder{bufio.NewWriter(w), make([]byte, binary.MaxVarintLen64)}
+// }
 
-func (e *HybridBitPackingRLEEncoder) Write(count uint64, value int64) (err error) {
-	var (
-		indicator int64 = int64(count<<1 | 0)
-		i         int
-	)
+// func (e *HybridBitPackingRLEEncoder) Write(count uint64, value int64) (err error) {
+// 	var (
+// 		indicator int64 = int64(count<<1 | 0)
+// 		i         int
+// 	)
 
-	i = binary.PutVarint(e.buffer, indicator)
-	i, err = e.w.Write(e.buffer[:i])
-	if err != nil {
-		return err
-	}
+// 	i = binary.PutVarint(e.buffer, indicator)
+// 	i, err = e.w.Write(e.buffer[:i])
+// 	if err != nil {
+// 		return err
+// 	}
 
-	err = binary.Write(e.w, binary.LittleEndian, value)
-	return
-}
+// 	err = binary.Write(e.w, binary.LittleEndian, value)
+// 	return
+// }
 
 // ReadInt64 .
 func ReadInt64(r io.Reader, bitWidth uint, count uint) ([]int64, error) {
@@ -62,7 +62,11 @@ func ReadInt64(r io.Reader, bitWidth uint, count uint) ([]int64, error) {
 			// bit-pack-count := (number of values in this run) / 8
 			literalCount := int32(header>>1) * 8
 
-			r := bitpacking.NewDecoder(br, int(bitWidth))
+			if uint(literalCount) > ((count - uint(len(out))) + 7) {
+				return nil, fmt.Errorf("bad encoding found more elements (%d) than expected (%d)", uint(len(out))+uint(literalCount), count)
+			}
+
+			r := bitpacking.NewDecoder(br, bitWidth)
 			for i := int32(0); i < literalCount; i++ {
 				if r.Scan() {
 					out = append(out, r.Value())
@@ -81,6 +85,10 @@ func ReadInt64(r io.Reader, bitWidth uint, count uint) ([]int64, error) {
 				return nil, fmt.Errorf("short read value: %s", err)
 			}
 			value := unpackLittleEndianInt32(p)
+
+			if uint(repeatCount) > (count - uint(len(out))) {
+				return nil, fmt.Errorf("bad encoding: found more elements (%d) than expected (%d)", uint(len(out))+uint(repeatCount), count)
+			}
 
 			for i := int32(0); i < repeatCount; i++ {
 				out = append(out, int64(value))
@@ -123,7 +131,11 @@ func ReadUint64(r io.Reader, bitWidth uint, count uint) ([]uint64, error) {
 			// bit-pack-count := (number of values in this run) / 8
 			literalCount := int32(header>>1) * 8
 
-			r := bitpacking.NewDecoder(br, int(bitWidth))
+			if uint(literalCount) > (count-uint(len(out)))+7 {
+				return nil, fmt.Errorf("bad encoding found more elements (%d) than expected (%d)", uint(len(out))+uint(literalCount), count)
+			}
+
+			r := bitpacking.NewDecoder(br, bitWidth)
 
 			for i := int32(0); i < literalCount; i++ {
 				if r.Scan() {
@@ -143,6 +155,10 @@ func ReadUint64(r io.Reader, bitWidth uint, count uint) ([]uint64, error) {
 				return nil, fmt.Errorf("short read value: %s", err)
 			}
 			value := unpackLittleEndianInt32(p)
+
+			if uint(repeatCount) > (count - uint(len(out))) {
+				return nil, fmt.Errorf("bad encoding: found more elements (%d) than expected (%d)", uint(len(out))+uint(repeatCount), count)
+			}
 
 			for i := uint32(0); i < repeatCount; i++ {
 				out = append(out, uint64(value))

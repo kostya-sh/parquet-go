@@ -20,6 +20,8 @@ var (
 	frtOptional           = thrift.FieldRepetitionTypePtr(thrift.FieldRepetitionType_OPTIONAL)
 	frtRequired           = thrift.FieldRepetitionTypePtr(thrift.FieldRepetitionType_REQUIRED)
 	frtRepeated           = thrift.FieldRepetitionTypePtr(thrift.FieldRepetitionType_REPEATED)
+	ctInt32               = thrift.ConvertedTypePtr(thrift.ConvertedType_INT_32)
+	ctInt64               = thrift.ConvertedTypePtr(thrift.ConvertedType_INT_64)
 	ctUTF8                = thrift.ConvertedTypePtr(thrift.ConvertedType_UTF8)
 	ctMap                 = thrift.ConvertedTypePtr(thrift.ConvertedType_MAP)
 	ctMapKeyValue         = thrift.ConvertedTypePtr(thrift.ConvertedType_MAP_KEY_VALUE)
@@ -95,6 +97,8 @@ type Encoder interface {
 	WriteByteArray(name string, values [][]byte) error
 
 	WriteBool(name string, values []bool) error
+
+	Close() error
 }
 
 // RowGroup
@@ -128,8 +132,8 @@ func (e *defaultEncoder) getColumnEncoder(name string) (page.DataEncoder, bool) 
 	if !ok {
 		// TODO have a better configuration strategy to choose the encoding algorithm
 		preferences := page.EncodingPreferences{CompressionCodec: "", Strategy: "default"}
-
-		e.columnEncoders[name] = page.NewPageEncoder(preferences)
+		enc = page.NewPageEncoder(preferences)
+		e.columnEncoders[name] = enc
 	}
 
 	return enc, true
@@ -280,8 +284,9 @@ func (e *defaultEncoder) Close() error {
 		if !ok {
 			panic("should not have a column not encoded")
 		}
-
 	}
+
+	// Write Metadata
 
 	return nil
 }

@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/kostya-sh/parquet-go/parquet/encoding/bitpacking"
+	"github.com/kostya-sh/parquet-go/parquet/datatypes"
+	"github.com/kostya-sh/parquet-go/parquet/encoding/rle"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
@@ -22,19 +23,17 @@ func NewPlainDecoder(r io.Reader, numValues uint) Decoder {
 
 // DecodeBool
 func (d *plainDecoder) DecodeBool(out []bool) (uint, error) {
-	dec := bitpacking.NewDecoder(d.r, 1)
+	outx, err := rle.ReadInt64(d.r, 1, uint(len(out)))
 
-	for i := uint(0); i < d.count; i++ {
-		if dec.Scan() {
-			out[i] = dec.Value() == 1
-		}
-
-		if err := dec.Err(); err != nil {
-			return i, err
-		}
+	if err != nil {
+		return 0, err
 	}
 
-	return d.count, nil
+	for i, v := range outx {
+		out[i] = v == 1
+	}
+
+	return uint(len(out)), nil
 }
 
 // DecodeInt32
@@ -71,6 +70,32 @@ func (d *plainDecoder) DecodeInt64(out []int64) (uint, error) {
 	return count, nil
 }
 
+// DecodeInt64
+func (d *plainDecoder) DecodeInt96(out []datatypes.Int96) (uint, error) {
+	count := d.count
+	var (
+		value int64
+		n32   int32
+	)
+
+	for i := uint(0); i < min(count, uint(len(out))); i++ {
+		err := binary.Read(d.r, binary.LittleEndian, &value)
+		if err != nil {
+			return i, fmt.Errorf("expected %d int64 but got only %d: %s", count, i, err) // FIXME
+		}
+
+		err = binary.Read(d.r, binary.LittleEndian, &n32)
+		if err != nil {
+			return i, fmt.Errorf("expected %d int32 but got only %d: %s", count, i, err) // FIXME
+		}
+
+		out[i].N1 = value
+		out[i].N2 = n32
+	}
+
+	return count, nil
+}
+
 // DecodeStr , returns the number of element read, or error
 func (d *plainDecoder) DecodeString(out []string) (uint, error) {
 	var count uint
@@ -94,7 +119,7 @@ func (d *plainDecoder) DecodeString(out []string) (uint, error) {
 	return count, nil
 }
 
-// DecodeStr , returns the number of element read, or error
+// DecodeByteArray , returns the number of element read, or error
 func (d *plainDecoder) DecodeByteArray(out [][]byte) (uint, error) {
 	var count uint
 
@@ -105,6 +130,23 @@ func (d *plainDecoder) DecodeByteArray(out [][]byte) (uint, error) {
 		if err != nil {
 			return 0, err
 		}
+		p := make([]byte, size)
+		n, err := d.r.Read(p)
+		if err != nil {
+			return i, fmt.Errorf("plain decoder: short read: %s", err)
+		}
+		out[i] = p[:n]
+		count++
+	}
+
+	return count, nil
+}
+
+// DecodeFixedByteArray , returns the number of element read, or error
+func (d *plainDecoder) DecodeFixedByteArray(out [][]byte, size uint) (uint, error) {
+	var count uint
+
+	for i := uint(0); i < min(d.count, uint(len(out))); i++ {
 		p := make([]byte, size)
 		n, err := d.r.Read(p)
 		if err != nil {
@@ -156,6 +198,10 @@ func (d *plainDecoder) DecodeFloat64(out []float64) (uint, error) {
 	return count, nil
 }
 
+func (d *plainDecoder) String() string {
+	return "plainDecoder"
+}
+
 // plain Encoder
 type plainEncoder struct {
 	numValues int
@@ -182,7 +228,7 @@ func (p *plainEncoder) Type() thrift.Encoding {
 // WriteBool
 func (e *plainEncoder) WriteBool(w io.Writer, v []bool) error {
 	e.numValues += len(v)
-	return binary.Write(w, binary.LittleEndian, v)
+	return rle.WriteBool(w, v)
 }
 
 // WriteInt32
@@ -213,11 +259,25 @@ func (e *plainEncoder) WriteFloat64(w io.Writer, v []float64) error {
 func (e *plainEncoder) WriteByteArray(w io.Writer, v [][]byte) error {
 	e.numValues += len(v)
 	for _, b := range v {
-		err := binary.Write(w, binary.LittleEndian, len(b))
+		err := binary.Write(w, binary.LittleEndian, uint32(len(b)))
 		if err != nil {
 			return fmt.Errorf("could not write byte array len: %s", err)
 		}
-		err = binary.Write(w, binary.LittleEndian, b)
+		_, err = w.Write(b)
+		if err != nil {
+			return fmt.Errorf("could not write byte array: %s", err)
+		}
+	}
+
+	return nil
+}
+
+// WriteFixedByteArray
+func (e *plainEncoder) WriteFixedByteArray(w io.Writer, v [][]byte) error {
+	e.numValues += len(v)
+	for _, b := range v {
+		// FIXME(fmilo) enforce size?
+		_, err := w.Write(b)
 		if err != nil {
 			return fmt.Errorf("could not write byte array: %s", err)
 		}

@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"os"
 
 	"github.com/kostya-sh/parquet-go/parquet"
-	"github.com/kostya-sh/parquet-go/parquet/thrift"
 	"github.com/linkedin/goavro"
 )
 
@@ -63,19 +61,19 @@ const schema = `
 }
     `
 
+// use Avro
 func makeSomeData(w io.Writer) error {
 	var err error
-	// If you want speed, create the codec one time for each
-	// schema and reuse it to create multiple Writer instances.
 	codec, err := goavro.NewCodec(schema)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	fw, err := codec.NewWriter(
-		//		goavro.BlockSize(13),                         // example; default is 10
-		goavro.Compression(goavro.CompressionSnappy), // default is CompressionNull
+		//		goavro.BlockSize(13),
+		goavro.Compression(goavro.CompressionSnappy),
 		goavro.ToWriter(w))
+
 	if err != nil {
 		log.Fatal("avro: cannot create Writer: ", err)
 	}
@@ -140,7 +138,7 @@ func main() {
 		log.Println("error", err)
 	}
 
-	dumpReader(fd)
+	//dumpReader(fd)
 
 	fd.Close()
 
@@ -148,28 +146,78 @@ func main() {
 	if err != nil {
 		log.Println("error", err)
 	}
+	{
+		fd, err = os.Create("temp.parquet")
+		if err != nil {
+			log.Println("error", err)
+		}
 
-	var columns []*thrift.ColumnChunk
-	var column_chunks []bytes.Buffer
+		pschema := parquet.NewSchema()
 
-	for _, f := range record.Fields {
-		chunk, data := parquet.NewColumnChunk(f.Name)
-		columns = append(columns, chunk)
-		column_chunks = append(column_chunks, data)
+		for _, f := range record.Fields {
+
+			fschema, err := record.GetFieldSchema(f.Name)
+			if err != nil {
+				panic(err)
+			}
+
+			err = pschema.AddColumnFromThriftSchema(fschema.(map[string]interface{}))
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		enc := parquet.NewEncoder(pschema, fd)
+
+		// Read the file
+		fd, err = os.Open("temp.avro")
+		if err != nil {
+			log.Println("error", err)
+		}
+
+		fr, err := goavro.NewReader(goavro.BufferFromReader(fd))
+		if err != nil {
+			log.Fatal("cannot create Reader: ", err)
+		}
+
+		defer func() {
+			if err := fr.Close(); err != nil {
+				log.Fatal(err)
+			}
+		}()
+
+		for fr.Scan() {
+			datum, err := fr.Read()
+			if err != nil {
+				log.Println("cannot read datum: ", err)
+				continue
+			}
+			r, ok := datum.(*goavro.Record)
+			if !ok {
+				panic("expected goavro.Record")
+			}
+
+			rec := make(map[string]interface{})
+			for _, field := range r.Fields {
+				v, err := r.Get(field.Name)
+				if err != nil {
+					panic(err)
+				}
+				rec[field.Name] = v
+			}
+
+			err = enc.WriteRecords([]map[string]interface{}{rec})
+			if err != nil {
+				panic(err)
+			}
+		}
+
+		if err := enc.Close(); err != nil {
+			panic(err)
+		}
+
+		fd.Close()
 	}
-
-	e := parquet.NewEncoder(columns)
-
-	fd, err = os.Create("temp.parquet")
-	if err != nil {
-		log.Println("error", err)
-	}
-
-	if err := e.Write(fd, column_chunks); err != nil {
-		log.Println("err", err)
-	}
-
-	fd.Close()
 
 	log.Println("finished")
 }

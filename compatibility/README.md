@@ -1,8 +1,7 @@
 # Compatibility Test
 
-
-Read a schema in Avro and output in parquet.
-Read the parquet file using the cpp implementation.
+Read a schema in Avro and output it in parquet format.
+Read the generated parquet file using the cpp implementation.
 
 go run ./compatibility/main.go && \
  ~/workspace/tune/parquet-cpp/bin/parquet_reader temp.parquet

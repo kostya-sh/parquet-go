@@ -6,7 +6,7 @@ import (
 
 	"os"
 
-	"github.com/kostya-sh/parquet-go/parquet/datatypes"
+	"github.com/kostya-sh/parquet-go/parquet/memory"
 	"github.com/kostya-sh/parquet-go/parquet/page"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
@@ -113,7 +113,7 @@ type chunk struct {
 	index      *page.IndexPage
 }
 
-func (c *chunk) Decode(acc datatypes.Accumulator) error {
+func (c *chunk) Decode(acc memory.Accumulator) error {
 
 	for _, dataPage := range c.data {
 		if err := dataPage.Decode(c.dictionary, acc); err != nil {
@@ -134,7 +134,7 @@ func (s *Scanner) NumValues() int64 {
 }
 
 // column.Scanner.ReadInt32 returns all the values in the current chunk
-func (s *Scanner) Decode(acc datatypes.Accumulator) error {
+func (s *Scanner) Decode(acc memory.Accumulator) error {
 	if s.currentChunk == nil {
 		return fmt.Errorf("no chunk")
 	}
@@ -142,8 +142,8 @@ func (s *Scanner) Decode(acc datatypes.Accumulator) error {
 	return s.currentChunk.Decode(acc)
 }
 
-func (s *Scanner) NewAccumulator() datatypes.Accumulator {
-	return datatypes.NewSimpleAccumulator(s.schema.GetType())
+func (s *Scanner) NewAccumulator() memory.Accumulator {
+	return memory.NewSimpleAccumulator(s.schema)
 }
 
 // func (s *Scanner) Int32() ([]int32, bool) {

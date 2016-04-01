@@ -30,7 +30,7 @@ func bin(values ...string) (out []byte) {
 }
 
 var testcases = []struct {
-	bitWidth int
+	bitWidth uint
 	input    []int64
 	output   []byte
 }{
@@ -61,7 +61,7 @@ var testcases = []struct {
 func TestEncoding(t *testing.T) {
 	for idx, tc := range testcases {
 		var w bytes.Buffer
-		enc := NewEncoder(&w, tc.bitWidth)
+		enc := NewEncoder(&w, tc.bitWidth, RLE)
 		for _, value := range tc.input {
 			if err := enc.Write(value); err != nil {
 				t.Fatal(err)
@@ -78,10 +78,10 @@ func TestEncoding(t *testing.T) {
 	}
 }
 
-func encode(t *testing.T, bitWidth int, values []int64) io.Reader {
+func encode(t *testing.T, bitWidth uint, values []int64) io.Reader {
 	var w bytes.Buffer
 
-	enc := NewEncoder(&w, bitWidth)
+	enc := NewEncoder(&w, bitWidth, RLE)
 
 	for _, value := range values {
 		if err := enc.Write(value); err != nil {

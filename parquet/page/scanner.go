@@ -134,7 +134,7 @@ func (s *scanner) readPage(r io.Reader, header *thrift.PageHeader) error {
 			return fmt.Errorf("bad file format:DictionaryPageHeader flag was not set")
 		}
 		dictHeader := header.GetDictionaryPageHeader()
-		s.dictionary = NewDictionaryPage(s.schema.GetType(), dictHeader)
+		s.dictionary = NewDictionaryPage(s.schema, dictHeader)
 		return s.dictionary.Decode(r)
 
 	case thrift.PageType_DATA_PAGE_V2:

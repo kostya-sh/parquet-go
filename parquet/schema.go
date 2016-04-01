@@ -61,7 +61,7 @@ func (s *Schema) Columns() []string {
 // AddColumn adds a column with the given specifications format
 // format is
 //          name: type [original type] REQUIRED
-func (s *Schema) AddColumn(format string) error {
+func (s *Schema) AddColumnFromSpec(format string) error {
 	values := strings.SplitN(format, ":", 2)
 	if len(values) != 2 {
 		return ErrBadFormat
@@ -105,6 +105,53 @@ func (s *Schema) AddColumn(format string) error {
 	default:
 		return fmt.Errorf("could not add column: invalid number of elements in format")
 
+	}
+
+	s.columns[el.Name] = ColumnDescriptor{
+		SchemaElement: el,
+	}
+
+	return nil
+}
+
+// name, type
+func (s *Schema) AddColumnFromThriftSchema(spec map[string]interface{}) error {
+	el := thrift.NewSchemaElement()
+
+	type_, ok := spec["type"]
+	if !ok {
+		return fmt.Errorf("invalid spec: key 'type', not found")
+	}
+
+	name, ok := spec["name"]
+	if !ok {
+		return fmt.Errorf("invalid spec: key 'name', not found")
+	}
+
+	el.Name = name.(string)
+
+	// https://avro.apache.org/docs/1.8.0/spec.html#schema_primitive
+	switch type_ {
+	case "null":
+	case "boolean":
+		el.Type = typeBoolean
+	case "int":
+		el.Type = typeInt32
+		el.ConvertedType = ctInt32
+	case "long":
+		el.Type = typeInt64
+		el.ConvertedType = ctInt64
+	case "float":
+		el.Type = typeFloat
+	case "double":
+		el.Type = typeDouble
+	case "bytes":
+		el.Type = typeByteArray
+	case "string":
+		el.Type = typeByteArray
+		el.ConvertedType = ctUTF8
+	default:
+		return fmt.Errorf("unsupported type: %s", type_)
 	}
 
 	s.columns[el.Name] = ColumnDescriptor{
