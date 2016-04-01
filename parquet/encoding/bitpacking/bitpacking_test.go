@@ -97,26 +97,14 @@ func encode(t *testing.T, bitWidth uint, values []int64) io.Reader {
 
 func TestDecoding(t *testing.T) {
 	for idx, tc := range testcases {
-		dec := NewDecoder(encode(t, tc.bitWidth, tc.input), tc.bitWidth)
-		i := 0
-		for dec.Scan() {
-			if i >= len(tc.input) {
-				break
-			}
-
-			if dec.value != tc.input[i] {
-				t.Fatalf("%d: got %d: expected %d", idx, dec.value, tc.input[i])
-			}
-
-			i++
+		dec := NewDecoder(tc.bitWidth)
+		out := make([]int32, 8)
+		if err := dec.Read(bytes.NewReader(tc.output), out); err != nil {
+			t.Errorf("%d: %s", idx, err)
 		}
 
-		if i < len(tc.input) {
-			t.Fatalf("%d: got too few values", idx)
-		}
-
-		if err := dec.Err(); err != nil && err != io.EOF {
-			t.Fatalf("%d: got unexpected error %s", idx, err)
+		if len(out) != len(tc.input) {
+			t.Logf("%v != %v", out, tc.input)
 		}
 	}
 }

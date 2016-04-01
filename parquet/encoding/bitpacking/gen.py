@@ -1,13 +1,19 @@
+#
+# This scripts generate a bitpackingRLE decoder conforming to the specs in
+#
+# http://github.com/parquet/parquet-format
 
+fd = open("codec_generate.go", "w")
 
-print """// Generated Code do not edit.
-package main
+print >>fd, """// Generated Code do not edit.
+package bitpacking
 
 import (
 	"io"
+	"fmt"
 )
 
-type f func([8]int64) []byte
+type f func([8]int32) []byte
 
 type Codec struct {
 	b [32]byte
@@ -15,29 +21,30 @@ type Codec struct {
 }
 
 // Write makes Codec a writer
-func (e *Codec) Write(w io.Writer, values [8]int64) (int,error) {
+func (e *Codec) Write(w io.Writer, values [8]int32) (int,error) {
 	return w.Write(e.encode(values))
 }
 """
-print """
+print >>fd, """
 func NewCodec(bitWidth uint) *Codec {
 	e := &Codec{}
 	switch bitWidth {
 """
 for bitWidth in range (1, 33):
-	print "\tcase %d:" % bitWidth
-	print "\t\te.encode = e.Encode%dRLE" % bitWidth
-print"""
+	print >>fd, "\tcase %d:" % bitWidth
+	print >>fd, "\t\te.encode = e.encode%dRLE" % bitWidth
+print >>fd, """
 	default:
 		panic("invalid bitWidth")
 	}
 	return e
 }
+
 """
 
 for bitWidth in range (1, 33):
-	print "func (e *Codec) Encode%dRLE(n [8]int64) []byte { " % bitWidth
-	print """
+	print >>fd, "func (e *Codec) encode%dRLE(n [8]int32) []byte { " % bitWidth
+	print >>fd, """
 	b := e.b
 	"""
 	# given 8 number how many bytes will be required to encode them
@@ -65,9 +72,9 @@ for bitWidth in range (1, 33):
 			op = "byte(%s)" % (select_byte)
 
 		if assign:
-			print "\tb[%d] = %s" % (buffer_index , op)
+			print >>fd, "\tb[%d] = %s" % (buffer_index , op)
 		else:
-			print "\tb[%d] |= %s " % (buffer_index, op)
+			print >>fd, "\tb[%d] |= %s " % (buffer_index, op)
 
 	for index in range(0, 8):
 		bit_pending = bitWidth
@@ -87,7 +94,7 @@ for bitWidth in range (1, 33):
 
 			if bit_consumed == 0 and bit_pending < 8:
 				# store the value in the remaining of the byte
-				# print "\tb[%d] = byte((n[%d] >> %d) & 0xFF) " % (buffer_index, index, current_byte_index * 8 )
+				# print >>fd, "\tb[%d] = byte((n[%d] >> %d) & 0xFF) " % (buffer_index, index, current_byte_index * 8 )
 				select_and_shift(buffer_index, current_byte_index, assign=True)
 				bit_consumed = bit_pending
 				bit_pending = 0
@@ -98,18 +105,18 @@ for bitWidth in range (1, 33):
 				# we have to split the current byte in two bytes.
 				# first finish the current pending byte
 				# the available space is 8-bit_consumed
-				#print "\tb[%d] |= byte(((n[%d] & %s) >> %d) & 0xFF) << %d" % (buffer_index, index, bitWidthMask, current_byte_index * 8, bit_consumed)
+				#print >>fd, "\tb[%d] |= byte(((n[%d] & %s) >> %d) & 0xFF) << %d" % (buffer_index, index, bitWidthMask, current_byte_index * 8, bit_consumed)
 				select_and_shift(buffer_index, current_byte_index, shift_left=bit_consumed)
 				buffer_index+=1
 
-				#print "\tb[%d] |= byte(((n[%d] & %s) >> %d) & 0xFF) >> %d" % (buffer_index, index, bitWidthMask, current_byte_index * 8, (8-bit_consumed))
+				#print >>fd, "\tb[%d] |= byte(((n[%d] & %s) >> %d) & 0xFF) >> %d" % (buffer_index, index, bitWidthMask, current_byte_index * 8, (8-bit_consumed))
 				select_and_shift(buffer_index, current_byte_index, shift_right=8-bit_consumed)
 				current_byte_index+=1
 				bit_consumed = min(8,bit_pending) - (8-bit_consumed)
 				bit_pending -= min(8,bit_pending)
 
 			elif bit_consumed > 0 and bit_consumed + bit_pending <= 8:
-				#print """\tb[%d] |= byte(((n[%d] & %s) >> %d) & 0xFF) << %d""" % (buffer_index, index, bitWidthMask, current_byte_index * 8, bit_consumed)
+				#print >>fd, """\tb[%d] |= byte(((n[%d] & %s) >> %d) & 0xFF) << %d""" % (buffer_index, index, bitWidthMask, current_byte_index * 8, bit_consumed)
 				select_and_shift(buffer_index, current_byte_index, shift_left=bit_consumed)
 				bit_consumed += bit_pending
 				bit_pending = 0
@@ -121,12 +128,46 @@ for bitWidth in range (1, 33):
 
 			assert bit_pending >= 0, bit_pending
 
-	print "\n\treturn b[:%d]\n}\n" % byteBoundary
+	print >>fd, "\n\treturn b[:%d]\n}\n" % buffer_index
+
+print >>fd, """
+type decodef func([]byte, []int32) error
+
+type Decoder struct {
+	b [32]byte
+	decode decodef
+}
+
+func NewDecoder(bitWidth uint) *Decoder {
+	d := &Decoder{}
+	switch bitWidth {
+"""
+for bitWidth in range (1, 33):
+	print >>fd, "\tcase %d:" % bitWidth
+	print >>fd, "\t\td.decode = d.decode%dRLE" % bitWidth
+
+print >>fd, """
+	default:
+		panic("invalid bitWidth")
+	}
+
+	return d
+}
+
+
+func (d *Decoder) Read(r io.Reader, out []int32) error {
+	n, err := r.Read(d.b[:])
+	if err != nil {
+		return fmt.Errorf("decodeRLE:%s", err)
+	}
+
+	return d.decode(d.b[:n], out)
+}
+"""
 
 for bitWidth in range (1, 32+1):
-	print "func (e *Codec) decode%dRLE(b []byte, out []int64) error { " % bitWidth
-	print """
-
+	print >>fd, "func (d *Decoder) decode%dRLE(b []byte, out []int32) error { " % bitWidth
+	print >>fd, """
 	"""
 	# given 8 number how many bytes will be required to encode them
 	byteBoundary = ((bitWidth + 7) / 8) * 8
@@ -154,9 +195,9 @@ for bitWidth in range (1, 32+1):
 		op =  "(%s) & %s" % (op, mask)
 
 		if assign:
-			print "\tout[%d] = int64(%s)" % (index , op)
+			print >>fd, "\tout[%d] = int32(%s)" % (index , op)
 		else:
-			print "\tout[%d] += int64(%s) " % (index, op)
+			print >>fd, "\tout[%d] += int32(%s) " % (index, op)
 
 	def selectBytes(byteIndex, mask, shift, rshift=0):
 		if mask == "11111111":
@@ -220,11 +261,15 @@ for bitWidth in range (1, 32+1):
 
 	def aggregate(operations):
 		ops = []
+		if bitWidth < 8:
+			return ' | '.join(operations)
+
 		for i,op in enumerate(operations):
 			if i == 0:
 				ops.append("int32(%s)" % op)
 			else:
 				ops.append("(int32(%s) << %d)" % (op, i * 8))
+
 		return ' + '.join(ops)
 
 	def other(bytes, bitSlices):
@@ -272,56 +317,6 @@ for bitWidth in range (1, 32+1):
 
 		byteIndexes = range(byteStart, byteStop)
 
-		print "\tout[%d] = int64(%s)" % (index, aggregate(computeByteMask(byteIndexes, bitSlices)))
+		print >>fd, "\tout[%d] = int32(%s)" % (index, aggregate(computeByteMask(byteIndexes, bitSlices)))
 
-		continue
-
-		while bit_pending > 0:
-			# process byte per byte the current number at index.
-
-			if bit_consumed == 0 and bit_pending >= 8:
-				# store the entire byte
-				select_and_shift(buffer_index, current_byte_index, assign=assign)
-				buffer_index += 1
-				bit_consumed = 0
-				bit_pending -= 8
-				current_byte_index += 1
-				continue
-
-			if bit_consumed == 0 and bit_pending < 8:
-				# store the value in the remaining of the byte
-				# print "\tb[%d] = byte((n[%d] >> %d) & 0xFF) " % (buffer_index, index, current_byte_index * 8 )
-				select_and_shift(buffer_index, current_byte_index, assign=assign)
-				bit_consumed = bit_pending
-				bit_pending = 0
-				continue
-
-			# bit_consumed > 0
-			if bit_consumed > 0 and bit_consumed + bit_pending > 8:
-				# we have to split the current byte in two bytes.
-				# first finish the current pending byte
-				# the available space is 8-bit_consumed
-				#print "\tb[%d] |= byte(((n[%d] & %s) >> %d) & 0xFF) << %d" % (buffer_index, index, bitWidthMask, current_byte_index * 8, bit_consumed)
-				select_and_shift(buffer_index, current_byte_index, shift_right=bit_consumed)
-				buffer_index+=1
-
-				#print "\tb[%d] |= byte(((n[%d] & %s) >> %d) & 0xFF) >> %d" % (buffer_index, index, bitWidthMask, current_byte_index * 8, (8-bit_consumed))
-				select_and_shift(buffer_index, current_byte_index, shift_left=8-bit_consumed)
-				current_byte_index+=1
-				bit_consumed = min(8,bit_pending) - (8-bit_consumed)
-				bit_pending -= min(8,bit_pending)
-
-			elif bit_consumed > 0 and bit_consumed + bit_pending <= 8:
-				#print """\tb[%d] |= byte(((n[%d] & %s) >> %d) & 0xFF) << %d""" % (buffer_index, index, bitWidthMask, current_byte_index * 8, bit_consumed)
-				select_and_shift(buffer_index, current_byte_index, shift_right=bit_consumed)
-				bit_consumed += bit_pending
-				bit_pending = 0
-				if bit_consumed == 8:
-					buffer_index += 1
-					bit_consumed = 0
-			else:
-				raise Exception("impossible %d %d" % (bit_consumed, bit_pending))
-
-			assert bit_pending >= 0, bit_pending
-
-	print "\n\treturn nil\n}\n"
+	print >>fd, "\n\treturn nil\n}\n"

@@ -1,12 +1,13 @@
 package bitpacking
 
 import (
+	"bytes"
 	"math"
 	"testing"
 )
 
 var unpack8int32Tests = []struct {
-	width  int
+	width  uint
 	data   []byte
 	values [8]int32
 }{
@@ -34,10 +35,28 @@ var unpack8int32Tests = []struct {
 
 func TestUnpack8int32(t *testing.T) {
 	for _, test := range unpack8int32Tests {
-		unpacker := Unpack8Int32FuncForWidth(test.width)
-		if got := unpacker(test.data); got != test.values {
-			t.Errorf("got %v, want %v", got, test.values)
+		codec := NewCodec(test.width)
+
+		var b bytes.Buffer
+
+		_, err := codec.Write(&b, test.values)
+		if err != nil {
+			t.Errorf("%s", err)
 		}
+
+		got := b.Bytes()
+		want := test.data
+		if !bytes.Equal(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+
+		dec := NewDecoder(test.width)
+		out := make([]int32, 8)
+
+		if err := dec.Read(&b, out); err != nil {
+			t.Errorf("%s", err)
+		}
+
 	}
 }
 
