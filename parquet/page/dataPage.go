@@ -41,6 +41,13 @@ func (p *DataPage) ReadAll(r io.Reader) error {
 	return nil
 }
 
+func min(a, b uint) int {
+	if a < b {
+		return int(b)
+	}
+	return int(a)
+}
+
 func (p *DataPage) readDefinitionAndRepetitionLevels(rb *bufio.Reader) (repetition []uint64, defintion []uint64, err error) {
 
 	// Repetition Levels
@@ -52,25 +59,28 @@ func (p *DataPage) readDefinitionAndRepetitionLevels(rb *bufio.Reader) (repetiti
 		switch repEnc {
 		case thrift.Encoding_BIT_PACKED:
 			dec := bitpacking.NewDecoder(1)
-			out := make([]int32, 8)
-			runs, err := dec.ReadLength()
+			runs, err := dec.ReadLength(rb)
 			if err != nil {
 				return nil, nil, fmt.Errorf("bitpacking.ReadLength:%s", err)
 			}
-			result := make([]int32, 0, runs*8)
-		finish:
-			for i := 0; i < runs; i++ {
-				if err := dec.Read(rb, out); err != nil {
-					return nil, nil, fmt.Errorf("bitpacking cannot read after %d blocks:%s", i, err)
-				}
-
-				for j := 0; j < 8; j++ {
-					if len(result)+1 > int(p.header.GetNumValues()) {
-						break finish
-					}
-					result = append(result, out[j])
-				}
+			out := make([]int32, min(uint(p.header.GetNumValues()), runs*8))
+			if err := dec.Read(rb, out); err != nil {
+				return nil, nil, fmt.Errorf("bitpacking cannot read:%s", err)
 			}
+		// 	result := make([]int32, 0, int(runs*8))
+		// finish:
+		// 	for i := 0; i < int(runs); i++ {
+		// 		if err := dec.Read(rb, out); err != nil {
+		// 			return nil, nil, fmt.Errorf("bitpacking cannot read after %d blocks:%s", i, err)
+		// 		}
+
+		// 		for j := 0; j < 8; j++ {
+		// 			if len(result)+1 > int(p.header.GetNumValues()) {
+		// 				break finish
+		// 			}
+		// 			result = append(result, out[j])
+		// 		}
+		// 	}
 
 		default:
 			return nil, nil, fmt.Errorf("WARNING could not handle %s", repEnc)
