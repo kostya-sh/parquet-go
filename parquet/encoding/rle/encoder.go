@@ -1,35 +1,32 @@
 package rle
 
-import (
-	"io"
-
-	"github.com/kostya-sh/parquet-go/parquet/encoding/bitpacking"
-)
+import "io"
 
 func WriteBool(w io.Writer, v []bool) error {
 
-	var lastValue bool
-	var count int
+	// var lastValue bool
+	// var count int
 
-	btpack := bitpacking.NewEncoder(w, 1, bitpacking.RLE)
+	// btpack := bitpacking.NewEncoder(1, bitpacking.RLE)
 
-	for i, value := range v {
-		if i == 0 {
-			lastValue = value
-			continue
-		}
+	// FIXME
+	// for i, value := range v {
+	// 	if i == 0 {
+	// 		lastValue = value
+	// 		continue
+	// 	}
 
-		if lastValue == value {
-			count++
-		} else {
-			// if count is less than 8 use bit-packing
-			if value {
-				btpack.Write(1)
-			} else {
-				btpack.Write(0)
-			}
-		}
-	}
+	// 	if lastValue == value {
+	// 		count++
+	// 	} else {
+	// 		// if count is less than 8 use bit-packing
+	// 		if value {
+	// 			btpack.Write(1)
+	// 		} else {
+	// 			btpack.Write(0)
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }

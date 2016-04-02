@@ -37,7 +37,6 @@ import (
 // ReadInt64 .
 func ReadInt64(r io.Reader, bitWidth uint, count uint) ([]int64, error) {
 	var out []int64
-
 	byteWidth := (bitWidth + uint(7)) / uint(8)
 	p := make([]byte, byteWidth)
 
@@ -66,14 +65,16 @@ func ReadInt64(r io.Reader, bitWidth uint, count uint) ([]int64, error) {
 				return nil, fmt.Errorf("bad encoding found more elements (%d) than expected (%d)", uint(len(out))+uint(literalCount), count)
 			}
 
-			r := bitpacking.NewDecoder(br, bitWidth)
+			var values [8]int32
+
+			r := bitpacking.NewDecoder(bitWidth)
+
+			if err := r.Read(br, values[:]); err != nil {
+				return nil, err
+			}
+
 			for i := int32(0); i < literalCount; i++ {
-				if r.Scan() {
-					out = append(out, r.Value())
-				}
-				if err := r.Err(); err != nil {
-					return nil, err
-				}
+				out = append(out, int64(values[i]))
 			}
 
 		} else {
@@ -135,15 +136,16 @@ func ReadUint64(r io.Reader, bitWidth uint, count uint) ([]uint64, error) {
 				return nil, fmt.Errorf("bad encoding found more elements (%d) than expected (%d)", uint(len(out))+uint(literalCount), count)
 			}
 
-			r := bitpacking.NewDecoder(br, bitWidth)
+			var values [8]int32
+
+			r := bitpacking.NewDecoder(bitWidth)
+
+			if err := r.Read(br, values[:]); err != nil {
+				return nil, err
+			}
 
 			for i := int32(0); i < literalCount; i++ {
-				if r.Scan() {
-					out = append(out, uint64(r.Value()))
-				}
-				if err := r.Err(); err != nil {
-					return nil, err
-				}
+				out = append(out, uint64(values[i]))
 			}
 
 		} else {

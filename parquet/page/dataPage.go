@@ -51,13 +51,27 @@ func (p *DataPage) readDefinitionAndRepetitionLevels(rb *bufio.Reader) (repetiti
 		repEnc := p.header.GetRepetitionLevelEncoding()
 		switch repEnc {
 		case thrift.Encoding_BIT_PACKED:
-			dec := bitpacking.NewDecoder(rb, 1) // FIXME 1 ?
-			for dec.Scan() {
-				log.Println("repetition level decoding:", dec.Value())
+			dec := bitpacking.NewDecoder(1)
+			out := make([]int32, 8)
+			runs, err := dec.ReadLength()
+			if err != nil {
+				return nil, nil, fmt.Errorf("bitpacking.ReadLength:%s", err)
 			}
-			if err := dec.Err(); err != nil {
-				return nil, nil, err
+			result := make([]int32, 0, runs*8)
+		finish:
+			for i := 0; i < runs; i++ {
+				if err := dec.Read(rb, out); err != nil {
+					return nil, nil, fmt.Errorf("bitpacking cannot read after %d blocks:%s", i, err)
+				}
+
+				for j := 0; j < 8; j++ {
+					if len(result)+1 > int(p.header.GetNumValues()) {
+						break finish
+					}
+					result = append(result, out[j])
+				}
 			}
+
 		default:
 			return nil, nil, fmt.Errorf("WARNING could not handle %s", repEnc)
 		}

@@ -11,28 +11,40 @@ package bitpacking
 import (
 	"io"
 	"fmt"
+	"bufio"
+	"encoding/binary"
+)
+
+type format int
+
+const (
+	RLE format = iota
+	BitPacked
 )
 
 type f func([8]int32) []byte
 
-type Codec struct {
+type Encoder struct {
 	b [32]byte
-	encode f
+	encodeRLE f
+	encodeBitPacking f
+	format format
 }
 
-// Write makes Codec a writer
-func (e *Codec) Write(w io.Writer, values [8]int32) (int,error) {
-	return w.Write(e.encode(values))
-}
 """
 print >>fd, """
-func NewCodec(bitWidth uint) *Codec {
-	e := &Codec{}
+func NewEncoder(bitWidth uint, format format) *Encoder {
+
+	if bitWidth == 0 || bitWidth > 32 {
+ 		panic("invalid 0 > bitWidth <= 32")
+ 	}
+
+	e := &Encoder{format:format}
 	switch bitWidth {
 """
 for bitWidth in range (1, 33):
 	print >>fd, "\tcase %d:" % bitWidth
-	print >>fd, "\t\te.encode = e.encode%dRLE" % bitWidth
+	print >>fd, "\t\te.encodeRLE = e.encode%dRLE" % bitWidth
 print >>fd, """
 	default:
 		panic("invalid bitWidth")
@@ -40,10 +52,49 @@ print >>fd, """
 	return e
 }
 
+// WriteHeader
+func (e *Encoder) WriteHeader(w io.Writer, size uint) error{
+	byteWidth := (size + 7)/8
+	return binary.Write(w, binary.LittleEndian, (byteWidth << 1))
+}
+
+// Write writes in io.Writer all the values
+func (e *Encoder) Write(w io.Writer, values []int32) (int,error) {
+	total := 0
+
+	var buffer [8]int32
+	chunks := (len(values) + 7) / 8
+
+	if e.format == RLE {
+		for i:=0; i < chunks; i++ {
+			extra := 0
+			if (i+1) * 8 > len(values) {
+				extra = ((i+1)*8) - len(values)
+			}
+
+			for j :=0; j < 8 - extra; j++{
+				buffer[j] = values[(i*8)+j]
+			}
+			for j := extra; j > 0; j-- {
+				buffer[j] = 0
+			}
+
+			n, err := w.Write(e.encodeRLE(buffer))
+			total += n
+			if err != nil {
+				return total, err
+			}
+		}
+
+		return total, nil
+	}
+
+	return -1, fmt.Errorf("Unsupported")
+}
 """
 
 for bitWidth in range (1, 33):
-	print >>fd, "func (e *Codec) encode%dRLE(n [8]int32) []byte { " % bitWidth
+	print >>fd, "func (e *Encoder) encode%dRLE(n [8]int32) []byte { " % bitWidth
 	print >>fd, """
 	b := e.b
 	"""
@@ -140,6 +191,11 @@ type Decoder struct {
 
 func NewDecoder(bitWidth uint) *Decoder {
 	d := &Decoder{}
+
+	if bitWidth == 0 || bitWidth > 32 {
+ 		panic("invalid 0 > bitWidth <= 32")
+ 	}
+
 	switch bitWidth {
 """
 for bitWidth in range (1, 33):
@@ -154,14 +210,52 @@ print >>fd, """
 	return d
 }
 
+func (d *Decoder) ReadLength(r io.Reader) (uint,error) {
+	// run := <bit-packed-run> | <rle-run>
+	header, err := binary.ReadUvarint(bufio.NewReader(r))
 
-func (d *Decoder) Read(r io.Reader, out []int32) error {
-	n, err := r.Read(d.b[:])
-	if err != nil {
-		return fmt.Errorf("decodeRLE:%s", err)
+	if err == io.EOF {
+		return 0, err
+	} else if err != nil {
+		return 0, err
 	}
 
-	return d.decode(d.b[:n], out)
+	if (header & 1) == 1 {
+		// bit-packed-header := varint-encode(<bit-pack-count> << 1 | 1)
+		// we always bit-pack a multiple of 8 values at a time, so we only store the number of values / 8
+		// bit-pack-count := (number of values in this run) / 8
+		literalCount := int32(header>>1)
+		return uint(literalCount), nil
+	}
+
+	return 0, fmt.Errorf("invalid header: rle header found, expected bitpacking header")
+}
+
+func (d *Decoder) Read(r io.Reader, out []int32) error {
+	// this assumes len(out) has the exact right
+	// amount of data to read
+	buffer := make([]int32, 8)
+	for i := 0; i < (len(out)+7)/8; i++ {
+		n, err := r.Read(d.b[:])
+		if err != nil {
+			return fmt.Errorf("decodeRLE:%s", err)
+		}
+		if err := d.decode(d.b[:n], buffer); err != nil{
+			return fmt.Errorf("decodeRLE:%s", err)
+		}
+
+		extra := 8
+		if ((i+1) * 8) > len(out) {
+			extra = len(out) - (i * 8)
+		}
+
+		for j:=0; j+1 < extra; j++ {
+			out[i*8+j] = buffer[j]
+		}
+
+	}
+
+	return nil
 }
 """
 

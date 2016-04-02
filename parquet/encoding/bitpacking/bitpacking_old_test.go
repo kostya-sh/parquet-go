@@ -35,11 +35,11 @@ var unpack8int32Tests = []struct {
 
 func TestUnpack8int32(t *testing.T) {
 	for _, test := range unpack8int32Tests {
-		codec := NewCodec(test.width)
+		codec := NewEncoder(test.width, RLE)
 
 		var b bytes.Buffer
 
-		_, err := codec.Write(&b, test.values)
+		_, err := codec.Write(&b, test.values[:])
 		if err != nil {
 			t.Errorf("%s", err)
 		}
