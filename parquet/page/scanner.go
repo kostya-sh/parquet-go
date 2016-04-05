@@ -1,10 +1,12 @@
 package page
 
 import (
+	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"strings"
 
 	"github.com/golang/snappy"
@@ -28,6 +30,7 @@ type scanner struct {
 	indexPage  *IndexPage
 	codec      thrift.CompressionCodec
 	err        error
+	totalRead  int
 }
 
 func NewScanner(schema *thrift.SchemaElement, codec thrift.CompressionCodec, r io.Reader) Scanner {
@@ -61,7 +64,7 @@ func (s *scanner) Scan() bool {
 
 	// setup reader
 	r := io.LimitReader(s.r, int64(header.CompressedPageSize))
-	r, err = compressionReader(r, s.codec)
+	r, err = s.compressionReader(r, &header)
 	if err != nil {
 		s.setErr(err)
 		return false
@@ -90,29 +93,46 @@ func (s *scanner) Scan() bool {
 }
 
 // returns a reader for the right compression
-func compressionReader(r io.Reader, codec thrift.CompressionCodec) (io.Reader, error) {
-	switch codec {
+func (s *scanner) compressionReader(r io.Reader, header *thrift.PageHeader) (io.Reader, error) {
+	switch s.codec {
 	case thrift.CompressionCodec_GZIP:
 		r, err := gzip.NewReader(r)
 		if err != nil {
 			return nil, fmt.Errorf("could not create gzip reader:%s", err)
 		}
-		return r, nil
+		b, err := ioutil.ReadAll(r)
+		if err != nil {
+			return nil, fmt.Errorf("could not read gzip reader:%s", err)
+		}
+		if err := r.Close(); err != nil {
+			log.Println("WARNING error closing gzip reader:%s", err)
+		}
+		return bytes.NewReader(b), nil
 
 	case thrift.CompressionCodec_LZO:
 		// https://github.com/rasky/go-lzo/blob/master/decompress.go#L149			s.r = r
 		return nil, fmt.Errorf("NYI")
 
 	case thrift.CompressionCodec_SNAPPY:
-		r = snappy.NewReader(r)
-		return r, nil
+		src, err := ioutil.ReadAll(r)
+		if err != nil {
+			return nil, fmt.Errorf("could not create gzip reader:%s", err)
+		}
+
+		out := make([]byte, int(header.GetUncompressedPageSize()))
+		out, err = snappy.Decode(out, src)
+		if err != nil {
+			return nil, fmt.Errorf("could not create gzip reader:%s", err)
+		}
+
+		return bytes.NewReader(out), nil
 
 	case thrift.CompressionCodec_UNCOMPRESSED:
 		// use the same reader
 		return r, nil
 
 	default:
-		return nil, fmt.Errorf("unknown compression format %s", codec)
+		return nil, fmt.Errorf("unknown compression format %s", s.codec)
 	}
 }
 
@@ -141,6 +161,10 @@ func (s *scanner) readPage(r io.Reader, header *thrift.PageHeader) error {
 		panic("nyi")
 
 	case thrift.PageType_DATA_PAGE:
+		s.totalRead += int(header.GetDataPageHeader().GetNumValues())
+
+		log.Println("num values in page:", header.GetDataPageHeader().GetNumValues(), "totalRead:", s.totalRead)
+
 		if !header.IsSetDataPageHeader() {
 			return fmt.Errorf("bad file format: DataPageHeader flag was not set")
 		}

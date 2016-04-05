@@ -46,7 +46,7 @@ func (b *boolAccumulator) Accumulate(d encoding.Decoder, nullmask []bool, count 
 
 	read, err := d.DecodeBool(b.buff)
 	if err != nil {
-		return err
+		return fmt.Errorf("%v:%s", d, err)
 	}
 
 	if read != count {
@@ -78,7 +78,7 @@ func (b *int64Accumulator) Accumulate(d encoding.Decoder, nullmask []bool, count
 	buff := make([]int64, count)
 	read, err := d.DecodeInt64(buff)
 	if err != nil {
-		return fmt.Errorf("%v: %s", d.DecodeInt64, err)
+		return fmt.Errorf("%#v: %s", d, err)
 	}
 
 	if read != count {
@@ -111,7 +111,7 @@ func (b *int32Accumulator) Accumulate(d encoding.Decoder, nullmask []bool, count
 
 	read, err := d.DecodeInt32(buff)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s.DecodeInt32:%s", d, err)
 	}
 
 	if read != count {
@@ -166,7 +166,7 @@ func (b *float32Accumulator) Accumulate(d encoding.Decoder, nullmask []bool, cou
 
 	read, err := d.DecodeFloat32(buff)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s.DecodeFloat32:%s", d, err)
 	}
 
 	if read != count {
@@ -200,7 +200,7 @@ func (b *float64Accumulator) Accumulate(d encoding.Decoder, nullmask []bool, cou
 	buff := make([]float64, count)
 	read, err := d.DecodeFloat64(buff)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s.DecodeFloat64:%s", d, err)
 	}
 
 	if read != count {
@@ -236,7 +236,7 @@ func (b *byteAccumulator) Accumulate(d encoding.Decoder, nullmask []bool, count 
 	if b.size == 0 {
 		read, err := d.DecodeByteArray(buff)
 		if err != nil {
-			return fmt.Errorf("decodeByteArray: %s", err)
+			return fmt.Errorf("%s.DecodeByteArray: %s", d, err)
 		}
 		if read != count {
 			return fmt.Errorf("decodeByteArray: could not read all the expected values (%d) only %d", count, read)
@@ -244,10 +244,10 @@ func (b *byteAccumulator) Accumulate(d encoding.Decoder, nullmask []bool, count 
 	} else {
 		read, err := d.DecodeFixedByteArray(buff, uint(b.size))
 		if err != nil {
-			return fmt.Errorf("decodeFixedByteArray: %s", err)
+			return fmt.Errorf("%v.DecodeFixedByteArray: %s", d, err)
 		}
 		if read != count {
-			return fmt.Errorf("decodeFixedByteArray: could not read all the expected values (%d) only %d", count, read)
+			return fmt.Errorf("%s.DecodeFixedByteArray: could not read all the expected values (%d) only %d", count, d, read)
 		}
 	}
 
