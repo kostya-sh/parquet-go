@@ -16,13 +16,13 @@ type plainDictionaryDecoder struct {
 }
 
 type Dictionary interface {
-	MapBool(keys []uint64, out []bool) error
-	MapInt32(keys []uint64, out []int32) error
-	MapInt64(keys []uint64, out []int64) error
-	MapInt96(keys []uint64, out []datatypes.Int96) error
-	MapByteArray(keys []uint64, out [][]byte) error
-	MapFloat32(keys []uint64, out []float32) error
-	MapFloat64(keys []uint64, out []float64) error
+	MapBool(keys []uint32, out []bool) error
+	MapInt32(keys []uint32, out []int32) error
+	MapInt64(keys []uint32, out []int64) error
+	MapInt96(keys []uint32, out []datatypes.Int96) error
+	MapByteArray(keys []uint32, out [][]byte) error
+	MapFloat32(keys []uint32, out []float32) error
+	MapFloat64(keys []uint32, out []float64) error
 }
 
 func NewPlainDictionaryDecoder(r io.Reader, dictionary Dictionary, numValues uint) Decoder {
@@ -32,13 +32,13 @@ func NewPlainDictionaryDecoder(r io.Reader, dictionary Dictionary, numValues uin
 	return &plainDictionaryDecoder{rb: bufio.NewReader(r), dictionary: dictionary, count: numValues}
 }
 
-func (d *plainDictionaryDecoder) readKeys() ([]uint64, error) {
+func (d *plainDictionaryDecoder) readKeys() ([]uint32, error) {
 	bitWidth, err := d.rb.ReadByte()
 	if err != nil {
 		return nil, err
 	}
 
-	keys, err := rle.ReadUint64(d.rb, uint(bitWidth), d.count)
+	keys, err := rle.ReadUint32(d.rb, uint(bitWidth), d.count)
 
 	if err != nil {
 		return nil, fmt.Errorf("rle: could not read %d values with bitWidth %d: %s", d.count, uint(bitWidth), err)

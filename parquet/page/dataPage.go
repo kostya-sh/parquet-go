@@ -23,6 +23,8 @@ type DataPage struct {
 	meta                *thrift.ColumnMetaData
 	maxDefinitionLevels uint32
 	rb                  *bufio.Reader
+	DefinitionLevels    []bool
+	repetitionLevels    []uint32
 }
 
 // NewDataPage
@@ -67,6 +69,9 @@ func (p *DataPage) readDefinitionAndRepetitionLevels(rb *bufio.Reader) (repetiti
 			if err := dec.Read(rb, out); err != nil {
 				return nil, nil, fmt.Errorf("bitpacking cannot read:%s", err)
 			}
+
+			log.Println("WARNING GOT REPETITION:", len(out), p.header.GetNumValues())
+
 		// 	result := make([]int32, 0, int(runs*8))
 		// finish:
 		// 	for i := 0; i < int(runs); i++ {
@@ -104,10 +109,14 @@ func (p *DataPage) readDefinitionAndRepetitionLevels(rb *bufio.Reader) (repetiti
 
 			lr := io.LimitReader(rb, int64(length))
 
-			_, err := rle.ReadUint64(lr, 1, uint(p.header.GetNumValues()))
+			values, err := rle.ReadBool(lr, uint(p.header.GetNumValues()))
 			if err != nil {
 				return nil, nil, err
 			}
+
+			log.Println("GOT VALUES definition:", len(values), p.header.GetNumValues())
+
+			p.DefinitionLevels = values
 
 			if n, _ := io.Copy(ioutil.Discard, lr); n > 0 {
 				log.Println("WARNING not all data was consumed in RLE encoder")
@@ -155,7 +164,7 @@ func (p *DataPage) Decode(page *DictionaryPage, accumulator memory.Accumulator) 
 	if err != nil {
 		return fmt.Errorf("could not create decoder: %s", err)
 	}
-	return accumulator.Accumulate(d, uint(p.header.GetNumValues()))
+	return accumulator.Accumulate(d, p.DefinitionLevels, uint(p.header.GetNumValues()))
 }
 
 // // Decode using the given reader

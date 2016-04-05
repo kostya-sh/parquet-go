@@ -3,7 +3,6 @@ package page
 import (
 	"fmt"
 	"io"
-	"log"
 
 	"github.com/kostya-sh/parquet-go/parquet/datatypes"
 	"github.com/kostya-sh/parquet-go/parquet/encoding"
@@ -81,7 +80,7 @@ func (p *DictionaryPage) Decode(r io.Reader) error {
 	count := p.count
 	_type := p.t
 
-	log.Println("dictionaryPage.Decode:", p.header.GetEncoding(), p.t, count)
+	//log.Println("dictionaryPage.Decode:", p.header.GetEncoding(), p.t, count)
 
 	switch p.header.GetEncoding() {
 
@@ -139,10 +138,10 @@ func (p *DictionaryPage) Decode(r io.Reader) error {
 	return nil
 }
 
-func (p *DictionaryPage) MapBool(keys []uint64, out []bool) error {
+func (p *DictionaryPage) MapBool(keys []uint32, out []bool) error {
 	for i := 0; i < len(out); i++ {
 		k := keys[i]
-		if k >= uint64(len(p.valuesBool)) {
+		if k >= uint32(len(p.valuesBool)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesBool))
 		}
 		out[i] = p.valuesBool[k]
@@ -151,10 +150,10 @@ func (p *DictionaryPage) MapBool(keys []uint64, out []bool) error {
 	return nil
 }
 
-func (p *DictionaryPage) MapInt32(keys []uint64, out []int32) error {
+func (p *DictionaryPage) MapInt32(keys []uint32, out []int32) error {
 	for i := 0; i < len(out); i++ {
 		k := keys[i]
-		if k >= uint64(len(p.valuesInt32)) {
+		if k >= uint32(len(p.valuesInt32)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesInt32))
 		}
 		out[i] = p.valuesInt32[k]
@@ -163,10 +162,10 @@ func (p *DictionaryPage) MapInt32(keys []uint64, out []int32) error {
 	return nil
 }
 
-func (p *DictionaryPage) MapInt64(keys []uint64, out []int64) error {
+func (p *DictionaryPage) MapInt64(keys []uint32, out []int64) error {
 	for i := 0; i < len(out); i++ {
 		k := keys[i]
-		if k >= uint64(len(p.valuesInt64)) {
+		if k >= uint32(len(p.valuesInt64)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesInt64))
 		}
 		out[i] = p.valuesInt64[k]
@@ -175,10 +174,10 @@ func (p *DictionaryPage) MapInt64(keys []uint64, out []int64) error {
 	return nil
 }
 
-func (p *DictionaryPage) MapInt96(keys []uint64, out []datatypes.Int96) error {
+func (p *DictionaryPage) MapInt96(keys []uint32, out []datatypes.Int96) error {
 	for i := 0; i < len(out); i++ {
 		k := keys[i]
-		if k >= uint64(len(p.valuesInt96)) {
+		if k >= uint32(len(p.valuesInt96)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesInt64))
 		}
 		out[i] = p.valuesInt96[k]
@@ -187,10 +186,10 @@ func (p *DictionaryPage) MapInt96(keys []uint64, out []datatypes.Int96) error {
 	return nil
 }
 
-func (p *DictionaryPage) MapFloat32(keys []uint64, out []float32) error {
+func (p *DictionaryPage) MapFloat32(keys []uint32, out []float32) error {
 	for i := 0; i < len(out); i++ {
 		k := keys[i]
-		if k >= uint64(len(p.valuesFloat32)) {
+		if k >= uint32(len(p.valuesFloat32)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesFloat32))
 		}
 		out[i] = p.valuesFloat32[k]
@@ -199,10 +198,10 @@ func (p *DictionaryPage) MapFloat32(keys []uint64, out []float32) error {
 	return nil
 }
 
-func (p *DictionaryPage) MapFloat64(keys []uint64, out []float64) error {
+func (p *DictionaryPage) MapFloat64(keys []uint32, out []float64) error {
 	for i := 0; i < len(out); i++ {
 		k := keys[i]
-		if k >= uint64(len(p.valuesFloat64)) {
+		if k >= uint32(len(p.valuesFloat64)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesFloat64))
 		}
 		out[i] = p.valuesFloat64[k]
@@ -211,10 +210,10 @@ func (p *DictionaryPage) MapFloat64(keys []uint64, out []float64) error {
 	return nil
 }
 
-func (p *DictionaryPage) MapByteArray(keys []uint64, out [][]byte) error {
+func (p *DictionaryPage) MapByteArray(keys []uint32, out [][]byte) error {
 	for i := 0; i < len(out); i++ {
 		k := keys[i]
-		if k >= uint64(len(p.valuesByteArray)) {
+		if k >= uint32(len(p.valuesByteArray)) {
 			return fmt.Errorf("key out of bounds %d max: %d", k, len(p.valuesByteArray))
 		}
 		out[i] = p.valuesByteArray[k]
@@ -223,7 +222,7 @@ func (p *DictionaryPage) MapByteArray(keys []uint64, out [][]byte) error {
 	return nil
 }
 
-// func (p *DictionaryPage) MapString(keys []uint64, out []string) error {
+// func (p *DictionaryPage) MapString(keys []uint32, out []string) error {
 // 	for i := 0; i < len(out); i++ {
 // 		k := keys[i]
 // 		if k >= uint64(len(p.valuesString)) {

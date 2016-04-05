@@ -1,148 +1,7 @@
 // Generated Code do not edit.
 package bitpacking
 
-import (
-	"bufio"
-	"encoding/binary"
-	"fmt"
-	"io"
-)
-
-type format int
-
-const (
-	RLE format = iota
-	BitPacked
-)
-
-type f func([8]int32) []byte
-
-type Encoder struct {
-	b                [32]byte
-	encodeRLE        f
-	encodeBitPacking f
-	format           format
-}
-
-func NewEncoder(bitWidth uint, format format) *Encoder {
-
-	if bitWidth == 0 || bitWidth > 32 {
-		panic("invalid 0 > bitWidth <= 32")
-	}
-
-	e := &Encoder{format: format}
-	switch bitWidth {
-
-	case 1:
-		e.encodeRLE = e.encode1RLE
-	case 2:
-		e.encodeRLE = e.encode2RLE
-	case 3:
-		e.encodeRLE = e.encode3RLE
-	case 4:
-		e.encodeRLE = e.encode4RLE
-	case 5:
-		e.encodeRLE = e.encode5RLE
-	case 6:
-		e.encodeRLE = e.encode6RLE
-	case 7:
-		e.encodeRLE = e.encode7RLE
-	case 8:
-		e.encodeRLE = e.encode8RLE
-	case 9:
-		e.encodeRLE = e.encode9RLE
-	case 10:
-		e.encodeRLE = e.encode10RLE
-	case 11:
-		e.encodeRLE = e.encode11RLE
-	case 12:
-		e.encodeRLE = e.encode12RLE
-	case 13:
-		e.encodeRLE = e.encode13RLE
-	case 14:
-		e.encodeRLE = e.encode14RLE
-	case 15:
-		e.encodeRLE = e.encode15RLE
-	case 16:
-		e.encodeRLE = e.encode16RLE
-	case 17:
-		e.encodeRLE = e.encode17RLE
-	case 18:
-		e.encodeRLE = e.encode18RLE
-	case 19:
-		e.encodeRLE = e.encode19RLE
-	case 20:
-		e.encodeRLE = e.encode20RLE
-	case 21:
-		e.encodeRLE = e.encode21RLE
-	case 22:
-		e.encodeRLE = e.encode22RLE
-	case 23:
-		e.encodeRLE = e.encode23RLE
-	case 24:
-		e.encodeRLE = e.encode24RLE
-	case 25:
-		e.encodeRLE = e.encode25RLE
-	case 26:
-		e.encodeRLE = e.encode26RLE
-	case 27:
-		e.encodeRLE = e.encode27RLE
-	case 28:
-		e.encodeRLE = e.encode28RLE
-	case 29:
-		e.encodeRLE = e.encode29RLE
-	case 30:
-		e.encodeRLE = e.encode30RLE
-	case 31:
-		e.encodeRLE = e.encode31RLE
-	case 32:
-		e.encodeRLE = e.encode32RLE
-
-	default:
-		panic("invalid bitWidth")
-	}
-	return e
-}
-
-// WriteHeader
-func (e *Encoder) WriteHeader(w io.Writer, size uint) error {
-	byteWidth := (size + 7) / 8
-	return binary.Write(w, binary.LittleEndian, (byteWidth << 1))
-}
-
-// Write writes in io.Writer all the values
-func (e *Encoder) Write(w io.Writer, values []int32) (int, error) {
-	total := 0
-
-	var buffer [8]int32
-	chunks := (len(values) + 7) / 8
-
-	if e.format == RLE {
-		for i := 0; i < chunks; i++ {
-			extra := 0
-			if (i+1)*8 > len(values) {
-				extra = ((i + 1) * 8) - len(values)
-			}
-
-			for j := 0; j < 8-extra; j++ {
-				buffer[j] = values[(i*8)+j]
-			}
-			for j := extra; j > 0; j-- {
-				buffer[j] = 0
-			}
-
-			n, err := w.Write(e.encodeRLE(buffer))
-			total += n
-			if err != nil {
-				return total, err
-			}
-		}
-
-		return total, nil
-	}
-
-	return -1, fmt.Errorf("Unsupported")
-}
+import "fmt"
 
 func (e *Encoder) encode1RLE(n [8]int32) []byte {
 
@@ -1368,144 +1227,11 @@ func (e *Encoder) encode32RLE(n [8]int32) []byte {
 	return b[:32]
 }
 
-type decodef func([]byte, []int32) error
-
-type Decoder struct {
-	b      [32]byte
-	decode decodef
-}
-
-func NewDecoder(bitWidth uint) *Decoder {
-	d := &Decoder{}
-
-	if bitWidth == 0 || bitWidth > 32 {
-		panic("invalid 0 > bitWidth <= 32")
-	}
-
-	switch bitWidth {
-
-	case 1:
-		d.decode = d.decode1RLE
-	case 2:
-		d.decode = d.decode2RLE
-	case 3:
-		d.decode = d.decode3RLE
-	case 4:
-		d.decode = d.decode4RLE
-	case 5:
-		d.decode = d.decode5RLE
-	case 6:
-		d.decode = d.decode6RLE
-	case 7:
-		d.decode = d.decode7RLE
-	case 8:
-		d.decode = d.decode8RLE
-	case 9:
-		d.decode = d.decode9RLE
-	case 10:
-		d.decode = d.decode10RLE
-	case 11:
-		d.decode = d.decode11RLE
-	case 12:
-		d.decode = d.decode12RLE
-	case 13:
-		d.decode = d.decode13RLE
-	case 14:
-		d.decode = d.decode14RLE
-	case 15:
-		d.decode = d.decode15RLE
-	case 16:
-		d.decode = d.decode16RLE
-	case 17:
-		d.decode = d.decode17RLE
-	case 18:
-		d.decode = d.decode18RLE
-	case 19:
-		d.decode = d.decode19RLE
-	case 20:
-		d.decode = d.decode20RLE
-	case 21:
-		d.decode = d.decode21RLE
-	case 22:
-		d.decode = d.decode22RLE
-	case 23:
-		d.decode = d.decode23RLE
-	case 24:
-		d.decode = d.decode24RLE
-	case 25:
-		d.decode = d.decode25RLE
-	case 26:
-		d.decode = d.decode26RLE
-	case 27:
-		d.decode = d.decode27RLE
-	case 28:
-		d.decode = d.decode28RLE
-	case 29:
-		d.decode = d.decode29RLE
-	case 30:
-		d.decode = d.decode30RLE
-	case 31:
-		d.decode = d.decode31RLE
-	case 32:
-		d.decode = d.decode32RLE
-
-	default:
-		panic("invalid bitWidth")
-	}
-
-	return d
-}
-
-func (d *Decoder) ReadLength(r io.Reader) (uint, error) {
-	// run := <bit-packed-run> | <rle-run>
-	header, err := binary.ReadUvarint(bufio.NewReader(r))
-
-	if err == io.EOF {
-		return 0, err
-	} else if err != nil {
-		return 0, err
-	}
-
-	if (header & 1) == 1 {
-		// bit-packed-header := varint-encode(<bit-pack-count> << 1 | 1)
-		// we always bit-pack a multiple of 8 values at a time, so we only store the number of values / 8
-		// bit-pack-count := (number of values in this run) / 8
-		literalCount := int32(header >> 1)
-		return uint(literalCount), nil
-	}
-
-	return 0, fmt.Errorf("invalid header: rle header found, expected bitpacking header")
-}
-
-func (d *Decoder) Read(r io.Reader, out []int32) error {
-	// this assumes len(out) has the exact right
-	// amount of data to read
-	buffer := make([]int32, 8)
-	for i := 0; i < (len(out)+7)/8; i++ {
-		n, err := r.Read(d.b[:])
-		if err != nil {
-			return fmt.Errorf("decodeRLE:%s", err)
-		}
-		if err := d.decode(d.b[:n], buffer); err != nil {
-			return fmt.Errorf("decodeRLE:%s", err)
-		}
-
-		extra := 8
-		if ((i + 1) * 8) > len(out) {
-			extra = len(out) - (i * 8)
-		}
-
-		for j := 0; j+1 < extra; j++ {
-			out[i*8+j] = buffer[j]
-		}
-
-	}
-
-	return nil
-}
-
 func (d *Decoder) decode1RLE(b []byte, out []int32) error {
 
+	if len(b) != 1 {
+		panic(fmt.Sprint("expected: ", 1, " got ", len(b)))
+	}
 	out[0] = int32((b[0] & 0x1))
 	out[1] = int32((b[0] & 0x2) >> 1)
 	out[2] = int32((b[0] & 0x4) >> 2)
@@ -1520,6 +1246,9 @@ func (d *Decoder) decode1RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode2RLE(b []byte, out []int32) error {
 
+	if len(b) != 2 {
+		panic(fmt.Sprint("expected: ", 2, " got ", len(b)))
+	}
 	out[0] = int32((b[0] & 0x3))
 	out[1] = int32((b[0] & 0xc) >> 2)
 	out[2] = int32((b[0] & 0x30) >> 4)
@@ -1534,6 +1263,9 @@ func (d *Decoder) decode2RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode3RLE(b []byte, out []int32) error {
 
+	if len(b) != 3 {
+		panic(fmt.Sprint("expected: ", 3, " got ", len(b)))
+	}
 	out[0] = int32((b[0] & 0x7))
 	out[1] = int32((b[0] & 0x38) >> 3)
 	out[2] = int32((b[0]&0xc0)>>6 | (b[1] & 0x1))
@@ -1548,6 +1280,9 @@ func (d *Decoder) decode3RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode4RLE(b []byte, out []int32) error {
 
+	if len(b) != 4 {
+		panic(fmt.Sprint("expected: ", 4, " got ", len(b)))
+	}
 	out[0] = int32((b[0] & 0xf))
 	out[1] = int32((b[0] & 0xf0) >> 4)
 	out[2] = int32((b[1] & 0xf))
@@ -1562,6 +1297,9 @@ func (d *Decoder) decode4RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode5RLE(b []byte, out []int32) error {
 
+	if len(b) != 5 {
+		panic(fmt.Sprint("expected: ", 5, " got ", len(b)))
+	}
 	out[0] = int32((b[0] & 0x1f))
 	out[1] = int32((b[0]&0xe0)>>5 | (b[1]&0x3)<<3)
 	out[2] = int32((b[1] & 0x7c) >> 2)
@@ -1576,6 +1314,9 @@ func (d *Decoder) decode5RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode6RLE(b []byte, out []int32) error {
 
+	if len(b) != 6 {
+		panic(fmt.Sprint("expected: ", 6, " got ", len(b)))
+	}
 	out[0] = int32((b[0] & 0x3f))
 	out[1] = int32((b[0]&0xc0)>>6 | (b[1]&0xf)<<2)
 	out[2] = int32((b[1]&0xf0)>>4 | (b[2]&0x3)<<4)
@@ -1590,6 +1331,9 @@ func (d *Decoder) decode6RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode7RLE(b []byte, out []int32) error {
 
+	if len(b) != 7 {
+		panic(fmt.Sprint("expected: ", 7, " got ", len(b)))
+	}
 	out[0] = int32((b[0] & 0x7f))
 	out[1] = int32((b[0]&0x80)>>7 | (b[1]&0x3f)<<1)
 	out[2] = int32((b[1]&0xc0)>>6 | (b[2]&0x1f)<<2)
@@ -1604,6 +1348,9 @@ func (d *Decoder) decode7RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode8RLE(b []byte, out []int32) error {
 
+	if len(b) != 8 {
+		panic(fmt.Sprint("expected: ", 8, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]))
 	out[1] = int32(int32(b[1]))
 	out[2] = int32(int32(b[2]))
@@ -1618,6 +1365,9 @@ func (d *Decoder) decode8RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode9RLE(b []byte, out []int32) error {
 
+	if len(b) != 9 {
+		panic(fmt.Sprint("expected: ", 9, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32((b[1] & 0x1)) << 8))
 	out[1] = int32(int32((b[1]&0xfe)>>1) + (int32((b[2]&0x3)<<7) << 8))
 	out[2] = int32(int32((b[2]&0xfc)>>2) + (int32((b[3]&0x7)<<6) << 8))
@@ -1632,6 +1382,9 @@ func (d *Decoder) decode9RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode10RLE(b []byte, out []int32) error {
 
+	if len(b) != 10 {
+		panic(fmt.Sprint("expected: ", 10, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32((b[1] & 0x3)) << 8))
 	out[1] = int32(int32((b[1]&0xfc)>>2) + (int32((b[2]&0xf)<<6) << 8))
 	out[2] = int32(int32((b[2]&0xf0)>>4) + (int32((b[3]&0x3f)<<4) << 8))
@@ -1646,6 +1399,9 @@ func (d *Decoder) decode10RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode11RLE(b []byte, out []int32) error {
 
+	if len(b) != 11 {
+		panic(fmt.Sprint("expected: ", 11, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32((b[1] & 0x7)) << 8))
 	out[1] = int32(int32((b[1]&0xf8)>>3) + (int32((b[2]&0x3f)<<5) << 8))
 	out[2] = int32(int32((b[2]&0xc0)>>6) + (int32((b[3])<<2) << 8) + (int32((b[4] & 0x1)) << 16))
@@ -1660,6 +1416,9 @@ func (d *Decoder) decode11RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode12RLE(b []byte, out []int32) error {
 
+	if len(b) != 12 {
+		panic(fmt.Sprint("expected: ", 12, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32((b[1] & 0xf)) << 8))
 	out[1] = int32(int32((b[1]&0xf0)>>4) + (int32((b[2])<<4) << 8))
 	out[2] = int32(int32(b[3]) + (int32((b[4] & 0xf)) << 8))
@@ -1674,6 +1433,9 @@ func (d *Decoder) decode12RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode13RLE(b []byte, out []int32) error {
 
+	if len(b) != 13 {
+		panic(fmt.Sprint("expected: ", 13, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32((b[1] & 0x1f)) << 8))
 	out[1] = int32(int32((b[1]&0xe0)>>5) + (int32((b[2])<<3) << 8) + (int32((b[3] & 0x3)) << 16))
 	out[2] = int32(int32((b[3]&0xfc)>>2) + (int32((b[4]&0x7f)<<6) << 8))
@@ -1688,6 +1450,9 @@ func (d *Decoder) decode13RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode14RLE(b []byte, out []int32) error {
 
+	if len(b) != 14 {
+		panic(fmt.Sprint("expected: ", 14, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32((b[1] & 0x3f)) << 8))
 	out[1] = int32(int32((b[1]&0xc0)>>6) + (int32((b[2])<<2) << 8) + (int32((b[3] & 0xf)) << 16))
 	out[2] = int32(int32((b[3]&0xf0)>>4) + (int32((b[4])<<4) << 8) + (int32((b[5] & 0x3)) << 16))
@@ -1702,6 +1467,9 @@ func (d *Decoder) decode14RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode15RLE(b []byte, out []int32) error {
 
+	if len(b) != 15 {
+		panic(fmt.Sprint("expected: ", 15, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32((b[1] & 0x7f)) << 8))
 	out[1] = int32(int32((b[1]&0x80)>>7) + (int32((b[2])<<1) << 8) + (int32((b[3] & 0x3f)) << 16))
 	out[2] = int32(int32((b[3]&0xc0)>>6) + (int32((b[4])<<2) << 8) + (int32((b[5] & 0x1f)) << 16))
@@ -1716,6 +1484,9 @@ func (d *Decoder) decode15RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode16RLE(b []byte, out []int32) error {
 
+	if len(b) != 16 {
+		panic(fmt.Sprint("expected: ", 16, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8))
 	out[1] = int32(int32(b[2]) + (int32(b[3]) << 8))
 	out[2] = int32(int32(b[4]) + (int32(b[5]) << 8))
@@ -1730,6 +1501,9 @@ func (d *Decoder) decode16RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode17RLE(b []byte, out []int32) error {
 
+	if len(b) != 17 {
+		panic(fmt.Sprint("expected: ", 17, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32((b[2] & 0x1)) << 16))
 	out[1] = int32(int32((b[2]&0xfe)>>1) + (int32((b[3])<<7) << 8) + (int32((b[4] & 0x3)) << 16))
 	out[2] = int32(int32((b[4]&0xfc)>>2) + (int32((b[5])<<6) << 8) + (int32((b[6] & 0x7)) << 16))
@@ -1744,6 +1518,9 @@ func (d *Decoder) decode17RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode18RLE(b []byte, out []int32) error {
 
+	if len(b) != 18 {
+		panic(fmt.Sprint("expected: ", 18, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32((b[2] & 0x3)) << 16))
 	out[1] = int32(int32((b[2]&0xfc)>>2) + (int32((b[3])<<6) << 8) + (int32((b[4] & 0xf)) << 16))
 	out[2] = int32(int32((b[4]&0xf0)>>4) + (int32((b[5])<<4) << 8) + (int32((b[6] & 0x3f)) << 16))
@@ -1758,6 +1535,9 @@ func (d *Decoder) decode18RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode19RLE(b []byte, out []int32) error {
 
+	if len(b) != 19 {
+		panic(fmt.Sprint("expected: ", 19, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32((b[2] & 0x7)) << 16))
 	out[1] = int32(int32((b[2]&0xf8)>>3) + (int32((b[3])<<5) << 8) + (int32((b[4] & 0x3f)) << 16))
 	out[2] = int32(int32((b[4]&0xc0)>>6) + (int32((b[5])<<2) << 8) + (int32(b[6]) << 16) + (int32((b[7] & 0x1)) << 24))
@@ -1772,6 +1552,9 @@ func (d *Decoder) decode19RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode20RLE(b []byte, out []int32) error {
 
+	if len(b) != 20 {
+		panic(fmt.Sprint("expected: ", 20, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32((b[2] & 0xf)) << 16))
 	out[1] = int32(int32((b[2]&0xf0)>>4) + (int32((b[3])<<4) << 8) + (int32(b[4]) << 16))
 	out[2] = int32(int32(b[5]) + (int32(b[6]) << 8) + (int32((b[7] & 0xf)) << 16))
@@ -1786,6 +1569,9 @@ func (d *Decoder) decode20RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode21RLE(b []byte, out []int32) error {
 
+	if len(b) != 21 {
+		panic(fmt.Sprint("expected: ", 21, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32((b[2] & 0x1f)) << 16))
 	out[1] = int32(int32((b[2]&0xe0)>>5) + (int32((b[3])<<3) << 8) + (int32(b[4]) << 16) + (int32((b[5] & 0x3)) << 24))
 	out[2] = int32(int32((b[5]&0xfc)>>2) + (int32((b[6])<<6) << 8) + (int32((b[7] & 0x7f)) << 16))
@@ -1800,6 +1586,9 @@ func (d *Decoder) decode21RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode22RLE(b []byte, out []int32) error {
 
+	if len(b) != 22 {
+		panic(fmt.Sprint("expected: ", 22, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32((b[2] & 0x3f)) << 16))
 	out[1] = int32(int32((b[2]&0xc0)>>6) + (int32((b[3])<<2) << 8) + (int32(b[4]) << 16) + (int32((b[5] & 0xf)) << 24))
 	out[2] = int32(int32((b[5]&0xf0)>>4) + (int32((b[6])<<4) << 8) + (int32(b[7]) << 16) + (int32((b[8] & 0x3)) << 24))
@@ -1814,6 +1603,9 @@ func (d *Decoder) decode22RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode23RLE(b []byte, out []int32) error {
 
+	if len(b) != 23 {
+		panic(fmt.Sprint("expected: ", 23, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32((b[2] & 0x7f)) << 16))
 	out[1] = int32(int32((b[2]&0x80)>>7) + (int32((b[3])<<1) << 8) + (int32(b[4]) << 16) + (int32((b[5] & 0x3f)) << 24))
 	out[2] = int32(int32((b[5]&0xc0)>>6) + (int32((b[6])<<2) << 8) + (int32(b[7]) << 16) + (int32((b[8] & 0x1f)) << 24))
@@ -1828,6 +1620,9 @@ func (d *Decoder) decode23RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode24RLE(b []byte, out []int32) error {
 
+	if len(b) != 24 {
+		panic(fmt.Sprint("expected: ", 24, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32(b[2]) << 16))
 	out[1] = int32(int32(b[3]) + (int32(b[4]) << 8) + (int32(b[5]) << 16))
 	out[2] = int32(int32(b[6]) + (int32(b[7]) << 8) + (int32(b[8]) << 16))
@@ -1842,6 +1637,9 @@ func (d *Decoder) decode24RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode25RLE(b []byte, out []int32) error {
 
+	if len(b) != 25 {
+		panic(fmt.Sprint("expected: ", 25, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32(b[2]) << 16) + (int32((b[3] & 0x1)) << 24))
 	out[1] = int32(int32((b[3]&0xfe)>>1) + (int32((b[4])<<7) << 8) + (int32(b[5]) << 16) + (int32((b[6] & 0x3)) << 24))
 	out[2] = int32(int32((b[6]&0xfc)>>2) + (int32((b[7])<<6) << 8) + (int32(b[8]) << 16) + (int32((b[9] & 0x7)) << 24))
@@ -1856,6 +1654,9 @@ func (d *Decoder) decode25RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode26RLE(b []byte, out []int32) error {
 
+	if len(b) != 26 {
+		panic(fmt.Sprint("expected: ", 26, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32(b[2]) << 16) + (int32((b[3] & 0x3)) << 24))
 	out[1] = int32(int32((b[3]&0xfc)>>2) + (int32((b[4])<<6) << 8) + (int32(b[5]) << 16) + (int32((b[6] & 0xf)) << 24))
 	out[2] = int32(int32((b[6]&0xf0)>>4) + (int32((b[7])<<4) << 8) + (int32(b[8]) << 16) + (int32((b[9] & 0x3f)) << 24))
@@ -1870,6 +1671,9 @@ func (d *Decoder) decode26RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode27RLE(b []byte, out []int32) error {
 
+	if len(b) != 27 {
+		panic(fmt.Sprint("expected: ", 27, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32(b[2]) << 16) + (int32((b[3] & 0x7)) << 24))
 	out[1] = int32(int32((b[3]&0xf8)>>3) + (int32((b[4])<<5) << 8) + (int32(b[5]) << 16) + (int32((b[6] & 0x3f)) << 24))
 	out[2] = int32(int32((b[6]&0xc0)>>6) + (int32((b[7])<<2) << 8) + (int32(b[8]) << 16) + (int32(b[9]) << 24) + (int32((b[10] & 0x1)) << 32))
@@ -1884,6 +1688,9 @@ func (d *Decoder) decode27RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode28RLE(b []byte, out []int32) error {
 
+	if len(b) != 28 {
+		panic(fmt.Sprint("expected: ", 28, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32(b[2]) << 16) + (int32((b[3] & 0xf)) << 24))
 	out[1] = int32(int32((b[3]&0xf0)>>4) + (int32((b[4])<<4) << 8) + (int32(b[5]) << 16) + (int32(b[6]) << 24))
 	out[2] = int32(int32(b[7]) + (int32(b[8]) << 8) + (int32(b[9]) << 16) + (int32((b[10] & 0xf)) << 24))
@@ -1898,6 +1705,9 @@ func (d *Decoder) decode28RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode29RLE(b []byte, out []int32) error {
 
+	if len(b) != 29 {
+		panic(fmt.Sprint("expected: ", 29, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32(b[2]) << 16) + (int32((b[3] & 0x1f)) << 24))
 	out[1] = int32(int32((b[3]&0xe0)>>5) + (int32((b[4])<<3) << 8) + (int32(b[5]) << 16) + (int32(b[6]) << 24) + (int32((b[7] & 0x3)) << 32))
 	out[2] = int32(int32((b[7]&0xfc)>>2) + (int32((b[8])<<6) << 8) + (int32(b[9]) << 16) + (int32((b[10] & 0x7f)) << 24))
@@ -1912,6 +1722,9 @@ func (d *Decoder) decode29RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode30RLE(b []byte, out []int32) error {
 
+	if len(b) != 30 {
+		panic(fmt.Sprint("expected: ", 30, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32(b[2]) << 16) + (int32((b[3] & 0x3f)) << 24))
 	out[1] = int32(int32((b[3]&0xc0)>>6) + (int32((b[4])<<2) << 8) + (int32(b[5]) << 16) + (int32(b[6]) << 24) + (int32((b[7] & 0xf)) << 32))
 	out[2] = int32(int32((b[7]&0xf0)>>4) + (int32((b[8])<<4) << 8) + (int32(b[9]) << 16) + (int32(b[10]) << 24) + (int32((b[11] & 0x3)) << 32))
@@ -1926,6 +1739,9 @@ func (d *Decoder) decode30RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode31RLE(b []byte, out []int32) error {
 
+	if len(b) != 31 {
+		panic(fmt.Sprint("expected: ", 31, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32(b[2]) << 16) + (int32((b[3] & 0x7f)) << 24))
 	out[1] = int32(int32((b[3]&0x80)>>7) + (int32((b[4])<<1) << 8) + (int32(b[5]) << 16) + (int32(b[6]) << 24) + (int32((b[7] & 0x3f)) << 32))
 	out[2] = int32(int32((b[7]&0xc0)>>6) + (int32((b[8])<<2) << 8) + (int32(b[9]) << 16) + (int32(b[10]) << 24) + (int32((b[11] & 0x1f)) << 32))
@@ -1940,6 +1756,9 @@ func (d *Decoder) decode31RLE(b []byte, out []int32) error {
 
 func (d *Decoder) decode32RLE(b []byte, out []int32) error {
 
+	if len(b) != 32 {
+		panic(fmt.Sprint("expected: ", 32, " got ", len(b)))
+	}
 	out[0] = int32(int32(b[0]) + (int32(b[1]) << 8) + (int32(b[2]) << 16) + (int32(b[3]) << 24))
 	out[1] = int32(int32(b[4]) + (int32(b[5]) << 8) + (int32(b[6]) << 16) + (int32(b[7]) << 24))
 	out[2] = int32(int32(b[8]) + (int32(b[9]) << 8) + (int32(b[10]) << 16) + (int32(b[11]) << 24))

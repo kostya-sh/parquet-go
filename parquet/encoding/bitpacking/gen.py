@@ -8,89 +8,8 @@ fd = open("codec_generate.go", "w")
 print >>fd, """// Generated Code do not edit.
 package bitpacking
 
-import (
-	"io"
-	"fmt"
-	"bufio"
-	"encoding/binary"
-)
+import "fmt"
 
-type format int
-
-const (
-	RLE format = iota
-	BitPacked
-)
-
-type f func([8]int32) []byte
-
-type Encoder struct {
-	b [32]byte
-	encodeRLE f
-	encodeBitPacking f
-	format format
-}
-
-"""
-print >>fd, """
-func NewEncoder(bitWidth uint, format format) *Encoder {
-
-	if bitWidth == 0 || bitWidth > 32 {
- 		panic("invalid 0 > bitWidth <= 32")
- 	}
-
-	e := &Encoder{format:format}
-	switch bitWidth {
-"""
-for bitWidth in range (1, 33):
-	print >>fd, "\tcase %d:" % bitWidth
-	print >>fd, "\t\te.encodeRLE = e.encode%dRLE" % bitWidth
-print >>fd, """
-	default:
-		panic("invalid bitWidth")
-	}
-	return e
-}
-
-// WriteHeader
-func (e *Encoder) WriteHeader(w io.Writer, size uint) error{
-	byteWidth := (size + 7)/8
-	return binary.Write(w, binary.LittleEndian, (byteWidth << 1))
-}
-
-// Write writes in io.Writer all the values
-func (e *Encoder) Write(w io.Writer, values []int32) (int,error) {
-	total := 0
-
-	var buffer [8]int32
-	chunks := (len(values) + 7) / 8
-
-	if e.format == RLE {
-		for i:=0; i < chunks; i++ {
-			extra := 0
-			if (i+1) * 8 > len(values) {
-				extra = ((i+1)*8) - len(values)
-			}
-
-			for j :=0; j < 8 - extra; j++{
-				buffer[j] = values[(i*8)+j]
-			}
-			for j := extra; j > 0; j-- {
-				buffer[j] = 0
-			}
-
-			n, err := w.Write(e.encodeRLE(buffer))
-			total += n
-			if err != nil {
-				return total, err
-			}
-		}
-
-		return total, nil
-	}
-
-	return -1, fmt.Errorf("Unsupported")
-}
 """
 
 for bitWidth in range (1, 33):
@@ -181,90 +100,17 @@ for bitWidth in range (1, 33):
 
 	print >>fd, "\n\treturn b[:%d]\n}\n" % buffer_index
 
-print >>fd, """
-type decodef func([]byte, []int32) error
-
-type Decoder struct {
-	b [32]byte
-	decode decodef
-}
-
-func NewDecoder(bitWidth uint) *Decoder {
-	d := &Decoder{}
-
-	if bitWidth == 0 || bitWidth > 32 {
- 		panic("invalid 0 > bitWidth <= 32")
- 	}
-
-	switch bitWidth {
-"""
-for bitWidth in range (1, 33):
-	print >>fd, "\tcase %d:" % bitWidth
-	print >>fd, "\t\td.decode = d.decode%dRLE" % bitWidth
-
-print >>fd, """
-	default:
-		panic("invalid bitWidth")
-	}
-
-	return d
-}
-
-func (d *Decoder) ReadLength(r io.Reader) (uint,error) {
-	// run := <bit-packed-run> | <rle-run>
-	header, err := binary.ReadUvarint(bufio.NewReader(r))
-
-	if err == io.EOF {
-		return 0, err
-	} else if err != nil {
-		return 0, err
-	}
-
-	if (header & 1) == 1 {
-		// bit-packed-header := varint-encode(<bit-pack-count> << 1 | 1)
-		// we always bit-pack a multiple of 8 values at a time, so we only store the number of values / 8
-		// bit-pack-count := (number of values in this run) / 8
-		literalCount := int32(header>>1)
-		return uint(literalCount), nil
-	}
-
-	return 0, fmt.Errorf("invalid header: rle header found, expected bitpacking header")
-}
-
-func (d *Decoder) Read(r io.Reader, out []int32) error {
-	// this assumes len(out) has the exact right
-	// amount of data to read
-	buffer := make([]int32, 8)
-	for i := 0; i < (len(out)+7)/8; i++ {
-		n, err := r.Read(d.b[:])
-		if err != nil {
-			return fmt.Errorf("decodeRLE:%s", err)
-		}
-		if err := d.decode(d.b[:n], buffer); err != nil{
-			return fmt.Errorf("decodeRLE:%s", err)
-		}
-
-		extra := 8
-		if ((i+1) * 8) > len(out) {
-			extra = len(out) - (i * 8)
-		}
-
-		for j:=0; j+1 < extra; j++ {
-			out[i*8+j] = buffer[j]
-		}
-
-	}
-
-	return nil
-}
-"""
+# What is the minimum amount of bytes to read without having pending values
 
 for bitWidth in range (1, 32+1):
+	# given 8 number how many bytes will be required to encode them
+	byteBoundary = ((bitWidth + 7) / 8)
+
 	print >>fd, "func (d *Decoder) decode%dRLE(b []byte, out []int32) error { " % bitWidth
 	print >>fd, """
-	"""
-	# given 8 number how many bytes will be required to encode them
-	byteBoundary = ((bitWidth + 7) / 8) * 8
+	if len(b) != %d {
+		panic(fmt.Sprint("expected: ", %d, " got ", len(b)) )
+	}""" % ( (bitWidth * 8)/8, (bitWidth * 8)/8)
 
 	buffer_index = 0
 	bit_consumed = 0

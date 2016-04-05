@@ -23,7 +23,7 @@ func NewPlainDecoder(r io.Reader, numValues uint) Decoder {
 
 // DecodeBool
 func (d *plainDecoder) DecodeBool(out []bool) (uint, error) {
-	outx, err := rle.ReadInt64(d.r, 1, uint(len(out)))
+	outx, err := rle.ReadInt32(d.r, 1, uint(len(out)))
 
 	if err != nil {
 		return 0, err
