@@ -61,7 +61,7 @@ func (b *boolAccumulator) Accumulate(d encoding.Decoder, nullmask []bool, count 
 
 func (b *boolAccumulator) Get(i int) (interface{}, bool) {
 	if i < len(b.buff) {
-		if b.nullmask != nil && i < len(b.nullmask) && b.nullmask[i] {
+		if b.nullmask != nil && i < len(b.nullmask) && !b.nullmask[i] {
 			return nil, true
 		}
 		return b.buff[i], true
@@ -93,7 +93,7 @@ func (b *int64Accumulator) Accumulate(d encoding.Decoder, nullmask []bool, count
 
 func (b *int64Accumulator) Get(i int) (interface{}, bool) {
 	if i < len(b.buff) {
-		if b.nullmask != nil && i < len(b.nullmask) && b.nullmask[i] {
+		if b.nullmask != nil && i < len(b.nullmask) && !b.nullmask[i] {
 			return nil, true
 		}
 		return b.buff[i], true
@@ -126,7 +126,7 @@ func (b *int32Accumulator) Accumulate(d encoding.Decoder, nullmask []bool, count
 
 func (b *int32Accumulator) Get(i int) (interface{}, bool) {
 	if i < len(b.buff) {
-		if b.nullmask != nil && i < len(b.nullmask) && b.nullmask[i] {
+		if b.nullmask != nil && i < len(b.nullmask) && !b.nullmask[i] {
 			return nil, true
 		}
 
@@ -181,7 +181,7 @@ func (b *float32Accumulator) Accumulate(d encoding.Decoder, nullmask []bool, cou
 
 func (b *float32Accumulator) Get(i int) (interface{}, bool) {
 	if i < len(b.buff) {
-		if b.nullmask != nil && i < len(b.nullmask) && b.nullmask[i] {
+		if b.nullmask != nil && i < len(b.nullmask) && !b.nullmask[i] {
 			return nil, true
 		}
 
@@ -215,7 +215,7 @@ func (b *float64Accumulator) Accumulate(d encoding.Decoder, nullmask []bool, cou
 
 func (b *float64Accumulator) Get(i int) (interface{}, bool) {
 	if i < len(b.buff) {
-		if b.nullmask != nil && i < len(b.nullmask) && b.nullmask[i] {
+		if b.nullmask != nil && i < len(b.nullmask) && !b.nullmask[i] {
 			return nil, true
 		}
 
@@ -259,7 +259,7 @@ func (b *byteAccumulator) Accumulate(d encoding.Decoder, nullmask []bool, count 
 
 func (b *byteAccumulator) Get(i int) (interface{}, bool) {
 	if i < len(b.buff) {
-		if b.nullmask != nil && i < len(b.nullmask) && b.nullmask[i] {
+		if b.nullmask != nil && i < len(b.nullmask) && !b.nullmask[i] {
 			return nil, true
 		}
 
