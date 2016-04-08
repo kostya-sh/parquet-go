@@ -153,8 +153,8 @@ func TestUnpack8int32(t *testing.T) {
 
 func TestBitWidth(t *testing.T) {
 	tests := []struct {
-		max   int
-		width int
+		max   uint32
+		width uint
 	}{
 		{0, 0},
 		{1, 1},
@@ -171,27 +171,27 @@ func TestBitWidth(t *testing.T) {
 		{math.MaxUint32, 32}, // TODO: will this work on 32-bit system?
 	}
 	for _, test := range tests {
-		if got := bitWidth(test.max); got != test.width {
+		if got := GetBitWidthFromMaxInt(test.max); got != test.width {
 			t.Errorf("bitWidth(%d)=%d, want %d", test.max, got, test.width)
 		}
 	}
 }
 
-func TestUnpackLittleEndingInt32(t *testing.T) {
-	tests := []struct {
-		bytes []byte
-		n     int32
-	}{
-		{[]byte{0}, 0},
-		{[]byte{1}, 1},
-		{[]byte{199}, 199},
-		{[]byte{0x12, 0x34}, 0x3412},
-		{[]byte{0x12, 0x34, 0x56}, 0x563412},
-		{[]byte{0x12, 0x34, 0x56, 0x78}, 0x78563412},
-	}
-	for _, test := range tests {
-		if got := unpackLittleEndianInt32(test.bytes); got != test.n {
-			t.Errorf("unpackLittleEndianInt32(%v)=%d, want %d", test.bytes, got, test.n)
-		}
-	}
-}
+// func TestUnpackLittleEndingInt32(t *testing.T) {
+// 	tests := []struct {
+// 		bytes []byte
+// 		n     int32
+// 	}{
+// 		{[]byte{0}, 0},
+// 		{[]byte{1}, 1},
+// 		{[]byte{199}, 199},
+// 		{[]byte{0x12, 0x34}, 0x3412},
+// 		{[]byte{0x12, 0x34, 0x56}, 0x563412},
+// 		{[]byte{0x12, 0x34, 0x56, 0x78}, 0x78563412},
+// 	}
+// 	for _, test := range tests {
+// 		if got := unpackLittleEndianInt32(test.bytes); got != test.n {
+// 			t.Errorf("unpackLittleEndianInt32(%v)=%d, want %d", test.bytes, got, test.n)
+// 		}
+// 	}
+// }

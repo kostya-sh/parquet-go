@@ -25,6 +25,8 @@ type DataPage struct {
 	rb                  *bufio.Reader
 	DefinitionLevels    []bool
 	repetitionLevels    []uint32
+	// debug
+	Debug []byte
 }
 
 // NewDataPage
@@ -38,6 +40,7 @@ func (p *DataPage) ReadAll(r io.Reader) error {
 	if err != nil {
 		panic(err)
 	}
+	p.Debug = b
 	r = bytes.NewReader(b)
 	p.rb = bufio.NewReader(r)
 	return nil
@@ -113,8 +116,6 @@ func (p *DataPage) readDefinitionAndRepetitionLevels(rb *bufio.Reader) (repetiti
 			if err != nil {
 				return nil, nil, err
 			}
-
-			log.Println("GOT VALUES definition:", len(values), p.header.GetNumValues())
 
 			p.DefinitionLevels = values
 

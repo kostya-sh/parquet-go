@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/kostya-sh/parquet-go/parquet/page"
+	"github.com/kostya-sh/parquet-go/parquet/datatypes"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
@@ -89,16 +89,15 @@ func parquetType(t thrift.Type) Type {
 // Encoder
 type Encoder interface {
 	WriteRecords(records []map[string]interface{}) error
-
-	WriteInt32(name string, values []int32) error
-	WriteInt64(name string, values []int64) error
-	WriteFloat32(name string, values []float32) error
-	WriteFloat64(name string, values []float64) error
-	WriteByteArray(name string, values [][]byte) error
-
-	WriteBool(name string, values []bool) error
-
 	Close() error
+
+	// WriteInt32(name string, values []int32) error
+	// WriteInt64(name string, values []int64) error
+	// WriteFloat32(name string, values []float32) error
+	// WriteFloat64(name string, values []float64) error
+	// WriteByteArray(name string, values [][]byte) error
+
+	// WriteBool(name string, values []bool) error
 }
 
 // RowGroup
@@ -107,186 +106,79 @@ type RowGroup struct {
 }
 
 type defaultEncoder struct {
-	schema         *Schema
-	version        string
-	w              *thrift.CountingWriter
-	filemetadata   *thrift.FileMetaData
-	columnEncoders map[string]page.DataEncoder
-	rowgroups      []*RowGroup
+	io.WriteCloser
+	schema          *Schema
+	version         string
+	filemetadata    *thrift.FileMetaData
+	rowGroupEncoder *rowGroupEncoder
+	headerWritten   bool
+	recordBuffer    *datatypes.RecordBuffer
 }
 
 // NewEncoder
-func NewEncoder(schema *Schema, w io.Writer) Encoder {
-	return &defaultEncoder{
-		schema:         schema,
-		version:        "parquet-go", // FIXME
-		w:              thrift.NewCountingWriter(w),
-		filemetadata:   thrift.NewFileMetaData(),
-		columnEncoders: make(map[string]page.DataEncoder),
-		rowgroups:      make([]*RowGroup, 0, 5),
-	}
-}
-
-func (e *defaultEncoder) getColumnEncoder(name string) (page.DataEncoder, bool) {
-	enc, ok := e.columnEncoders[name]
-	if !ok {
-		// TODO have a better configuration strategy to choose the encoding algorithm
-		preferences := page.EncodingPreferences{CompressionCodec: "", Strategy: "default"}
-		enc = page.NewPageEncoder(preferences)
-		e.columnEncoders[name] = enc
+// TODO add ability to configure encoder behavior
+func NewEncoder(schema *Schema, w io.WriteCloser) Encoder {
+	enc := &defaultEncoder{
+		WriteCloser:     w,
+		schema:          schema,
+		version:         "parquet-go", // FIXME
+		filemetadata:    thrift.NewFileMetaData(),
+		rowGroupEncoder: newRowGroupEncoder(schema),
+		recordBuffer:    datatypes.NewRecordbuffer(schema.Elements()),
 	}
 
-	return enc, true
+	return enc
 }
 
 // WriteRecords will write all the values defined in the Schema found in the given records.
 // WriteRecords does not copy the values.
 func (e *defaultEncoder) WriteRecords(records []map[string]interface{}) error {
-
-	for colname, coldesc := range e.schema.columns {
-		var a accumulator
-
-		var accumulate func(interface{}) error
-
-		switch coldesc.SchemaElement.GetType() {
-		case thrift.Type_INT32:
-			accumulate = a.WriteInt32
-		case thrift.Type_INT64:
-			accumulate = a.WriteInt64
-		case thrift.Type_FLOAT:
-			accumulate = a.WriteFloat32
-		case thrift.Type_DOUBLE:
-			accumulate = a.WriteFloat64
-		case thrift.Type_BOOLEAN:
-			accumulate = a.WriteBoolean
-		case thrift.Type_INT96:
-			panic("not supported")
-		case thrift.Type_BYTE_ARRAY:
-			accumulate = a.WriteString
-		case thrift.Type_FIXED_LEN_BYTE_ARRAY:
-			accumulate = a.WriteString
-		default:
-			panic("type not supported")
+	if !e.headerWritten {
+		if err := e.writeHeader(); err != nil {
+			return fmt.Errorf("could not write header: %s", err)
 		}
-
-		for i := 0; i < len(records); i++ {
-			record := records[i]
-
-			value, ok := record[colname]
-			if !ok /*&& coldesc.IsRequired() */ {
-				// column not found in the schema. ignore
-				return fmt.Errorf("row %d does not have required field %s", i, colname)
-			}
-
-			if err := accumulate(value); err != nil {
-				return fmt.Errorf("invalid value %s: %s", colname, err)
-			}
-
-		}
-
-		var err error
-
-		switch coldesc.SchemaElement.GetType() {
-		case thrift.Type_INT32:
-			err = e.WriteInt32(colname, a.int32Buff)
-		case thrift.Type_INT64:
-			err = e.WriteInt64(colname, a.int64Buff)
-		case thrift.Type_FLOAT:
-			err = e.WriteFloat32(colname, a.float32Buff)
-		case thrift.Type_DOUBLE:
-			err = e.WriteFloat64(colname, a.float64Buff)
-		case thrift.Type_BOOLEAN:
-			err = e.WriteBool(colname, a.boolBuff)
-		case thrift.Type_INT96:
-			panic("not supported")
-		case thrift.Type_BYTE_ARRAY:
-			err = e.WriteByteArray(colname, a.byteArrayBuff)
-		case thrift.Type_FIXED_LEN_BYTE_ARRAY:
-			err = e.WriteByteArray(colname, a.byteArrayBuff)
-		default:
-			panic("type not supported")
-		}
-		if err != nil {
-			return fmt.Errorf("could not write column %s: %s", colname, err)
-		}
+		e.headerWritten = true
 	}
 
-	return nil
-}
-
-// WriteInt32
-func (e *defaultEncoder) WriteInt32(name string, values []int32) error {
-	enc, ok := e.getColumnEncoder(name)
-	if !ok {
-		return fmt.Errorf("invalid column %s", name)
+	for _, r := range records {
+		e.recordBuffer.Append(r)
 	}
-	return enc.WriteInt32(values)
-}
 
-// WriteInt64
-func (e *defaultEncoder) WriteInt64(name string, values []int64) error {
-	enc, ok := e.getColumnEncoder(name)
-	if !ok {
-		return fmt.Errorf("invalid column %s", name)
+	// TODO make this configurable
+	if e.recordBuffer.Len() < 1024 {
+		return nil
 	}
-	return enc.WriteInt64(values)
-}
 
-// WriteFloat32
-func (e *defaultEncoder) WriteFloat32(name string, values []float32) error {
-	enc, ok := e.getColumnEncoder(name)
-	if !ok {
-		return fmt.Errorf("invalid column %s", name)
+	// write the whole record buffer to the rowGroupEncoder
+	if err := e.recordBuffer.Write(e.rowGroupEncoder); err != nil {
+		return err
 	}
-	return enc.WriteFloat32(values)
-}
 
-// WriteFloat64
-func (e *defaultEncoder) WriteFloat64(name string, values []float64) error {
-	enc, ok := e.getColumnEncoder(name)
-	if !ok {
-		return fmt.Errorf("invalid column %s", name)
-	}
-	return enc.WriteFloat64(values)
-}
+	e.recordBuffer.Reset()
 
-// WriteByteArray
-func (e *defaultEncoder) WriteByteArray(name string, values [][]byte) error {
-	enc, ok := e.getColumnEncoder(name)
-	if !ok {
-		return fmt.Errorf("invalid column %s", name)
-	}
-	return enc.WriteByteArray(values)
-}
-
-// WriteBool
-func (e *defaultEncoder) WriteBool(name string, values []bool) error {
-	enc, ok := e.getColumnEncoder(name)
-	if !ok {
-		return fmt.Errorf("invalid column %s", name)
-	}
-	return enc.WriteBool(values)
+	return e.rowGroupEncoder.Write(e)
 }
 
 // Close writes all the pending data to the underlying stream.
 func (e *defaultEncoder) Close() error {
-	if err := writeHeader(e.w); err != nil {
-		return fmt.Errorf("could not write parquet header to stream: %s", err)
-	}
-
-	// for _, rowGroup := range e.rowgroups {
-	//
-	// }
-
-	// has to be in the same order of the schema
-	for _, colname := range e.schema.Columns() {
-		_, ok := e.getColumnEncoder(colname)
-		if !ok {
-			panic("should not have a column not encoded")
-		}
+	if err := e.writeHeader(); err != nil {
+		return err
 	}
 
 	// Write Metadata
+	err := writeFileMetadata(e, e.filemetadata)
+	if err != nil {
+		return err
+	}
+	return e.WriteCloser.Close()
+}
 
+func (e *defaultEncoder) writeHeader() error {
+	if !e.headerWritten {
+		if err := writeHeader(e); err != nil {
+			return fmt.Errorf("could not write header: %s", err)
+		}
+		e.headerWritten = true
+	}
 	return nil
 }

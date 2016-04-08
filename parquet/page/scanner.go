@@ -163,8 +163,6 @@ func (s *scanner) readPage(r io.Reader, header *thrift.PageHeader) error {
 	case thrift.PageType_DATA_PAGE:
 		s.totalRead += int(header.GetDataPageHeader().GetNumValues())
 
-		log.Println("num values in page:", header.GetDataPageHeader().GetNumValues(), "totalRead:", s.totalRead)
-
 		if !header.IsSetDataPageHeader() {
 			return fmt.Errorf("bad file format: DataPageHeader flag was not set")
 		}

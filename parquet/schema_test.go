@@ -31,8 +31,7 @@ func TestCreateSchema(t *testing.T) {
 	}
 
 	for _, tc := range specs {
-		err := s.AddColumn(tc)
-		if err != nil {
+		if err := s.AddColumnFromSpec(tc); err != nil {
 			t.Fatal(err)
 		}
 	}

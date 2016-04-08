@@ -58,6 +58,16 @@ func (s *Schema) Columns() []string {
 	return s.columnsSequence
 }
 
+func (s *Schema) Elements() []*thrift.SchemaElement {
+	elements := make([]*thrift.SchemaElement, 0, len(s.columns))
+
+	for _, colname := range s.columnsSequence {
+		elements = append(elements, s.columns[colname].SchemaElement)
+	}
+
+	return elements
+}
+
 // AddColumn adds a column with the given specifications format
 // format is
 //          name: type [original type] REQUIRED

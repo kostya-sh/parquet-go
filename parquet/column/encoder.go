@@ -2,7 +2,10 @@ package column
 
 import (
 	"bytes"
+	"io"
 
+	"github.com/kostya-sh/parquet-go/parquet/datatypes"
+	"github.com/kostya-sh/parquet-go/parquet/page"
 	"github.com/kostya-sh/parquet-go/parquet/thrift"
 )
 
@@ -10,13 +13,49 @@ import (
 
 //Encoder
 type Encoder struct {
-	Schema   *thrift.SchemaElement
-	Metadata *thrift.ColumnMetaData
+	Schema       *thrift.SchemaElement
+	Metadata     *thrift.ColumnMetaData
+	pageEncoder  page.PageEncoder
+	currentChunk *Chunk
+	buffer       []byte
+}
+
+type Preferences struct {
+	MemorySize int
+}
+
+func DefaultPreferences() *Preferences {
+	return &Preferences{
+		MemorySize: 1024 * 8, // 8MB
+	}
 }
 
 // NewEncoder
-func NewEncoder(schema *thrift.SchemaElement) *Encoder {
-	return &Encoder{Schema: schema, Metadata: thrift.NewColumnMetaData()}
+func NewEncoder(schema *thrift.SchemaElement, p *Preferences) *Encoder {
+	enc := &Encoder{Schema: schema, Metadata: thrift.NewColumnMetaData()}
+	preferences := page.EncodingPreferences{CompressionCodec: "", Strategy: "default"}
+	enc.pageEncoder = page.NewPageEncoder(preferences)
+
+	enc.buffer = make([]byte, 0, p.MemorySize)
+
+	enc.currentChunk = NewChunk(enc.Metadata, enc.buffer)
+
+	return enc
+}
+
+func (e *Encoder) CompressedSize() int64 {
+	return 0
+}
+
+// WriteBuffer writes the contents of b in the current ColumnChunk
+func (e *Encoder) WriteBuffer(b *datatypes.Buffer) error {
+
+	return nil
+}
+
+// WriteBuffer writes the contents of b in the current ColumnChunk
+func (e *Encoder) WriteChunk(w io.Writer) (*Chunk, error) {
+	return nil, nil
 }
 
 func NewColumnChunk(name string) (*thrift.ColumnChunk, bytes.Buffer) {

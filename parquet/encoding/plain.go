@@ -226,7 +226,7 @@ func (p *plainEncoder) Type() thrift.Encoding {
 }
 
 // WriteBool
-func (e *plainEncoder) WriteBool(w io.Writer, v []bool) error {
+func (e *plainEncoder) WriteBool(w io.Writer, v []bool) (int, error) {
 	e.numValues += len(v)
 	return rle.WriteBool(w, v)
 }

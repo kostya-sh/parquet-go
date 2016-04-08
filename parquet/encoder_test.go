@@ -76,7 +76,7 @@ func TestCodec(t *testing.T) {
 	schema.AddColumnFromSpec("timestamp: long REQUIRED")
 	schema.AddColumnFromSpec("temperature: int REQUIRED")
 
-	enc := NewEncoder(schema, &buff)
+	enc := NewEncoder(schema, NopCloser(&buff))
 
 	raw := []map[string]interface{}{
 		{"station": "011990-99999", "time": int64(-619524000000), "temp": int32(0)},
@@ -91,8 +91,7 @@ func TestCodec(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := enc.Close()
-	if err != nil {
+	if err := enc.Close(); err != nil {
 		t.Fatal(err)
 	}
 

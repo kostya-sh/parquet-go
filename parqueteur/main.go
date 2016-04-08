@@ -25,6 +25,7 @@ var commands = []*Command{
 	cmdMeta,
 	cmdSchema,
 	cmdDump,
+	cmdGenerate,
 }
 
 func usage() {

@@ -18,7 +18,7 @@ type Scanner struct {
 	chunks       []*thrift.ColumnChunk
 	cursor       int
 	err          error
-	currentChunk *chunk
+	currentChunk *Chunk
 }
 
 // NewScanner returns a Scanner that reads from r
@@ -77,7 +77,7 @@ func (s *Scanner) Scan() bool {
 
 	pageScanner := page.NewScanner(s.schema, meta.GetCodec(), r)
 
-	currentChunk := new(chunk)
+	currentChunk := new(Chunk)
 
 	currentChunk.numValues = meta.GetNumValues()
 
@@ -104,24 +104,6 @@ func (s *Scanner) Scan() bool {
 	s.cursor++
 
 	return true
-}
-
-type chunk struct {
-	numValues  int64
-	data       []*page.DataPage
-	dictionary *page.DictionaryPage
-	index      *page.IndexPage
-}
-
-func (c *chunk) Decode(acc memory.Accumulator) error {
-
-	for _, dataPage := range c.data {
-		if err := dataPage.Decode(c.dictionary, acc); err != nil {
-			return fmt.Errorf("dataPage: %s", err)
-		}
-	}
-
-	return nil
 }
 
 // NumValues returns the number of values in the current chunk

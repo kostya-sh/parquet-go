@@ -8,7 +8,7 @@ import (
 
 // Encoder interface
 type Encoder interface {
-	WriteBool(io.Writer, []bool) error
+	WriteBool(io.Writer, []bool) (int, error)
 	WriteInt32(io.Writer, []int32) error
 	WriteInt64(io.Writer, []int64) error
 	//WriteInt96([]int64, []int32) (count uint, err error)

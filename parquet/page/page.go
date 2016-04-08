@@ -209,7 +209,7 @@ func (e *defaultPageEncoder) Pages() []Page {
 }
 
 func (e *defaultPageEncoder) WriteBool(values []bool) error {
-	err := e.encoder.WriteBool(e.currentWriter, values)
+	_, err := e.encoder.WriteBool(e.currentWriter, values)
 	if err != nil {
 		return fmt.Errorf("defaultPageEncoder: could not write bool: %s", err)
 	}

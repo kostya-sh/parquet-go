@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
+	"os"
 )
+
+var l = log.New(os.Stdout, "parquet.encoding.rle: ", log.Llongfile)
 
 func dump(title string, r io.Reader) io.Reader {
 	return r
@@ -33,4 +37,10 @@ func dump(title string, r io.Reader) io.Reader {
 	}
 
 	return bytes.NewReader(b)
+}
+
+func debug(condition bool, format string, values ...interface{}) {
+	if condition {
+		l.Printf(format, values...)
+	}
 }
