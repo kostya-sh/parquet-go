@@ -12,8 +12,33 @@ import (
 // Levels struct combines definition level (D) and repetion level (R).
 type Levels struct {
 	// TODO: maybe use smaller type such as int8?
-	D int
-	R int
+	d int
+	r int
+}
+
+func NewLevels(d, r int) Levels {
+	if d < 0 || r < 0 {
+		panic("negative level values")
+	}
+	return Levels{d: d, r: r}
+}
+
+// D returns definition level
+func (l Levels) D() int {
+	return l.d
+}
+
+// R returns repetion level
+func (l Levels) R() int {
+	return l.r
+}
+
+// IsNull checks if the value in column col with the given levels is null.
+func (l Levels) IsNull(col Column) bool {
+	if l.d > col.maxLevels.d {
+		panic("levels mismatch")
+	}
+	return l.d < col.maxLevels.d
 }
 
 // Schema describes structure of the data that is stored in a parquet file.
@@ -21,6 +46,7 @@ type Levels struct {
 // A Schema can be created from a parquetformat.FileMetaData. Information that
 // is stored in RowGroups part of FileMetaData is not needed for the schema
 // creation.
+//
 // TODO(ksh): provide a way to read FileMetaData without RowGroups.
 //
 // Usually FileMetaData should be read from the same file as data. When data is
@@ -28,40 +54,38 @@ type Levels struct {
 // file. Usually this file is called "_common_metadata".
 type Schema struct {
 	root    group
-	columns []ColumnSchema
+	columns []Column
 }
 
-// ColumnSchema contains information about a single column in a parquet file.
-// TODO(ksh): or maybe interface?
-type ColumnSchema struct {
+// Column contains information about a single column in a parquet file.
+type Column struct {
 	index         int
 	name          string
 	maxLevels     Levels
 	schemaElement *parquetformat.SchemaElement
 }
 
-// Index is a 0-based index of cs in its schema.
+// Index is a 0-based index of col in its schema.
 //
 // Column chunks in a row group have the same order as columns in the schema.
-func (cs *ColumnSchema) Index() int {
-	return cs.index
+func (col Column) Index() int {
+	return col.index
 }
 
-// MaxLevels contains maximum definition and repetition levels for cs.
-// TODO: maybe MaxD and MaxR (and make Levels private)
-func (cs *ColumnSchema) MaxLevels() Levels {
-	return cs.maxLevels
+// MaxLevels contains maximum definition and repetition levels for col.
+func (col Column) MaxLevels() Levels {
+	return col.maxLevels
 }
 
-// SchemaFromFileMetaData creates a Schema from meta.
-func SchemaFromFileMetaData(meta *parquetformat.FileMetaData) (*Schema, error) {
+// MakeSchema creates a Schema from meta.
+func MakeSchema(meta *parquetformat.FileMetaData) (Schema, error) {
 	s := Schema{}
 	end, err := s.root.create(meta.Schema, 0)
 	if err != nil {
-		return nil, err
+		return s, err
 	}
 	if end != len(meta.Schema) {
-		return nil, fmt.Errorf("too many SchemaElements, only %d out of %d have been used",
+		return s, fmt.Errorf("too many SchemaElements, only %d out of %d have been used",
 			end, len(meta.Schema))
 	}
 
@@ -70,35 +94,34 @@ func SchemaFromFileMetaData(meta *parquetformat.FileMetaData) (*Schema, error) {
 		s.columns[i].index = i
 	}
 
-	return &s, nil
+	return s, nil
 }
 
 // ColumnByName returns a ColumnSchema with the given name (individual elements
 // are separated with ".") or nil if such column does not exist in s.
-func (s *Schema) ColumnByName(name string) *ColumnSchema {
+func (s Schema) ColumnByName(name string) (col Column, found bool) {
 	for i := range s.columns {
 		if s.columns[i].name == name {
-			return &s.columns[i]
+			return s.columns[i], true
 		}
 	}
-	return nil
+	return Column{}, false
 }
 
 // ColumnByPath returns a ColumnSchema for the given path or or nil if such
 // column does not exist in s.
-func (s *Schema) ColumnByPath(path []string) *ColumnSchema {
+func (s Schema) ColumnByPath(path []string) (col Column, found bool) {
 	return s.ColumnByName(strings.Join(path, "."))
 }
 
 // Columns returns ColumnSchemas for all columns defined in s.
-func (s *Schema) Columns() []ColumnSchema {
-	// TODO: maybe copy?
+func (s Schema) Columns() []Column {
 	return s.columns
 }
 
 // DisplayString returns a string representation of s using textual format
 // similar to that described in the Dremel paper and used by parquet-mr project.
-func (s *Schema) DisplayString() string {
+func (s Schema) DisplayString() string {
 	b := new(bytes.Buffer)
 	s.writeTo(b, "")
 	return b.String()
@@ -205,31 +228,31 @@ func (g *group) writeTo(w io.Writer, indent string) {
 	g.marshalChildren(w, indent)
 }
 
-func (g *group) collectColumns() []ColumnSchema {
-	var cols = make([]ColumnSchema, 0, len(g.children))
+func (g *group) collectColumns() []Column {
+	var cols = make([]Column, 0, len(g.children))
 	for _, child := range g.children {
 		switch c := child.(type) {
 		case *primitive:
 			s := c.schemaElement
 			var levels Levels
 			if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
-				levels.D = 1
+				levels.d = 1
 			}
 			if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
-				levels.R = 1
+				levels.r = 1
 			}
-			cols = append(cols, ColumnSchema{name: s.Name, maxLevels: levels, schemaElement: s})
+			cols = append(cols, Column{name: s.Name, maxLevels: levels, schemaElement: s})
 		case *group:
 			s := c.schemaElement
-			for _, cs := range c.collectColumns() {
+			for _, col := range c.collectColumns() {
 				if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
-					cs.maxLevels.D++
+					col.maxLevels.d++
 				}
 				if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
-					cs.maxLevels.R++
+					col.maxLevels.r++
 				}
-				cs.name = s.Name + "." + cs.name
-				cols = append(cols, cs)
+				col.name = s.Name + "." + col.name
+				cols = append(cols, col)
 			}
 		default:
 			panic("unexpected child type")

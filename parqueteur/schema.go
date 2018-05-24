@@ -34,7 +34,7 @@ func runSchema(cmd *Command, args []string) error {
 
 	// fmt.Printf("%+v\n\n", meta.Schema)
 
-	schema, err := parquet.SchemaFromFileMetaData(meta)
+	schema, err := parquet.MakeSchema(meta)
 	if err != nil {
 		return err
 	}

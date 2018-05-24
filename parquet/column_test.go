@@ -25,7 +25,7 @@ func checkColumnValues(t *testing.T, path string, c int, expected []cell) {
 		t.Errorf("failed to read metadata: %s", err)
 		return
 	}
-	schema, err := SchemaFromFileMetaData(m)
+	schema, err := MakeSchema(m)
 	if err != nil {
 		t.Errorf("failed to create schema: %s", err)
 		return
@@ -34,19 +34,19 @@ func checkColumnValues(t *testing.T, path string, c int, expected []cell) {
 	k := 0
 	for i, rg := range m.RowGroups {
 		cc := rg.Columns[c]
-		cs := schema.ColumnByPath(cc.MetaData.PathInSchema)
-		if cs == nil {
+		col, found := schema.ColumnByPath(cc.MetaData.PathInSchema)
+		if !found {
 			t.Errorf("column %d: no schema", c)
 			return
 		}
-		cr, err := NewColumnChunkReader(r, *cs, *cc)
+		cr, err := NewColumnChunkReader(r, col, *cc)
 		if err != nil {
 			t.Errorf("column %d: failed to create reader for row group %d: %s", c, i, err)
 			return
 		}
 		for cr.Next() {
 			if k < len(expected) {
-				got := cell{cr.Levels().D, cr.Levels().R, cr.Value()}
+				got := cell{cr.Levels().D(), cr.Levels().R(), cr.Value()}
 				if !reflect.DeepEqual(got, expected[k]) {
 					t.Errorf("column %d: value at pos %d = %#v, want %#v", c, k, got, expected[k])
 				}

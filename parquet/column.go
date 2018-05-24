@@ -29,16 +29,16 @@ func (r *countingReader) Read(p []byte) (n int, err error) {
 }
 
 // NewColumnChunkReader creates a ColumnChunkReader to read cc from r.
-func NewColumnChunkReader(r io.ReadSeeker, cs ColumnSchema, cc parquetformat.ColumnChunk) (ColumnChunkReader, error) {
-	if ccName := strings.Join(cc.MetaData.PathInSchema, "."); ccName != cs.name {
-		return nil, fmt.Errorf("column schema for %s and column chunk for %s do not match", cs.name, ccName)
+func NewColumnChunkReader(r io.ReadSeeker, col Column, cc parquetformat.ColumnChunk) (ColumnChunkReader, error) {
+	if ccName := strings.Join(cc.MetaData.PathInSchema, "."); ccName != col.name {
+		return nil, fmt.Errorf("column schema for %s and column chunk for %s do not match", col.name, ccName)
 	}
-	switch cs.schemaElement.GetType() {
+	switch col.schemaElement.GetType() {
 	case parquetformat.Type_BOOLEAN:
-		return newBooleanColumnChunkReader(r, cs, cc)
+		return newBooleanColumnChunkReader(r, col, cc)
 	case parquetformat.Type_BYTE_ARRAY:
-		return newByteArrayColumnChunkReader(r, cs, cc)
+		return newByteArrayColumnChunkReader(r, col, cc)
 	default:
-		return nil, fmt.Errorf("Type %s not yet supported", cs.schemaElement.GetType())
+		return nil, fmt.Errorf("Type %s not yet supported", col.schemaElement.GetType())
 	}
 }

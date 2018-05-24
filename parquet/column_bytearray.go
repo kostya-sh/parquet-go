@@ -64,7 +64,7 @@ type byteArrayColumnChunkReader struct {
 	rDecoder *rle32Decoder
 }
 
-func newByteArrayColumnChunkReader(r io.ReadSeeker, cs ColumnSchema, chunk parquetformat.ColumnChunk) (*byteArrayColumnChunkReader, error) {
+func newByteArrayColumnChunkReader(r io.ReadSeeker, col Column, chunk parquetformat.ColumnChunk) (*byteArrayColumnChunkReader, error) {
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("data in another file: '%s'", *chunk.FilePath)
 	}
@@ -80,7 +80,7 @@ func newByteArrayColumnChunkReader(r io.ReadSeeker, cs ColumnSchema, chunk parqu
 		return nil, fmt.Errorf("wrong type, expected BYTE_ARRAY was %s", meta.Type)
 	}
 
-	schemaElement := cs.schemaElement
+	schemaElement := col.schemaElement
 	if schemaElement.RepetitionType == nil {
 		return nil, fmt.Errorf("nil RepetitionType (root SchemaElement?)")
 	}
@@ -96,7 +96,7 @@ func newByteArrayColumnChunkReader(r io.ReadSeeker, cs ColumnSchema, chunk parqu
 		r:              &countingReader{rs: r},
 		totalSize:      meta.TotalCompressedSize,
 		dataPageOffset: meta.DataPageOffset,
-		maxLevels:      cs.maxLevels,
+		maxLevels:      col.maxLevels,
 		decoder:        newByteArrayPlainDecoder(),
 	}
 
@@ -104,19 +104,19 @@ func newByteArrayColumnChunkReader(r io.ReadSeeker, cs ColumnSchema, chunk parqu
 		// TODO: also check that len(Path) = maxD
 		// For data that is required, the definition levels are not encoded and
 		// always have the value of the max definition level.
-		cr.curLevels.D = cr.maxLevels.D
+		cr.curLevels.d = cr.maxLevels.d
 		// TODO: document level ranges
 	} else {
-		cr.dDecoder = newRLE32Decoder(bitWidth(cr.maxLevels.D))
+		cr.dDecoder = newRLE32Decoder(bitWidth(cr.maxLevels.d))
 	}
-	if cr.curLevels.D == 0 && *schemaElement.RepetitionType != parquetformat.FieldRepetitionType_REPEATED {
+	if cr.curLevels.d == 0 && *schemaElement.RepetitionType != parquetformat.FieldRepetitionType_REPEATED {
 		// TODO: I think we need to check all schemaElements in the path
-		cr.curLevels.R = 0
+		cr.curLevels.r = 0
 		// TODO: clarify the following comment from parquet-format/README:
 		// If the column is not nested the repetition levels are not encoded and
 		// always have the value of 1
 	} else {
-		cr.rDecoder = newRLE32Decoder(bitWidth(cr.maxLevels.R))
+		cr.rDecoder = newRLE32Decoder(bitWidth(cr.maxLevels.r))
 	}
 
 	return &cr, nil
@@ -227,13 +227,13 @@ func (cr *byteArrayColumnChunkReader) Next() bool {
 	// TODO: hasNext and error checking
 	if cr.dDecoder != nil {
 		d, _ := cr.dDecoder.next()
-		cr.curLevels.D = int(d)
+		cr.curLevels.d = int(d)
 	}
 	if cr.rDecoder != nil {
 		r, _ := cr.rDecoder.next()
-		cr.curLevels.R = int(r)
+		cr.curLevels.r = int(r)
 	}
-	if cr.curLevels.D == cr.maxLevels.D {
+	if cr.curLevels.d == cr.maxLevels.d {
 		cr.curValue, cr.err = cr.decoder.next()
 		if cr.err != nil {
 			return false

@@ -95,7 +95,7 @@ func TestCreateInvalidSchemas(t *testing.T) {
 	}
 
 	for _, meta := range invalidFileMetaDatas {
-		_, err := SchemaFromFileMetaData(meta)
+		_, err := MakeSchema(meta)
 		if err == nil {
 			t.Errorf("Error expected for %+v", meta)
 		} else {
@@ -104,8 +104,8 @@ func TestCreateInvalidSchemas(t *testing.T) {
 	}
 }
 
-func mustCreateSchema(meta *pf.FileMetaData) *Schema {
-	s, err := SchemaFromFileMetaData(meta)
+func mustCreateSchema(meta *pf.FileMetaData) Schema {
+	s, err := MakeSchema(meta)
 	if err != nil {
 		panic(err)
 	}
@@ -252,30 +252,20 @@ var dremelPaperExampleMeta = createFileMetaData(
 func TestSchemaColumns(t *testing.T) {
 	s := mustCreateSchema(dremelPaperExampleMeta)
 
-	eq := func(a *ColumnSchema, b *ColumnSchema) bool {
-		if a == nil && b == nil {
-			return true
-		}
-		if a == nil || b == nil {
-			return false
-		}
-		return *a == *b
-	}
-
-	check := func(path []string, expected *ColumnSchema) {
+	check := func(path []string, expected *Column) {
 		name := strings.Join(path, ".")
-		cs := s.ColumnByPath(path)
-		cs2 := s.ColumnByName(name)
-		if !eq(cs, cs2) {
-			t.Errorf("ColumnByPath(%v) = %+v is not the same as ColumnByName(%s) = %+v", path, cs, name, cs2)
+		col, found := s.ColumnByPath(path)
+		col2, found2 := s.ColumnByName(name)
+		if found != found2 || col != col2 {
+			t.Errorf("ColumnByPath(%v) = %+v is not the same as ColumnByName(%s) = %+v", path, col, name, col2)
 		}
-		if !eq(cs, expected) {
-			t.Errorf("wrong ColumnSchema for %v: got %+v, want %+v", path, cs, expected)
+		if (expected == nil && found) || (expected != nil && *expected != col) {
+			t.Errorf("wrong ColumnSchema for %v: got %+v, want %+v", path, col, expected)
 		}
 	}
 
 	// required non-nested field
-	check([]string{"DocId"}, &ColumnSchema{
+	check([]string{"DocId"}, &Column{
 		index:         0,
 		name:          "DocId",
 		maxLevels:     Levels{0, 0},
@@ -283,40 +273,40 @@ func TestSchemaColumns(t *testing.T) {
 	})
 
 	// optional/repeated
-	check([]string{"Links", "Backward"}, &ColumnSchema{
+	check([]string{"Links", "Backward"}, &Column{
 		index:         1,
 		name:          "Links.Backward",
-		maxLevels:     Levels{D: 2, R: 1},
+		maxLevels:     Levels{d: 2, r: 1},
 		schemaElement: dremelPaperExampleMeta.Schema[3],
 	})
-	check([]string{"Links", "Forward"}, &ColumnSchema{
+	check([]string{"Links", "Forward"}, &Column{
 		index:         2,
 		name:          "Links.Forward",
-		maxLevels:     Levels{D: 2, R: 1},
+		maxLevels:     Levels{d: 2, r: 1},
 		schemaElement: dremelPaperExampleMeta.Schema[4],
 	})
 
 	// repeated/repeated/required
-	check([]string{"Name", "Language", "Code"}, &ColumnSchema{
+	check([]string{"Name", "Language", "Code"}, &Column{
 		index:         3,
 		name:          "Name.Language.Code",
-		maxLevels:     Levels{D: 2, R: 2},
+		maxLevels:     Levels{d: 2, r: 2},
 		schemaElement: dremelPaperExampleMeta.Schema[7],
 	})
 
 	// repeated/repeated/optional
-	check([]string{"Name", "Language", "Country"}, &ColumnSchema{
+	check([]string{"Name", "Language", "Country"}, &Column{
 		index:         4,
 		name:          "Name.Language.Country",
-		maxLevels:     Levels{D: 3, R: 2},
+		maxLevels:     Levels{d: 3, r: 2},
 		schemaElement: dremelPaperExampleMeta.Schema[8],
 	})
 
 	// repeated/optional
-	check([]string{"Name", "Url"}, &ColumnSchema{
+	check([]string{"Name", "Url"}, &Column{
 		index:         5,
 		name:          "Name.Url",
-		maxLevels:     Levels{D: 2, R: 1},
+		maxLevels:     Levels{d: 2, r: 1},
 		schemaElement: dremelPaperExampleMeta.Schema[9],
 	})
 
@@ -328,9 +318,9 @@ func TestSchemaColumns(t *testing.T) {
 	if len(cols) != 6 {
 		t.Errorf("len(Columns()) = %d, want 6", len(cols))
 	}
-	for i, cs := range cols {
-		if cs.Index() != i {
-			t.Errorf("Index(%v) = %d, want %d", cs, cs.Index(), i)
+	for i, col := range cols {
+		if col.Index() != i {
+			t.Errorf("Index(%v) = %d, want %d", col, col.Index(), i)
 		}
 	}
 }

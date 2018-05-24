@@ -39,28 +39,28 @@ func runDump(cmd *Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	schema, err := parquet.SchemaFromFileMetaData(m)
+	schema, err := parquet.MakeSchema(m)
 	if err != nil {
 		return err
 	}
-	cs := schema.ColumnByName(dumpColumn)
-	if cs == nil {
+	col, found := schema.ColumnByName(dumpColumn)
+	if !found {
 		return fmt.Errorf("no column named '%s' in schema", dumpColumn)
 	}
 
 	for i, rg := range m.RowGroups {
-		if cs.Index() > len(rg.Columns) {
+		if col.Index() > len(rg.Columns) {
 			return fmt.Errorf("not enough column chunks in rowgroup %d", i)
 		}
-		var cc = rg.Columns[cs.Index()]
-		cr, err := parquet.NewColumnChunkReader(r, *cs, *cc)
+		var cc = rg.Columns[col.Index()]
+		cr, err := parquet.NewColumnChunkReader(r, col, *cc)
 		if err != nil {
 			return err
 		}
 		for cr.Next() {
 			levels := cr.Levels()
 			value := cr.Value()
-			notNull := levels.D == cs.MaxLevels().D
+			notNull := !levels.IsNull(col)
 			if notNull {
 				fmt.Print(value)
 			}
@@ -69,7 +69,7 @@ func runDump(cmd *Command, args []string) error {
 				if notNull {
 					fmt.Printf(" ")
 				}
-				fmt.Printf("(D:%d; R:%d)", levels.D, levels.R)
+				fmt.Printf("(D:%d; R:%d)", levels.D(), levels.R())
 			}
 			fmt.Println()
 
