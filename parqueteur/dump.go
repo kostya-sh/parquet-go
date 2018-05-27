@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/kostya-sh/parquet-go/parquet"
 )
@@ -29,53 +28,50 @@ func runDump(cmd *Command, args []string) error {
 		return fmt.Errorf("No files")
 	}
 
-	r, err := os.Open(args[0])
+	f, err := parquet.OpenFile(args[0])
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer f.Close()
 
-	m, err := parquet.ReadFileMetaData(r)
-	if err != nil {
-		return err
-	}
-	schema, err := parquet.MakeSchema(m)
-	if err != nil {
-		return err
-	}
-	col, found := schema.ColumnByName(dumpColumn)
+	col, found := f.Schema.ColumnByName(dumpColumn)
 	if !found {
 		return fmt.Errorf("no column named '%s' in schema", dumpColumn)
 	}
 
-	for i, rg := range m.RowGroups {
-		if col.Index() > len(rg.Columns) {
-			return fmt.Errorf("not enough column chunks in rowgroup %d", i)
-		}
-		var cc = rg.Columns[col.Index()]
-		cr, err := parquet.NewColumnChunkReader(r, col, *cc)
+	const batch = 16
+	values := make([]interface{}, batch, batch)
+	dLevels := make([]int, batch, batch)
+	rLevels := make([]int, batch, batch)
+	var n int
+	for rg, _ := range f.MetaData.RowGroups {
+		cr, err := f.NewReader(col, rg)
 		if err != nil {
 			return err
 		}
-		for cr.Next() {
-			d, r := cr.D(), cr.R()
-			value := cr.Value()
-			notNull := d == col.MaxD()
-			if notNull {
-				fmt.Print(value)
-			}
-			// TODO: consider customizing null value via command lines
-			if showLevels {
-				if notNull {
-					fmt.Printf(" ")
-				}
-				fmt.Printf("(D:%d; R:%d)", d, r)
-			}
-			fmt.Println()
 
-		}
-		if cr.Err() != nil {
-			return cr.Err()
+		for err != parquet.EndOfChunk {
+			n, err = cr.Read(values, dLevels, rLevels)
+			if err != nil && err != parquet.EndOfChunk {
+				return err
+			}
+
+			for i, vi := 0, 0; i < n; i++ {
+				d, r := dLevels[i], rLevels[i]
+				notNull := d == col.MaxD()
+				if notNull {
+					fmt.Print(values[vi])
+					vi++
+				}
+				// TODO: consider customizing null value via command lines
+				if showLevels {
+					if notNull {
+						fmt.Printf(" ")
+					}
+					fmt.Printf("(D:%d; R:%d)", d, r)
+				}
+				fmt.Println()
+			}
 		}
 	}
 

@@ -9,13 +9,6 @@ import (
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
-// Levels struct combines definition level (D) and repetion level (R).
-type levels struct {
-	// TODO: maybe use smaller type such as int8?
-	d int
-	r int
-}
-
 // Schema describes structure of the data that is stored in a parquet file.
 //
 // A Schema can be created from a parquetformat.FileMetaData. Information that
@@ -36,7 +29,8 @@ type Schema struct {
 type Column struct {
 	index         int
 	name          string
-	maxLevels     levels
+	maxD          int
+	maxR          int
 	schemaElement *parquetformat.SchemaElement
 }
 
@@ -48,11 +42,11 @@ func (col Column) Index() int {
 }
 
 func (col Column) MaxD() int {
-	return col.maxLevels.d
+	return col.maxD
 }
 
 func (col Column) MaxR() int {
-	return col.maxLevels.r
+	return col.maxR
 }
 
 // MakeSchema creates a Schema from meta.
@@ -212,22 +206,22 @@ func (g *group) collectColumns() []Column {
 		switch c := child.(type) {
 		case *primitive:
 			s := c.schemaElement
-			var levels levels
+			var d, r int
 			if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
-				levels.d = 1
+				d = 1
 			}
 			if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
-				levels.r = 1
+				r = 1
 			}
-			cols = append(cols, Column{name: s.Name, maxLevels: levels, schemaElement: s})
+			cols = append(cols, Column{name: s.Name, maxD: d, maxR: r, schemaElement: s})
 		case *group:
 			s := c.schemaElement
 			for _, col := range c.collectColumns() {
 				if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
-					col.maxLevels.d++
+					col.maxD++
 				}
 				if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
-					col.maxLevels.r++
+					col.maxR++
 				}
 				col.name = s.Name + "." + col.name
 				cols = append(cols, col)

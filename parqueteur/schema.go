@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/kostya-sh/parquet-go/parquet"
 )
@@ -21,23 +20,12 @@ func runSchema(cmd *Command, args []string) error {
 		return fmt.Errorf("No files")
 	}
 
-	r, err := os.Open(args[0])
+	f, err := parquet.OpenFile(args[0])
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer f.Close()
 
-	meta, err := parquet.ReadFileMetaData(r)
-	if err != nil {
-		return err
-	}
-
-	// fmt.Printf("%+v\n\n", meta.Schema)
-
-	schema, err := parquet.MakeSchema(meta)
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Println(schema.DisplayString())
+	_, err = fmt.Println(f.Schema.DisplayString())
 	return err
 }

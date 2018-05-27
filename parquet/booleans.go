@@ -7,7 +7,7 @@ import "fmt"
 type booleanPlainDecoder struct {
 	data []byte
 
-	pos    int
+	i      int
 	values [8]int32
 }
 
@@ -17,20 +17,41 @@ func newBooleanPlainDecoder() *booleanPlainDecoder {
 
 func (d *booleanPlainDecoder) init(data []byte) {
 	d.data = data
-	d.pos = 0
+	d.i = 0
 }
 
-func (d *booleanPlainDecoder) next() (value bool, err error) {
-	if d.pos >= len(d.data)*8 { // TODO: this can overflow, reimplement
-		return false, fmt.Errorf("boolean/plain: no more data")
+func (d *booleanPlainDecoder) decode(slice interface{}) (n int, err error) {
+	switch buf := slice.(type) {
+	case []bool:
+		return d.decodeBool(buf)
+	case []interface{}:
+		return d.decodeE(buf)
+	default:
+		panic("invalid argument")
 	}
-	if d.pos%8 == 0 {
-		d.values = unpack8int32_1(d.data[d.pos/8 : d.pos/8+1])
+}
+
+func (d *booleanPlainDecoder) decodeBool(buf []bool) (n int, err error) {
+	i := 0
+	for i < len(buf) && d.i < 8*len(d.data) { // TODO: think overflow (*8)
+		if d.i%8 == 0 {
+			d.values = unpack8int32_1(d.data[d.i/8 : d.i/8+1])
+		}
+		buf[i] = d.values[d.i%8] == 1
+		d.i++
+		i++
 	}
-	value = false
-	if d.values[d.pos%8] == 1 {
-		value = true
+	if i == 0 {
+		err = fmt.Errorf("boolean/plain: no more data")
 	}
-	d.pos++
-	return
+	return i, err
+}
+
+func (d *booleanPlainDecoder) decodeE(buf []interface{}) (n int, err error) {
+	b := make([]bool, len(buf), len(buf))
+	n, err = d.decodeBool(b)
+	for i := 0; i < n; i++ {
+		buf[i] = b[i]
+	}
+	return n, err
 }
