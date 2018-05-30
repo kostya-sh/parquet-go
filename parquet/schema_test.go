@@ -268,7 +268,7 @@ func TestSchemaColumns(t *testing.T) {
 	check([]string{"DocId"}, &Column{
 		index:         0,
 		name:          "DocId",
-		maxLevels:     Levels{0, 0},
+		maxLevels:     levels{0, 0},
 		schemaElement: dremelPaperExampleMeta.Schema[1],
 	})
 
@@ -276,13 +276,13 @@ func TestSchemaColumns(t *testing.T) {
 	check([]string{"Links", "Backward"}, &Column{
 		index:         1,
 		name:          "Links.Backward",
-		maxLevels:     Levels{d: 2, r: 1},
+		maxLevels:     levels{d: 2, r: 1},
 		schemaElement: dremelPaperExampleMeta.Schema[3],
 	})
 	check([]string{"Links", "Forward"}, &Column{
 		index:         2,
 		name:          "Links.Forward",
-		maxLevels:     Levels{d: 2, r: 1},
+		maxLevels:     levels{d: 2, r: 1},
 		schemaElement: dremelPaperExampleMeta.Schema[4],
 	})
 
@@ -290,7 +290,7 @@ func TestSchemaColumns(t *testing.T) {
 	check([]string{"Name", "Language", "Code"}, &Column{
 		index:         3,
 		name:          "Name.Language.Code",
-		maxLevels:     Levels{d: 2, r: 2},
+		maxLevels:     levels{d: 2, r: 2},
 		schemaElement: dremelPaperExampleMeta.Schema[7],
 	})
 
@@ -298,7 +298,7 @@ func TestSchemaColumns(t *testing.T) {
 	check([]string{"Name", "Language", "Country"}, &Column{
 		index:         4,
 		name:          "Name.Language.Country",
-		maxLevels:     Levels{d: 3, r: 2},
+		maxLevels:     levels{d: 3, r: 2},
 		schemaElement: dremelPaperExampleMeta.Schema[8],
 	})
 
@@ -306,7 +306,7 @@ func TestSchemaColumns(t *testing.T) {
 	check([]string{"Name", "Url"}, &Column{
 		index:         5,
 		name:          "Name.Url",
-		maxLevels:     Levels{d: 2, r: 1},
+		maxLevels:     levels{d: 2, r: 1},
 		schemaElement: dremelPaperExampleMeta.Schema[9],
 	})
 

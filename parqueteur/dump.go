@@ -58,9 +58,9 @@ func runDump(cmd *Command, args []string) error {
 			return err
 		}
 		for cr.Next() {
-			levels := cr.Levels()
+			d, r := cr.D(), cr.R()
 			value := cr.Value()
-			notNull := !levels.IsNull(col)
+			notNull := d == col.MaxD()
 			if notNull {
 				fmt.Print(value)
 			}
@@ -69,7 +69,7 @@ func runDump(cmd *Command, args []string) error {
 				if notNull {
 					fmt.Printf(" ")
 				}
-				fmt.Printf("(D:%d; R:%d)", levels.D(), levels.R())
+				fmt.Printf("(D:%d; R:%d)", d, r)
 			}
 			fmt.Println()
 

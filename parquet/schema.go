@@ -10,35 +10,10 @@ import (
 )
 
 // Levels struct combines definition level (D) and repetion level (R).
-type Levels struct {
+type levels struct {
 	// TODO: maybe use smaller type such as int8?
 	d int
 	r int
-}
-
-func NewLevels(d, r int) Levels {
-	if d < 0 || r < 0 {
-		panic("negative level values")
-	}
-	return Levels{d: d, r: r}
-}
-
-// D returns definition level
-func (l Levels) D() int {
-	return l.d
-}
-
-// R returns repetion level
-func (l Levels) R() int {
-	return l.r
-}
-
-// IsNull checks if the value in column col with the given levels is null.
-func (l Levels) IsNull(col Column) bool {
-	if l.d > col.maxLevels.d {
-		panic("levels mismatch")
-	}
-	return l.d < col.maxLevels.d
 }
 
 // Schema describes structure of the data that is stored in a parquet file.
@@ -61,7 +36,7 @@ type Schema struct {
 type Column struct {
 	index         int
 	name          string
-	maxLevels     Levels
+	maxLevels     levels
 	schemaElement *parquetformat.SchemaElement
 }
 
@@ -72,9 +47,12 @@ func (col Column) Index() int {
 	return col.index
 }
 
-// MaxLevels contains maximum definition and repetition levels for col.
-func (col Column) MaxLevels() Levels {
-	return col.maxLevels
+func (col Column) MaxD() int {
+	return col.maxLevels.d
+}
+
+func (col Column) MaxR() int {
+	return col.maxLevels.r
 }
 
 // MakeSchema creates a Schema from meta.
@@ -234,7 +212,7 @@ func (g *group) collectColumns() []Column {
 		switch c := child.(type) {
 		case *primitive:
 			s := c.schemaElement
-			var levels Levels
+			var levels levels
 			if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
 				levels.d = 1
 			}

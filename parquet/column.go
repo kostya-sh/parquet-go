@@ -12,7 +12,8 @@ import (
 // parquet column chunk.
 type ColumnChunkReader interface {
 	Next() bool
-	Levels() Levels
+	R() int
+	D() int
 	Value() interface{}
 	Err() error
 }

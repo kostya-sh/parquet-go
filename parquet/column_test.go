@@ -46,7 +46,7 @@ func checkColumnValues(t *testing.T, path string, c int, expected []cell) {
 		}
 		for cr.Next() {
 			if k < len(expected) {
-				got := cell{cr.Levels().D(), cr.Levels().R(), cr.Value()}
+				got := cell{cr.D(), cr.R(), cr.Value()}
 				if !reflect.DeepEqual(got, expected[k]) {
 					t.Errorf("column %d: value at pos %d = %#v, want %#v", c, k, got, expected[k])
 				}
