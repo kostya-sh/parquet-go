@@ -18,8 +18,6 @@ var (
 
 // ColumnChunkReader allows to read data from a single column chunk of a parquet
 // file.
-//
-// TODO: think about skip/seek API
 type ColumnChunkReader struct {
 	col Column
 
@@ -247,6 +245,20 @@ func (cr *ColumnChunkReader) Read(values interface{}, dLevels []int, rLevels []i
 	}
 
 	return n, nil
+}
+
+// SkipPage positions cr at the beginning of the next page skipping all values
+// in the current page.
+//
+// Returns EndOfChunk if no more data available
+func (cr *ColumnChunkReader) SkipPage() error {
+	if cr.reader.n == cr.chunkMeta.TotalUncompressedSize { // TODO: maybe use chunkMeta.NumValues
+		cr.err = EndOfChunk
+	} else {
+		// TODO: read data lazily only if Read is called
+		cr.err = cr.readPage()
+	}
+	return cr.err
 }
 
 // PageHeader returns PageHeader of a page that is about to be read or
