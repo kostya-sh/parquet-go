@@ -262,7 +262,9 @@ func (p *primitive) create(schema []*parquetformat.SchemaElement, start int) (in
 	if t == parquetformat.Type_FIXED_LEN_BYTE_ARRAY {
 		if s.TypeLength == nil {
 			return 0, fmt.Errorf("schema[%d].TypeLength = nil for type FIXED_LEN_BYTE_ARRAY", start)
-			// TODO: check length is positive
+		}
+		if *s.TypeLength <= 0 {
+			return 0, fmt.Errorf("schema[%d].TypeLength = %d", start, *s.TypeLength)
 		}
 	}
 

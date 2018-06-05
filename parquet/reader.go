@@ -132,6 +132,14 @@ func (cr *ColumnChunkReader) readPage() error {
 			return fmt.Errorf("unsupported encoding %s for BYTE_ARRAY type", dph.Encoding)
 		}
 
+	case parquetformat.Type_FIXED_LEN_BYTE_ARRAY:
+		switch dph.Encoding {
+		case parquetformat.Encoding_PLAIN:
+			cr.valuesDecoder = &byteArrayPlainDecoder{length: int(*cr.col.schemaElement.TypeLength)}
+		default:
+			return fmt.Errorf("unsupported encoding %s for BYTE_ARRAY type", dph.Encoding)
+		}
+
 	default:
 		return fmt.Errorf("unsupported type: %s", typ)
 	}

@@ -6,6 +6,8 @@ import (
 )
 
 type byteArrayPlainDecoder struct {
+	length int
+
 	data []byte
 
 	pos int
@@ -17,11 +19,14 @@ func (d *byteArrayPlainDecoder) init(data []byte) {
 }
 
 func (d *byteArrayPlainDecoder) next() (value []byte, err error) {
-	if d.pos > len(d.data)-4 {
-		return nil, fmt.Errorf("bytearray/plain: no more data")
+	size := d.length
+	if d.length == 0 {
+		if d.pos > len(d.data)-4 {
+			return nil, fmt.Errorf("bytearray/plain: no more data")
+		}
+		size = int(binary.LittleEndian.Uint32(d.data[d.pos:])) // TODO: think about int overflow here
+		d.pos += 4
 	}
-	size := int(binary.LittleEndian.Uint32(d.data[d.pos:])) // TODO: think about int overflow here
-	d.pos += 4
 	if d.pos > len(d.data)-size {
 		return nil, fmt.Errorf("bytearray/plain: not enough data")
 	}
@@ -33,6 +38,7 @@ func (d *byteArrayPlainDecoder) next() (value []byte, err error) {
 }
 
 func (d *byteArrayPlainDecoder) decode(slice interface{}) (n int, err error) {
+	// TODO: support string
 	switch buf := slice.(type) {
 	case [][]byte:
 		return d.decodeByteSlice(buf)
