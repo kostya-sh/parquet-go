@@ -121,7 +121,7 @@ func (cr *ColumnChunkReader) readPage() error {
 		case parquetformat.Encoding_PLAIN:
 			cr.valuesDecoder = &booleanPlainDecoder{}
 		default:
-			return fmt.Errorf("unsupported encoding %s for BOOLEAN type", dph.Encoding)
+			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
 		}
 
 	case parquetformat.Type_BYTE_ARRAY:
@@ -129,7 +129,7 @@ func (cr *ColumnChunkReader) readPage() error {
 		case parquetformat.Encoding_PLAIN:
 			cr.valuesDecoder = &byteArrayPlainDecoder{}
 		default:
-			return fmt.Errorf("unsupported encoding %s for BYTE_ARRAY type", dph.Encoding)
+			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
 		}
 
 	case parquetformat.Type_FIXED_LEN_BYTE_ARRAY:
@@ -137,7 +137,23 @@ func (cr *ColumnChunkReader) readPage() error {
 		case parquetformat.Encoding_PLAIN:
 			cr.valuesDecoder = &byteArrayPlainDecoder{length: int(*cr.col.schemaElement.TypeLength)}
 		default:
-			return fmt.Errorf("unsupported encoding %s for BYTE_ARRAY type", dph.Encoding)
+			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
+		}
+
+	case parquetformat.Type_FLOAT:
+		switch dph.Encoding {
+		case parquetformat.Encoding_PLAIN:
+			cr.valuesDecoder = &floatPlainDecoder{}
+		default:
+			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
+		}
+
+	case parquetformat.Type_DOUBLE:
+		switch dph.Encoding {
+		case parquetformat.Encoding_PLAIN:
+			cr.valuesDecoder = &doublePlainDecoder{}
+		default:
+			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
 		}
 
 	default:
