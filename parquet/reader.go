@@ -36,12 +36,6 @@ type ColumnChunkReader struct {
 }
 
 func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col Column, chunk *parquetformat.ColumnChunk) (*ColumnChunkReader, error) {
-	schemaElement := col.schemaElement
-	if schemaElement.RepetitionType == nil {
-		// TODO: maybe panic and validate in MakeSchema?
-		return nil, fmt.Errorf("column has nil RepetitionType (root SchemaElement?)")
-	}
-
 	if chunk.FilePath != nil {
 		return nil, fmt.Errorf("nyi: data is in another file: '%s'", *chunk.FilePath)
 	}
@@ -59,6 +53,7 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 			typ, chunk.MetaData.Type)
 	}
 
+	// TODO: support more codecs
 	if codec := chunk.MetaData.Codec; codec != parquetformat.CompressionCodec_UNCOMPRESSED {
 		return nil, fmt.Errorf("unsupported compression codec: %s", codec)
 	}
@@ -71,7 +66,8 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 	}
 
 	nested := strings.IndexByte(col.name, '.') >= 0
-	if !nested && *schemaElement.RepetitionType == parquetformat.FieldRepetitionType_REQUIRED {
+	repType := *col.schemaElement.RepetitionType
+	if !nested && repType == parquetformat.FieldRepetitionType_REQUIRED {
 		// TODO: also check that len(Path) = maxD
 		// For data that is required, the definition levels are not encoded and
 		// always have the value of the max definition level.
@@ -80,7 +76,7 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 	} else {
 		cr.dDecoder = newRLE32Decoder(bitWidth(col.maxD))
 	}
-	if !nested && *schemaElement.RepetitionType != parquetformat.FieldRepetitionType_REPEATED {
+	if !nested && repType != parquetformat.FieldRepetitionType_REPEATED {
 		// TODO: I think we need to check all schemaElements in the path (confirm if above)
 		cr.rDecoder = &constDecoder{value: 0}
 		// TODO: clarify the following comment from parquet-format/README:
@@ -90,7 +86,6 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 		cr.rDecoder = newRLE32Decoder(bitWidth(col.maxR))
 	}
 
-	// read the first page
 	cr.err = cr.readPage()
 
 	return cr, nil
@@ -260,12 +255,8 @@ func (cr *ColumnChunkReader) Read(values interface{}, dLevels []int, rLevels []i
 		panic("something wrong (read to many values)")
 	}
 	if cr.readPageValues == cr.pageNumValues {
-		// need to read the next page
-		if cr.reader.n == cr.chunkMeta.TotalUncompressedSize { // TODO: maybe use chunkMeta.NumValues
-			cr.err = EndOfChunk
-		} else {
-			cr.err = cr.readPage()
-		}
+		// skipping a page at the end is the same as reading the next one
+		cr.SkipPage()
 	}
 
 	return n, nil
@@ -278,6 +269,7 @@ func (cr *ColumnChunkReader) Read(values interface{}, dLevels []int, rLevels []i
 func (cr *ColumnChunkReader) SkipPage() error {
 	if cr.reader.n == cr.chunkMeta.TotalUncompressedSize { // TODO: maybe use chunkMeta.NumValues
 		cr.err = EndOfChunk
+		cr.page = nil
 	} else {
 		// TODO: read data lazily only if Read is called
 		cr.err = cr.readPage()

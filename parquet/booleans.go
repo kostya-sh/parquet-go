@@ -11,10 +11,6 @@ type booleanPlainDecoder struct {
 	values [8]int32
 }
 
-func newBooleanPlainDecoder() *booleanPlainDecoder {
-	return &booleanPlainDecoder{}
-}
-
 func (d *booleanPlainDecoder) init(data []byte) {
 	d.data = data
 	d.i = 0
