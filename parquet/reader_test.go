@@ -135,3 +135,31 @@ func TestColumnReaderByteArray(t *testing.T) {
 		{1, 0, []byte{'p', '6', '_', '1'}},
 	})
 }
+
+func TestSkipPage(t *testing.T) {
+	f, err := OpenFile("testdata/Booleans.parquet")
+	if err != nil {
+		t.Errorf("failed to open file: %s", err)
+		return
+	}
+	defer f.Close()
+
+	cr, err := f.NewReader(f.Schema.Columns()[0], 0)
+	if err != nil {
+		t.Errorf("failed to create column reader: %s", err)
+		return
+	}
+
+	if cr.PageHeader() == nil {
+		t.Errorf("PageHeader is null")
+	}
+
+	err = cr.SkipPage()
+	if err != EndOfChunk {
+		t.Errorf("unexpected error: want %s, got %s", EndOfChunk, err)
+	}
+
+	if ph := cr.PageHeader(); ph != nil {
+		t.Errorf("PageHeader is not null at the end of the chunk: %v", ph)
+	}
+}
