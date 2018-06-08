@@ -151,6 +151,22 @@ func (cr *ColumnChunkReader) readPage() error {
 			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
 		}
 
+	case parquetformat.Type_INT32:
+		switch dph.Encoding {
+		case parquetformat.Encoding_PLAIN:
+			cr.valuesDecoder = &int32PlainDecoder{}
+		default:
+			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
+		}
+
+	case parquetformat.Type_INT64:
+		switch dph.Encoding {
+		case parquetformat.Encoding_PLAIN:
+			cr.valuesDecoder = &int64PlainDecoder{}
+		default:
+			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
+		}
+
 	default:
 		return fmt.Errorf("unsupported type: %s", typ)
 	}
