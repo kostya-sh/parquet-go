@@ -2,8 +2,6 @@ package parquet
 
 import "fmt"
 
-// PLAIN encoding for BOOLEAN type: bit-packed, LSB first
-
 type booleanPlainDecoder struct {
 	data []byte
 

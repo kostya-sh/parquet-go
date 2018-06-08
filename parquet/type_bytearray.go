@@ -6,6 +6,7 @@ import (
 )
 
 type byteArrayPlainDecoder struct {
+	// length > 0 for FIXED_BYTE_ARRAY type
 	length int
 
 	data []byte
