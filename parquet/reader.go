@@ -92,8 +92,6 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 }
 
 func (cr *ColumnChunkReader) readPage() error {
-	readerStartN := cr.reader.n
-
 	if _, err := cr.reader.SeekToOffset(); err != nil {
 		return err
 	}
@@ -220,7 +218,6 @@ func (cr *ColumnChunkReader) readPage() error {
 	cr.page = &ph
 	cr.readPageValues = 0
 	cr.pageNumValues = int(dph.NumValues)
-	cr.reader.offset += (cr.reader.n - readerStartN)
 
 	return nil
 }
@@ -339,6 +336,7 @@ type countingReader struct {
 func (r *countingReader) Read(p []byte) (n int, err error) {
 	n, err = r.rs.Read(p)
 	r.n += int64(n)
+	r.offset += int64(n)
 	return
 }
 
