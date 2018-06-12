@@ -14,9 +14,10 @@ type byteArrayPlainDecoder struct {
 	pos int
 }
 
-func (d *byteArrayPlainDecoder) init(data []byte) {
+func (d *byteArrayPlainDecoder) init(data []byte, count int) error {
 	d.data = data
 	d.pos = 0
+	return nil
 }
 
 func (d *byteArrayPlainDecoder) next() (value []byte, err error) {

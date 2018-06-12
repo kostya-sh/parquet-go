@@ -11,9 +11,10 @@ type int32PlainDecoder struct {
 	pos int
 }
 
-func (d *int32PlainDecoder) init(data []byte) {
+func (d *int32PlainDecoder) init(data []byte, count int) error {
 	d.data = data
 	d.pos = 0
+	return nil
 }
 
 func (d *int32PlainDecoder) decode(slice interface{}) (n int, err error) {

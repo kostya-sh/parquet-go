@@ -12,9 +12,10 @@ type floatPlainDecoder struct {
 	pos int
 }
 
-func (d *floatPlainDecoder) init(data []byte) {
+func (d *floatPlainDecoder) init(data []byte, count int) error {
 	d.data = data
 	d.pos = 0
+	return nil
 }
 
 func (d *floatPlainDecoder) decode(slice interface{}) (n int, err error) {

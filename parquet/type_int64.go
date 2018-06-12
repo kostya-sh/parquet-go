@@ -11,9 +11,10 @@ type int64PlainDecoder struct {
 	pos int
 }
 
-func (d *int64PlainDecoder) init(data []byte) {
+func (d *int64PlainDecoder) init(data []byte, count int) error {
 	d.data = data
 	d.pos = 0
+	return nil
 }
 
 func (d *int64PlainDecoder) decode(slice interface{}) (n int, err error) {

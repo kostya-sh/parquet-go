@@ -12,8 +12,10 @@ type decoderTestCase struct {
 }
 
 func decodeAllValues(d valuesDecoder, data []byte, count int) (a []interface{}, err error) {
-	d.init(data)
-	c := rand.Intn(5) + 1 // use random capacity in attempt to increase test coverage
+	if err = d.init(data, count); err != nil {
+		return nil, err
+	}
+	c := rand.Intn(5) + 1 // use random capacity in an attempt to increase test coverage
 	buf := make([]interface{}, c, c)
 	for {
 		var n int
@@ -23,10 +25,7 @@ func decodeAllValues(d valuesDecoder, data []byte, count int) (a []interface{}, 
 		}
 		a = append(a, buf[0:n]...)
 		if len(a) >= count {
-			// valuesDecoder is not aware of the expected number of values some
-			// of the implementations (such as booleanPlainDecoder) can read
-			// more values than necessary
-			return a[:count], nil
+			return a, nil
 		}
 	}
 }
@@ -44,17 +43,11 @@ func testValuesDecoder(t *testing.T, d valuesDecoder, tests []decoderTestCase) {
 		}
 
 		// make sure that reading past data returns error
-		// some decoders (such as booleanPlainDecoder) can return slightly more
-		// values than was originally encoded so try decoding up to 10 values first
-		_, err = d.decode(make([]interface{}, 10, 10))
-		if err == nil {
-			_, err = d.decode(make([]interface{}, 1, 1))
-		}
+		_, err = d.decode(make([]interface{}, 1, 1))
 		if err == nil {
 			t.Errorf("error expected attempting to read too many values from %v", test.data)
 		} else {
 			t.Logf("%v: %s", test.data, err)
 		}
-
 	}
 }

@@ -6,6 +6,6 @@ type levelsDecoder interface {
 }
 
 type valuesDecoder interface {
-	init(data []byte)
+	init(data []byte, count int) error
 	decode(values interface{}) (n int, err error)
 }

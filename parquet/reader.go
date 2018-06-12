@@ -213,7 +213,9 @@ func (cr *ColumnChunkReader) readPage() error {
 	} else {
 		cr.dDecoder.init(nil, count)
 	}
-	cr.valuesDecoder.init(data[pos:])
+	if err := cr.valuesDecoder.init(data[pos:], count); err != nil {
+		return err
+	}
 
 	cr.page = &ph
 	cr.readPageValues = 0

@@ -12,9 +12,10 @@ type int96PlainDecoder struct {
 	pos int
 }
 
-func (d *int96PlainDecoder) init(data []byte) {
+func (d *int96PlainDecoder) init(data []byte, count int) error {
 	d.data = data
 	d.pos = 0
+	return nil
 }
 
 func (d *int96PlainDecoder) next() (value Int96, err error) {
