@@ -69,7 +69,7 @@ func unpack8int32_2(data []byte) (a [8]int32) {
 func unpack8int32_3(data []byte) (a [8]int32) {
 	a[0] = int32((data[0] >> 0) & 7)
 	a[1] = int32((data[0] >> 3) & 7)
-	a[2] = int32((data[0]>>6)&7 | (data[0]<<2)&7)
+	a[2] = int32((data[0]>>6)&7 | (data[1]<<2)&7)
 	a[3] = int32((data[1] >> 1) & 7)
 	a[4] = int32((data[1] >> 4) & 7)
 	a[5] = int32((data[1]>>7)&7 | (data[2]<<1)&7)
