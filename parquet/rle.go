@@ -54,9 +54,12 @@ func newRLE32Decoder(w int) *rle32Decoder {
 
 func (d *rle32Decoder) init(data []byte, count int) {
 	d.data = data
+	d.count = count
 	d.pos = 0
 	d.i = 0
-	d.count = count
+	d.bpCount = 0
+	d.bpRunPos = 0
+	d.rleCount = 0
 }
 
 func (d *rle32Decoder) decode(levels []int) (n int, err error) {

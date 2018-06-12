@@ -55,6 +55,13 @@ func TestRLEDecoder(t *testing.T) {
 				2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
 			},
 		},
+
+		// 1 bit packed run
+		{
+			3,
+			[]byte{7, 136, 70, 68, 35, 162, 17, 209, 136, 104},
+			[]int32{0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4},
+		},
 	}
 
 	for i, test := range tests {

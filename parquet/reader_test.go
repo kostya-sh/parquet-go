@@ -136,6 +136,17 @@ func TestColumnReaderByteArray(t *testing.T) {
 	})
 }
 
+func TestColumnReaderDicByteArray(t *testing.T) {
+	checkColumnReaderValues(t, "testdata/ByteArrays.parquet", 3, []cell{
+		{0, 0, []byte{'p', 'a', 'r', 'q', 'u', 'e', 't'}},
+		{0, 0, []byte{'g', 'o'}},
+		{0, 0, []byte{'p', 'a', 'r', 'q', 'u', 'e', 't'}},
+		{0, 0, []byte{'g', 'o'}},
+		{0, 0, []byte{'p', 'a', 'r', 'q', 'u', 'e', 't'}},
+		{0, 0, []byte{'g', 'o'}},
+	})
+}
+
 func TestSkipPage(t *testing.T) {
 	f, err := OpenFile("testdata/Booleans.parquet")
 	if err != nil {
