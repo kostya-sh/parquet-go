@@ -14,7 +14,6 @@ type dictDecoder struct {
 	ind    []int32
 
 	keysDecoder *rle32Decoder
-	done        bool
 }
 
 func (d *dictDecoder) init(data []byte, count int) error {
@@ -28,7 +27,6 @@ func (d *dictDecoder) init(data []byte, count int) error {
 	}
 	d.keysDecoder = newRLE32Decoder(w)
 	d.keysDecoder.init(data[1:], count)
-	d.done = false
 	return nil
 }
 
@@ -45,26 +43,6 @@ func (d *dictDecoder) initValues(values interface{}, dictData []byte) error {
 		return fmt.Errorf("read %d values from dictionary page, expected %d", n, d.numValues)
 	}
 	return nil
-}
-
-func (d *dictDecoder) nextIndex() (i int, err error) {
-	if d.keysDecoder.i >= d.keysDecoder.count {
-		if d.done {
-			return 0, fmt.Errorf("dict: no more data")
-		} else {
-			d.done = true
-			return -1, nil
-		}
-	}
-	k, err := d.keysDecoder.next()
-	if err != nil {
-		return i, err
-	}
-	if k < 0 || int(k) >= d.numValues {
-		return i, fmt.Errorf("read %d, len(values) = %d", k, d.numValues)
-	}
-	d.keysDecoder.i++
-	return int(k), nil
 }
 
 func (d *dictDecoder) decodeKeys(n int) (keys []int32, err error) {
