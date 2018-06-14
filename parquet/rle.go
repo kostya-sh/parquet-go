@@ -47,7 +47,7 @@ func newRLE32Decoder(w int) *rle32Decoder {
 	d := rle32Decoder{
 		bitWidth:   w,
 		byteWidth:  (w + 7) / 8,
-		bpUnpacker: unpack8Int32FuncForWidth(w),
+		bpUnpacker: unpack8Int32FuncByWidth[w],
 	}
 	return &d
 }

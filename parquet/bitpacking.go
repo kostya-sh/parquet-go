@@ -21,25 +21,40 @@ package parquet
 
 type unpack8int32Func func(data []byte) [8]int32
 
-// returns function that can be used to unpack bit packed data using bit width w
-// TODO: better name
-func unpack8Int32FuncForWidth(w int) unpack8int32Func {
-	// TODO: use static array of functions instead of switch
-	switch w {
-	case 1:
-		return unpack8int32_1
-	case 2:
-		return unpack8int32_2
-	case 3:
-		return unpack8int32_3
-	case 4:
-		return unpack8int32_4
-	case 20:
-		return unpack8int32_20
-	default:
-		// TODO: support width from 4 to 32
-		panic("nyi")
-	}
+var unpack8Int32FuncByWidth = [33]unpack8int32Func{
+	nil, // no unpack function for width 0
+	unpack8int32_1,
+	unpack8int32_2,
+	unpack8int32_3,
+	unpack8int32_4,
+	unpack8int32_5,
+	unpack8int32_6,
+	unpack8int32_7,
+	unpack8int32_8,
+	unpack8int32_9,
+	unpack8int32_10,
+	unpack8int32_11,
+	unpack8int32_12,
+	unpack8int32_13,
+	unpack8int32_14,
+	unpack8int32_15,
+	unpack8int32_16,
+	unpack8int32_17,
+	unpack8int32_18,
+	unpack8int32_19,
+	unpack8int32_20,
+	unpack8int32_21,
+	unpack8int32_22,
+	unpack8int32_23,
+	unpack8int32_24,
+	unpack8int32_25,
+	unpack8int32_26,
+	unpack8int32_27,
+	unpack8int32_28,
+	unpack8int32_29,
+	unpack8int32_30,
+	unpack8int32_31,
+	unpack8int32_32,
 }
 
 func unpack8int32_1(data []byte) (a [8]int32) {
@@ -90,7 +105,123 @@ func unpack8int32_4(data []byte) (a [8]int32) {
 	return
 }
 
+func unpack8int32_5(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_6(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_7(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_8(data []byte) (a [8]int32) {
+	a[0] = int32(data[0])
+	a[1] = int32(data[1])
+	a[2] = int32(data[2])
+	a[3] = int32(data[3])
+	a[4] = int32(data[4])
+	a[5] = int32(data[5])
+	a[6] = int32(data[6])
+	a[7] = int32(data[7])
+	return
+}
+
+func unpack8int32_9(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_10(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_11(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_12(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_13(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_14(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_15(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_16(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_17(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_18(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_19(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
 func unpack8int32_20(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_21(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_22(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_23(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_24(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_25(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_26(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_27(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_28(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_29(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_30(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_31(data []byte) (a [8]int32) {
+	panic("nyi")
+}
+
+func unpack8int32_32(data []byte) (a [8]int32) {
 	panic("nyi")
 }
 
