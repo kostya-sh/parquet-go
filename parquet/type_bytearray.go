@@ -3,8 +3,6 @@ package parquet
 import (
 	"encoding/binary"
 	"fmt"
-
-	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
 type byteArrayPlainDecoder struct {
@@ -78,48 +76,15 @@ func (d *byteArrayPlainDecoder) decodeE(buf []interface{}) (n int, err error) {
 }
 
 type byteArrayDictDecoder struct {
+	dictDecoder
+
 	values [][]byte
-
-	data []byte
-
-	rleDecoder *rle32Decoder
 }
 
-func (d *byteArrayDictDecoder) init(data []byte, count int) error {
-	if len(data) < 3 {
-		return fmt.Errorf("not enough data")
-	}
-	d.data = data
-	bw := int(data[0])
-	if bw <= 0 || bw > 32 {
-		return fmt.Errorf("invalid bit width: %d", bw)
-	}
-	d.rleDecoder = newRLE32Decoder(bw)
-	d.rleDecoder.init(data[1:], count)
-	return nil
-}
-
-func (d *byteArrayDictDecoder) initValues(dictPageHeader *parquetformat.DictionaryPageHeader, dictData []byte) error {
-	switch dictPageHeader.Encoding {
-	case parquetformat.Encoding_PLAIN, parquetformat.Encoding_PLAIN_DICTIONARY:
-		vd := &byteArrayPlainDecoder{}
-		count := int(dictPageHeader.NumValues)
-		if err := vd.init(dictData, count); err != nil {
-			return err
-		}
-		d.values = make([][]byte, count, count)
-		n, err := vd.decodeByteSlice(d.values)
-		if err != nil {
-			return err
-		}
-		if n != count {
-			return fmt.Errorf("read %d values from dictionary page, expected %d", n, count)
-		}
-
-		return nil
-	default:
-		return fmt.Errorf("unsupported encoding for dictionary page: %s", dictPageHeader.Encoding)
-	}
+func (d *byteArrayDictDecoder) initValues(dictData []byte, count int) error {
+	d.numValues = count
+	d.values = make([][]byte, count, count)
+	return d.dictDecoder.initValues(d.values, dictData)
 }
 
 func (d *byteArrayDictDecoder) decode(slice interface{}) (n int, err error) {
@@ -135,23 +100,14 @@ func (d *byteArrayDictDecoder) decode(slice interface{}) (n int, err error) {
 }
 
 func (d *byteArrayDictDecoder) decodeByteSlice(buf [][]byte) (n int, err error) {
-	n = len(buf)
-	if rem := d.rleDecoder.count - d.rleDecoder.i; rem < n {
-		n = rem
+	keys, err := d.decodeKeys(len(buf))
+	if err != nil {
+		return 0, err
 	}
-	for i := 0; i < n; i++ {
-		k, err := d.rleDecoder.next()
-
-		if err != nil {
-			return i, err
-		}
-		if k < 0 || int(k) >= len(d.values) {
-			return i, fmt.Errorf("read %d, len(values) = %d", k, len(d.values))
-		}
-		d.rleDecoder.i++
+	for i, k := range keys {
 		buf[i] = d.values[k]
 	}
-	return n, nil
+	return len(keys), nil
 }
 
 func (d *byteArrayDictDecoder) decodeE(buf []interface{}) (n int, err error) {

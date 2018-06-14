@@ -9,3 +9,9 @@ type valuesDecoder interface {
 	init(data []byte, count int) error
 	decode(values interface{}) (n int, err error)
 }
+
+type dictValuesDecoder interface {
+	valuesDecoder
+
+	initValues(data []byte, count int) error
+}

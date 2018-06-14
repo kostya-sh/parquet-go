@@ -31,7 +31,7 @@ type ColumnChunkReader struct {
 	pageNumValues  int
 
 	valuesDecoder     valuesDecoder
-	dictValuesDecoder valuesDecoder
+	dictValuesDecoder dictValuesDecoder
 	dDecoder          levelsDecoder
 	rDecoder          levelsDecoder
 }
@@ -92,6 +92,90 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 	return cr, nil
 }
 
+func (cr *ColumnChunkReader) newValuesDecoder(pageEncoding parquetformat.Encoding) (valuesDecoder, error) {
+	typ := *cr.col.schemaElement.Type
+	switch typ {
+	case parquetformat.Type_BOOLEAN:
+		switch pageEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &booleanPlainDecoder{}, nil
+		}
+
+	case parquetformat.Type_BYTE_ARRAY:
+		switch pageEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &byteArrayPlainDecoder{}, nil
+		case parquetformat.Encoding_PLAIN_DICTIONARY, parquetformat.Encoding_RLE_DICTIONARY:
+			return cr.dictValuesDecoder, nil
+		}
+
+	case parquetformat.Type_FIXED_LEN_BYTE_ARRAY:
+		switch pageEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &byteArrayPlainDecoder{length: int(*cr.col.schemaElement.TypeLength)}, nil
+		}
+
+	case parquetformat.Type_FLOAT:
+		switch pageEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &floatPlainDecoder{}, nil
+		}
+
+	case parquetformat.Type_DOUBLE:
+		switch pageEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &doublePlainDecoder{}, nil
+		}
+
+	case parquetformat.Type_INT32:
+		switch pageEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &int32PlainDecoder{}, nil
+		}
+
+	case parquetformat.Type_INT64:
+		switch pageEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &int64PlainDecoder{}, nil
+		}
+
+	case parquetformat.Type_INT96:
+		switch pageEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &int96PlainDecoder{}, nil
+		}
+
+	default:
+		return nil, fmt.Errorf("unsupported type: %s", typ)
+	}
+
+	return nil, fmt.Errorf("unsupported encoding %s for %s type", pageEncoding, typ)
+}
+
+func (cr *ColumnChunkReader) newDictValuesDecoder(dictEncoding parquetformat.Encoding) (dictValuesDecoder, error) {
+	if dictEncoding == parquetformat.Encoding_PLAIN_DICTIONARY {
+		dictEncoding = parquetformat.Encoding_PLAIN
+	}
+
+	typ := *cr.col.schemaElement.Type
+	switch typ {
+	case parquetformat.Type_BYTE_ARRAY:
+		switch dictEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &byteArrayDictDecoder{
+				dictDecoder: dictDecoder{
+					vd: &byteArrayPlainDecoder{},
+				},
+			}, nil
+		}
+
+	default:
+		return nil, fmt.Errorf("type %s doesn't support dictionary encoding", typ)
+	}
+
+	return nil, fmt.Errorf("unsupported encoding for %s dictionary page: %s", typ, dictEncoding)
+}
+
 func (cr *ColumnChunkReader) readPageData(ph parquetformat.PageHeader) ([]byte, error) {
 	size := int64(ph.CompressedPageSize)
 	data, err := ioutil.ReadAll(io.LimitReader(cr.reader, size))
@@ -118,10 +202,11 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 	}
 
 	if first && ph.Type == parquetformat.PageType_DICTIONARY_PAGE {
-		if ph.DictionaryPageHeader == nil {
+		dph := ph.DictionaryPageHeader
+		if dph == nil {
 			return fmt.Errorf("null DictionaryPageHeader in %+v", ph)
 		}
-		if count := ph.DictionaryPageHeader.NumValues; count <= 0 {
+		if count := dph.NumValues; count <= 0 {
 			return fmt.Errorf("non-positive NumValues in DICTIONARY_PAGE: %d", count)
 		}
 
@@ -130,11 +215,13 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 			return err
 		}
 
-		d := &byteArrayDictDecoder{}
-		if err := d.initValues(ph.DictionaryPageHeader, dictData); err != nil {
+		d, err := cr.newDictValuesDecoder(dph.Encoding)
+		if err != nil {
 			return err
 		}
-
+		if err := d.initValues(dictData, int(dph.NumValues)); err != nil {
+			return err
+		}
 		cr.dictValuesDecoder = d
 
 		if err = ph.Read(cr.reader); err != nil {
@@ -158,75 +245,10 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 		}
 	}
 
-	switch typ := *cr.col.schemaElement.Type; typ {
-	case parquetformat.Type_BOOLEAN:
-		switch dph.Encoding {
-		case parquetformat.Encoding_PLAIN:
-			cr.valuesDecoder = &booleanPlainDecoder{}
-		default:
-			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
-		}
-
-	case parquetformat.Type_BYTE_ARRAY:
-		switch dph.Encoding {
-		case parquetformat.Encoding_PLAIN:
-			cr.valuesDecoder = &byteArrayPlainDecoder{}
-		case parquetformat.Encoding_PLAIN_DICTIONARY, parquetformat.Encoding_RLE_DICTIONARY:
-			cr.valuesDecoder = cr.dictValuesDecoder
-		default:
-			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
-		}
-
-	case parquetformat.Type_FIXED_LEN_BYTE_ARRAY:
-		switch dph.Encoding {
-		case parquetformat.Encoding_PLAIN:
-			cr.valuesDecoder = &byteArrayPlainDecoder{length: int(*cr.col.schemaElement.TypeLength)}
-		default:
-			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
-		}
-
-	case parquetformat.Type_FLOAT:
-		switch dph.Encoding {
-		case parquetformat.Encoding_PLAIN:
-			cr.valuesDecoder = &floatPlainDecoder{}
-		default:
-			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
-		}
-
-	case parquetformat.Type_DOUBLE:
-		switch dph.Encoding {
-		case parquetformat.Encoding_PLAIN:
-			cr.valuesDecoder = &doublePlainDecoder{}
-		default:
-			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
-		}
-
-	case parquetformat.Type_INT32:
-		switch dph.Encoding {
-		case parquetformat.Encoding_PLAIN:
-			cr.valuesDecoder = &int32PlainDecoder{}
-		default:
-			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
-		}
-
-	case parquetformat.Type_INT64:
-		switch dph.Encoding {
-		case parquetformat.Encoding_PLAIN:
-			cr.valuesDecoder = &int64PlainDecoder{}
-		default:
-			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
-		}
-
-	case parquetformat.Type_INT96:
-		switch dph.Encoding {
-		case parquetformat.Encoding_PLAIN:
-			cr.valuesDecoder = &int96PlainDecoder{}
-		default:
-			return fmt.Errorf("unsupported encoding %s for %s type", dph.Encoding, typ)
-		}
-
-	default:
-		return fmt.Errorf("unsupported type: %s", typ)
+	var err error
+	cr.valuesDecoder, err = cr.newValuesDecoder(dph.Encoding)
+	if err != nil {
+		return err
 	}
 
 	data, err := cr.readPageData(ph)
