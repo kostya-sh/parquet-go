@@ -62,3 +62,46 @@ func (d *int96PlainDecoder) decodeE(buf []interface{}) (n int, err error) {
 	}
 	return n, err
 }
+
+type int96DictDecoder struct {
+	dictDecoder
+
+	values []Int96
+}
+
+func (d *int96DictDecoder) initValues(dictData []byte, count int) error {
+	d.numValues = count
+	d.values = make([]Int96, count, count)
+	return d.dictDecoder.initValues(d.values, dictData)
+}
+
+func (d *int96DictDecoder) decode(slice interface{}) (n int, err error) {
+	switch buf := slice.(type) {
+	case []Int96:
+		return d.decodeInt96(buf)
+	case []interface{}:
+		return d.decodeE(buf)
+	default:
+		panic("invalid argument")
+	}
+}
+
+func (d *int96DictDecoder) decodeInt96(buf []Int96) (n int, err error) {
+	keys, err := d.decodeKeys(len(buf))
+	if err != nil {
+		return 0, err
+	}
+	for i, k := range keys {
+		buf[i] = d.values[k]
+	}
+	return len(keys), nil
+}
+
+func (d *int96DictDecoder) decodeE(buf []interface{}) (n int, err error) {
+	b := make([]Int96, len(buf), len(buf))
+	n, err = d.decodeInt96(b)
+	for i := 0; i < n; i++ {
+		buf[i] = b[i]
+	}
+	return n, err
+}

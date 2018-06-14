@@ -53,3 +53,46 @@ func (d *floatPlainDecoder) decodeE(buf []interface{}) (n int, err error) {
 	}
 	return n, err
 }
+
+type floatDictDecoder struct {
+	dictDecoder
+
+	values []float32
+}
+
+func (d *floatDictDecoder) initValues(dictData []byte, count int) error {
+	d.numValues = count
+	d.values = make([]float32, count, count)
+	return d.dictDecoder.initValues(d.values, dictData)
+}
+
+func (d *floatDictDecoder) decode(slice interface{}) (n int, err error) {
+	switch buf := slice.(type) {
+	case []float32:
+		return d.decodeFloat32(buf)
+	case []interface{}:
+		return d.decodeE(buf)
+	default:
+		panic("invalid argument")
+	}
+}
+
+func (d *floatDictDecoder) decodeFloat32(buf []float32) (n int, err error) {
+	keys, err := d.decodeKeys(len(buf))
+	if err != nil {
+		return 0, err
+	}
+	for i, k := range keys {
+		buf[i] = d.values[k]
+	}
+	return len(keys), nil
+}
+
+func (d *floatDictDecoder) decodeE(buf []interface{}) (n int, err error) {
+	b := make([]float32, len(buf), len(buf))
+	n, err = d.decodeFloat32(b)
+	for i := 0; i < n; i++ {
+		buf[i] = b[i]
+	}
+	return n, err
+}

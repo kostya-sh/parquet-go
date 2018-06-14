@@ -52,3 +52,46 @@ func (d *int64PlainDecoder) decodeE(buf []interface{}) (n int, err error) {
 	}
 	return n, err
 }
+
+type int64DictDecoder struct {
+	dictDecoder
+
+	values []int64
+}
+
+func (d *int64DictDecoder) initValues(dictData []byte, count int) error {
+	d.numValues = count
+	d.values = make([]int64, count, count)
+	return d.dictDecoder.initValues(d.values, dictData)
+}
+
+func (d *int64DictDecoder) decode(slice interface{}) (n int, err error) {
+	switch buf := slice.(type) {
+	case []int64:
+		return d.decodeInt64(buf)
+	case []interface{}:
+		return d.decodeE(buf)
+	default:
+		panic("invalid argument")
+	}
+}
+
+func (d *int64DictDecoder) decodeInt64(buf []int64) (n int, err error) {
+	keys, err := d.decodeKeys(len(buf))
+	if err != nil {
+		return 0, err
+	}
+	for i, k := range keys {
+		buf[i] = d.values[k]
+	}
+	return len(keys), nil
+}
+
+func (d *int64DictDecoder) decodeE(buf []interface{}) (n int, err error) {
+	b := make([]int64, len(buf), len(buf))
+	n, err = d.decodeInt64(b)
+	for i := 0; i < n; i++ {
+		buf[i] = b[i]
+	}
+	return n, err
+}

@@ -93,6 +93,10 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 }
 
 func (cr *ColumnChunkReader) newValuesDecoder(pageEncoding parquetformat.Encoding) (valuesDecoder, error) {
+	if pageEncoding == parquetformat.Encoding_PLAIN_DICTIONARY {
+		pageEncoding = parquetformat.Encoding_RLE_DICTIONARY
+	}
+
 	typ := *cr.col.schemaElement.Type
 	switch typ {
 	case parquetformat.Type_BOOLEAN:
@@ -105,7 +109,7 @@ func (cr *ColumnChunkReader) newValuesDecoder(pageEncoding parquetformat.Encodin
 		switch pageEncoding {
 		case parquetformat.Encoding_PLAIN:
 			return &byteArrayPlainDecoder{}, nil
-		case parquetformat.Encoding_PLAIN_DICTIONARY, parquetformat.Encoding_RLE_DICTIONARY:
+		case parquetformat.Encoding_RLE_DICTIONARY:
 			return cr.dictValuesDecoder, nil
 		}
 
@@ -119,30 +123,40 @@ func (cr *ColumnChunkReader) newValuesDecoder(pageEncoding parquetformat.Encodin
 		switch pageEncoding {
 		case parquetformat.Encoding_PLAIN:
 			return &floatPlainDecoder{}, nil
+		case parquetformat.Encoding_RLE_DICTIONARY:
+			return cr.dictValuesDecoder, nil
 		}
 
 	case parquetformat.Type_DOUBLE:
 		switch pageEncoding {
 		case parquetformat.Encoding_PLAIN:
 			return &doublePlainDecoder{}, nil
+		case parquetformat.Encoding_RLE_DICTIONARY:
+			return cr.dictValuesDecoder, nil
 		}
 
 	case parquetformat.Type_INT32:
 		switch pageEncoding {
 		case parquetformat.Encoding_PLAIN:
 			return &int32PlainDecoder{}, nil
+		case parquetformat.Encoding_RLE_DICTIONARY:
+			return cr.dictValuesDecoder, nil
 		}
 
 	case parquetformat.Type_INT64:
 		switch pageEncoding {
 		case parquetformat.Encoding_PLAIN:
 			return &int64PlainDecoder{}, nil
+		case parquetformat.Encoding_RLE_DICTIONARY:
+			return cr.dictValuesDecoder, nil
 		}
 
 	case parquetformat.Type_INT96:
 		switch pageEncoding {
 		case parquetformat.Encoding_PLAIN:
 			return &int96PlainDecoder{}, nil
+		case parquetformat.Encoding_RLE_DICTIONARY:
+			return cr.dictValuesDecoder, nil
 		}
 
 	default:
@@ -163,9 +177,47 @@ func (cr *ColumnChunkReader) newDictValuesDecoder(dictEncoding parquetformat.Enc
 		switch dictEncoding {
 		case parquetformat.Encoding_PLAIN:
 			return &byteArrayDictDecoder{
-				dictDecoder: dictDecoder{
-					vd: &byteArrayPlainDecoder{},
-				},
+				dictDecoder: dictDecoder{vd: &byteArrayPlainDecoder{}},
+			}, nil
+		}
+
+	case parquetformat.Type_FLOAT:
+		switch dictEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &floatDictDecoder{
+				dictDecoder: dictDecoder{vd: &floatPlainDecoder{}},
+			}, nil
+		}
+
+	case parquetformat.Type_DOUBLE:
+		switch dictEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &doubleDictDecoder{
+				dictDecoder: dictDecoder{vd: &doublePlainDecoder{}},
+			}, nil
+		}
+
+	case parquetformat.Type_INT32:
+		switch dictEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &int32DictDecoder{
+				dictDecoder: dictDecoder{vd: &int32PlainDecoder{}},
+			}, nil
+		}
+
+	case parquetformat.Type_INT64:
+		switch dictEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &int64DictDecoder{
+				dictDecoder: dictDecoder{vd: &int64PlainDecoder{}},
+			}, nil
+		}
+
+	case parquetformat.Type_INT96:
+		switch dictEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &int96DictDecoder{
+				dictDecoder: dictDecoder{vd: &int96PlainDecoder{}},
 			}, nil
 		}
 
