@@ -49,6 +49,10 @@ func (col Column) MaxR() int {
 	return col.maxR
 }
 
+func (col Column) String() string {
+	return col.name
+}
+
 // MakeSchema creates a Schema from meta.
 func MakeSchema(meta *parquetformat.FileMetaData) (Schema, error) {
 	s := Schema{}
