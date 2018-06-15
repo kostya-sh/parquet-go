@@ -1,6 +1,7 @@
 package parquet
 
 import (
+	"compress/gzip"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -52,11 +53,6 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 	if typ := *col.schemaElement.Type; chunk.MetaData.Type != typ {
 		return nil, fmt.Errorf("wrong type in column chunk metadata, expected %s was %s",
 			typ, chunk.MetaData.Type)
-	}
-
-	// TODO: support more codecs
-	if codec := chunk.MetaData.Codec; codec != parquetformat.CompressionCodec_UNCOMPRESSED {
-		return nil, fmt.Errorf("unsupported compression codec: %s", codec)
 	}
 
 	cr := &ColumnChunkReader{
@@ -228,16 +224,30 @@ func (cr *ColumnChunkReader) newDictValuesDecoder(dictEncoding parquetformat.Enc
 	return nil, fmt.Errorf("unsupported encoding for %s dictionary page: %s", typ, dictEncoding)
 }
 
-func (cr *ColumnChunkReader) readPageData(ph parquetformat.PageHeader) ([]byte, error) {
-	size := int64(ph.CompressedPageSize)
-	data, err := ioutil.ReadAll(io.LimitReader(cr.reader, size))
+func (cr *ColumnChunkReader) readPageData(ph parquetformat.PageHeader) (data []byte, err error) {
+	r := io.LimitReader(cr.reader, int64(ph.CompressedPageSize))
+
+	switch codec := cr.chunkMeta.Codec; codec {
+	case parquetformat.CompressionCodec_UNCOMPRESSED:
+	case parquetformat.CompressionCodec_GZIP:
+		r, err = gzip.NewReader(r)
+	default:
+		return nil, fmt.Errorf("unsupported compression codec: %s", codec)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if int64(len(data)) != size {
-		return nil, fmt.Errorf("unable to read page fully: got %d bytes, expected %d", len(data), size)
+
+	data, err = ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
 	}
-	if cr.reader.n > cr.chunkMeta.TotalUncompressedSize {
+
+	if int32(len(data)) != ph.UncompressedPageSize {
+		return nil, fmt.Errorf("unable to read page fully: got %d bytes, expected %d",
+			len(data), ph.UncompressedPageSize)
+	}
+	if cr.reader.n > cr.chunkMeta.TotalCompressedSize {
 		return nil, fmt.Errorf("over-read")
 	}
 	return data, nil
@@ -409,7 +419,7 @@ func (cr *ColumnChunkReader) Read(values interface{}, dLevels []int, rLevels []i
 //
 // Returns EndOfChunk if no more data available
 func (cr *ColumnChunkReader) SkipPage() error {
-	if cr.reader.n == cr.chunkMeta.TotalUncompressedSize { // TODO: maybe use chunkMeta.NumValues
+	if cr.reader.n == cr.chunkMeta.TotalCompressedSize { // TODO: maybe use chunkMeta.NumValues
 		cr.err = EndOfChunk
 		cr.page = nil
 	} else {

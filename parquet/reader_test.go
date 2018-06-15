@@ -101,50 +101,58 @@ func TestColumnReaderBoolean(t *testing.T) {
 }
 
 func TestColumnReaderByteArray(t *testing.T) {
-	checkColumnReaderValues(t, "testdata/ByteArrays.parquet", 0, []cell{
-		{0, 0, []byte{'r', '1'}},
-		{0, 0, []byte{'r', '2'}},
-		{0, 0, []byte{'r', '3'}},
-		{0, 0, []byte{'r', '4'}},
-		{0, 0, []byte{'r', '5'}},
-		{0, 0, []byte{'r', '6'}},
-	})
+	for _, f := range [...]string{"ByteArrays", "ByteArrays_GZIP"} {
+		f = "testdata/" + f + ".parquet"
 
-	checkColumnReaderValues(t, "testdata/ByteArrays.parquet", 1, []cell{
-		{0, 0, nil},
-		{1, 0, []byte{'o', '2'}},
-		{1, 0, []byte{'o', '3'}},
-		{1, 0, []byte{'o', '4'}},
-		{0, 0, nil},
-		{1, 0, []byte{'o', '6'}},
-	})
+		checkColumnReaderValues(t, f, 0, []cell{
+			{0, 0, []byte{'r', '1'}},
+			{0, 0, []byte{'r', '2'}},
+			{0, 0, []byte{'r', '3'}},
+			{0, 0, []byte{'r', '4'}},
+			{0, 0, []byte{'r', '5'}},
+			{0, 0, []byte{'r', '6'}},
+		})
 
-	checkColumnReaderValues(t, "testdata/ByteArrays.parquet", 2, []cell{
-		{0, 0, nil},
+		checkColumnReaderValues(t, f, 1, []cell{
+			{0, 0, nil},
+			{1, 0, []byte{'o', '2'}},
+			{1, 0, []byte{'o', '3'}},
+			{1, 0, []byte{'o', '4'}},
+			{0, 0, nil},
+			{1, 0, []byte{'o', '6'}},
+		})
 
-		{0, 0, nil},
+		checkColumnReaderValues(t, f, 2, []cell{
+			{0, 0, nil},
 
-		{1, 0, []byte{'p', '3', '_', '1'}},
+			{0, 0, nil},
 
-		{1, 0, []byte{'p', '4', '_', '1'}},
-		{1, 1, []byte{'p', '4', '_', '2'}},
-		{1, 1, []byte{'p', '4', '_', '3'}},
+			{1, 0, []byte{'p', '3', '_', '1'}},
 
-		{0, 0, nil},
+			{1, 0, []byte{'p', '4', '_', '1'}},
+			{1, 1, []byte{'p', '4', '_', '2'}},
+			{1, 1, []byte{'p', '4', '_', '3'}},
 
-		{1, 0, []byte{'p', '6', '_', '1'}},
-	})
+			{0, 0, nil},
+
+			{1, 0, []byte{'p', '6', '_', '1'}},
+		})
+	}
 }
 
 func TestColumnReaderDicByteArray(t *testing.T) {
-	checkColumnReaderValues(t, "testdata/ByteArrays.parquet", 3, []cell{
-		{0, 0, []byte{'p', 'a', 'r', 'q', 'u', 'e', 't'}},
-		{0, 0, []byte{'g', 'o'}},
-		{0, 0, []byte{'p', 'a', 'r', 'q', 'u', 'e', 't'}},
-		{0, 0, []byte{'g', 'o'}},
-		{0, 0, []byte{'p', 'a', 'r', 'q', 'u', 'e', 't'}},
-		{0, 0, []byte{'g', 'o'}},
-	})
+	for _, f := range [...]string{"ByteArrays", "ByteArrays_GZIP"} {
+		f = "testdata/" + f + ".parquet"
+
+		checkColumnReaderValues(t, f, 3, []cell{
+			{0, 0, []byte{'p', 'a', 'r', 'q', 'u', 'e', 't'}},
+			{0, 0, []byte{'g', 'o'}},
+			{0, 0, []byte{'p', 'a', 'r', 'q', 'u', 'e', 't'}},
+			{0, 0, []byte{'g', 'o'}},
+			{0, 0, []byte{'p', 'a', 'r', 'q', 'u', 'e', 't'}},
+			{0, 0, []byte{'g', 'o'}},
+		})
+	}
 }
 
 func TestSkipPage(t *testing.T) {
