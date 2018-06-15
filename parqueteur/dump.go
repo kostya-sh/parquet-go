@@ -77,12 +77,3 @@ func runDump(cmd *Command, args []string) error {
 
 	return nil
 }
-
-func format(v interface{}) string {
-	switch a := v.(type) {
-	case []byte:
-		return string(a)
-	default:
-		return fmt.Sprintf("%v", v)
-	}
-}
