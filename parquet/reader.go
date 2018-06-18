@@ -224,8 +224,24 @@ func (cr *ColumnChunkReader) newDictValuesDecoder(dictEncoding parquetformat.Enc
 	return nil, fmt.Errorf("unsupported encoding for %s dictionary page: %s", typ, dictEncoding)
 }
 
+// TODO: maybe return 3 byte slices from this method: r, d, v
 func (cr *ColumnChunkReader) readPageData(ph parquetformat.PageHeader) (data []byte, err error) {
-	r := io.LimitReader(cr.reader, int64(ph.CompressedPageSize))
+	dph2 := ph.DataPageHeaderV2
+	levelsSize := int32(0)
+	if ph.Type == parquetformat.PageType_DATA_PAGE_V2 && dph2.IsCompressed {
+		levelsSize = dph2.RepetitionLevelsByteLength + dph2.DefinitionLevelsByteLength
+		r := io.LimitReader(cr.reader, int64(levelsSize))
+		data, err = ioutil.ReadAll(r)
+		if err != nil {
+			return nil, err
+		}
+		if int32(len(data)) != levelsSize {
+			return nil, fmt.Errorf("unable to read levels data fully: got %d bytes, expected %d",
+				len(data), levelsSize)
+		}
+	}
+
+	r := io.LimitReader(cr.reader, int64(ph.CompressedPageSize-levelsSize))
 
 	switch codec := cr.chunkMeta.Codec; codec {
 	case parquetformat.CompressionCodec_UNCOMPRESSED:
@@ -238,10 +254,11 @@ func (cr *ColumnChunkReader) readPageData(ph parquetformat.PageHeader) (data []b
 		return nil, err
 	}
 
-	data, err = ioutil.ReadAll(r)
+	valuesData, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
+	data = append(data, valuesData...)
 
 	if int32(len(data)) != ph.UncompressedPageSize {
 		return nil, fmt.Errorf("unable to read page fully: got %d bytes, expected %d",
@@ -291,24 +308,41 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 		}
 	}
 
-	if ph.Type != parquetformat.PageType_DATA_PAGE {
-		return fmt.Errorf("DATA_PAGE type expected, but was %s", ph.Type)
-	}
-	dph := ph.DataPageHeader
-	if dph == nil {
-		return fmt.Errorf("null DataPageHeader in %+v", ph)
-	}
-	count := int(dph.NumValues)
+	var (
+		numValues      int
+		valuesEncoding parquetformat.Encoding
+		dph            *parquetformat.DataPageHeader
+		dph2           *parquetformat.DataPageHeaderV2
+	)
+	switch ph.Type {
+	case parquetformat.PageType_DATA_PAGE:
+		dph = ph.DataPageHeader
+		if dph == nil {
+			return fmt.Errorf("missing both DataPageHeader and DataPageHeaderV2 in %+v", ph)
+		}
+		numValues = int(dph.NumValues)
+		valuesEncoding = dph.Encoding
+	case parquetformat.PageType_DATA_PAGE_V2:
+		dph2 = ph.DataPageHeaderV2
+		if dph2 == nil {
+			return fmt.Errorf("missing both DataPageHeader and DataPageHeaderV2 in %+v", ph)
+		}
+		numValues = int(dph2.NumValues)
+		valuesEncoding = dph2.Encoding
 
-	switch dph.Encoding {
+	default:
+		return fmt.Errorf("DATA_PAGE or DATA_PAGE_V2 type expected, but was %s", ph.Type)
+	}
+
+	switch valuesEncoding {
 	case parquetformat.Encoding_PLAIN_DICTIONARY, parquetformat.Encoding_RLE_DICTIONARY:
 		if cr.dictValuesDecoder == nil {
-			return fmt.Errorf("No DICTIONARY_PAGE for %s encoding", dph.Encoding)
+			return fmt.Errorf("No DICTIONARY_PAGE for %s encoding", valuesEncoding)
 		}
 	}
 
 	var err error
-	cr.valuesDecoder, err = cr.newValuesDecoder(dph.Encoding)
+	cr.valuesDecoder, err = cr.newValuesDecoder(valuesEncoding)
 	if err != nil {
 		return err
 	}
@@ -319,42 +353,69 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 	}
 
 	pos := 0
-	// TODO: it looks like parquetformat README is incorrect: first R then D
-	if _, isConst := cr.rDecoder.(*constDecoder); !isConst {
-		if dph.RepetitionLevelEncoding != parquetformat.Encoding_RLE {
-			return fmt.Errorf("%s RepetitionLevelEncoding is not supported (only RLE is supported)",
-				dph.RepetitionLevelEncoding)
+	if dph != nil {
+		// TODO: it looks like parquetformat README is incorrect: first R then D
+		if _, isConst := cr.rDecoder.(*constDecoder); !isConst {
+			if enc := dph.RepetitionLevelEncoding; enc != parquetformat.Encoding_RLE {
+				return fmt.Errorf("%s RepetitionLevelEncoding is not supported", enc)
+			}
+			// TODO: uint32 -> int overflow
+			// TODO: error handing
+			n := int(binary.LittleEndian.Uint32(data[:4]))
+			pos += 4
+			cr.rDecoder.init(data[pos:pos+n], numValues)
+			pos += n
+		} else {
+			cr.rDecoder.init(nil, numValues)
 		}
-		// TODO: uint32 -> int overflow
-		// TODO: error handing
-		n := int(binary.LittleEndian.Uint32(data[:4]))
-		pos += 4
-		cr.rDecoder.init(data[pos:pos+n], count)
-		pos += n
-	} else {
-		cr.rDecoder.init(nil, count)
-	}
-	if _, isConst := cr.dDecoder.(*constDecoder); !isConst {
-		if dph.DefinitionLevelEncoding != parquetformat.Encoding_RLE {
-			return fmt.Errorf("%s DefinitionLevelEncoding is not supported (only RLE is supported)",
-				dph.DefinitionLevelEncoding)
+		if _, isConst := cr.dDecoder.(*constDecoder); !isConst {
+			if enc := dph.DefinitionLevelEncoding; enc != parquetformat.Encoding_RLE {
+				return fmt.Errorf("%s DefinitionLevelEncoding is not supported", enc)
+			}
+			// TODO: uint32 -> int overflow
+			// TODO: error handing
+			n := int(binary.LittleEndian.Uint32(data[pos : pos+4]))
+			pos += 4
+			cr.dDecoder.init(data[pos:pos+n], numValues)
+			pos += n
+		} else {
+			cr.dDecoder.init(nil, numValues)
 		}
-		// TODO: uint32 -> int overflow
-		// TODO: error handing
-		n := int(binary.LittleEndian.Uint32(data[pos : pos+4]))
-		pos += 4
-		cr.dDecoder.init(data[pos:pos+n], count)
-		pos += n
 	} else {
-		cr.dDecoder.init(nil, count)
+		if _, isConst := cr.rDecoder.(*constDecoder); !isConst {
+			n := int(dph2.RepetitionLevelsByteLength)
+			if n <= 0 {
+				return fmt.Errorf("non-positive RepetitionLevelsByteLength")
+			}
+			cr.rDecoder.init(data[pos:pos+n], numValues)
+			pos += n
+		} else {
+			if dph2.RepetitionLevelsByteLength != 0 {
+				return fmt.Errorf("RepetitionLevelsByteLength != 0 for column with no r levels")
+			}
+			cr.rDecoder.init(nil, numValues)
+		}
+		if _, isConst := cr.dDecoder.(*constDecoder); !isConst {
+			n := int(dph2.DefinitionLevelsByteLength)
+			if n <= 0 {
+				return fmt.Errorf("non-positive DefinitionLevelsByteLength")
+			}
+			cr.dDecoder.init(data[pos:pos+n], numValues)
+			pos += n
+		} else {
+			if dph2.DefinitionLevelsByteLength != 0 {
+				return fmt.Errorf("DefinitionLevelsByteLength != 0 for column with no r levels")
+			}
+			cr.dDecoder.init(nil, numValues)
+		}
 	}
-	if err := cr.valuesDecoder.init(data[pos:], count); err != nil {
+	if err := cr.valuesDecoder.init(data[pos:], numValues); err != nil {
 		return err
 	}
 
 	cr.page = &ph
 	cr.readPageValues = 0
-	cr.pageNumValues = int(dph.NumValues)
+	cr.pageNumValues = numValues
 
 	return nil
 }
