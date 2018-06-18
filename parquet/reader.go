@@ -321,7 +321,10 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 	pos := 0
 	// TODO: it looks like parquetformat README is incorrect: first R then D
 	if _, isConst := cr.rDecoder.(*constDecoder); !isConst {
-		// decode definition levels data
+		if dph.RepetitionLevelEncoding != parquetformat.Encoding_RLE {
+			return fmt.Errorf("%s RepetitionLevelEncoding is not supported (only RLE is supported)",
+				dph.RepetitionLevelEncoding)
+		}
 		// TODO: uint32 -> int overflow
 		// TODO: error handing
 		n := int(binary.LittleEndian.Uint32(data[:4]))
@@ -332,7 +335,10 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 		cr.rDecoder.init(nil, count)
 	}
 	if _, isConst := cr.dDecoder.(*constDecoder); !isConst {
-		// decode repetition levels data
+		if dph.DefinitionLevelEncoding != parquetformat.Encoding_RLE {
+			return fmt.Errorf("%s DefinitionLevelEncoding is not supported (only RLE is supported)",
+				dph.DefinitionLevelEncoding)
+		}
 		// TODO: uint32 -> int overflow
 		// TODO: error handing
 		n := int(binary.LittleEndian.Uint32(data[pos : pos+4]))
