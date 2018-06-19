@@ -24,3 +24,16 @@ func TestBooleanPlainDecoder(t *testing.T) {
 		},
 	})
 }
+
+func TestBooleanRLEDecoder(t *testing.T) {
+	testValuesDecoder(t, &booleanRLEDecoder{}, []decoderTestCase{
+		{
+			data:    []byte{0x02, 0x00, 0x00, 0x00, 0x03, 0x15},
+			decoded: []interface{}{true, false, true, false, true},
+		},
+		{
+			data:    []byte{0x02, 0x00, 0x00, 0x00, 0x10, 0x01},
+			decoded: []interface{}{true, true, true, true, true, true, true, true},
+		},
+	})
+}

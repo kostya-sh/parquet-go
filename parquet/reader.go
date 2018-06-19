@@ -100,6 +100,8 @@ func (cr *ColumnChunkReader) newValuesDecoder(pageEncoding parquetformat.Encodin
 		switch pageEncoding {
 		case parquetformat.Encoding_PLAIN:
 			return &booleanPlainDecoder{}, nil
+		case parquetformat.Encoding_RLE:
+			return &booleanRLEDecoder{}, nil
 		}
 
 	case parquetformat.Type_BYTE_ARRAY:
