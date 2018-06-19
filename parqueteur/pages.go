@@ -48,6 +48,10 @@ func runPages(cmd *Command, args []string) error {
 
 		var rgPages []*parquetformat.PageHeader
 
+		if cr.DictionaryPageHeader() != nil {
+			rgPages = append(rgPages, cr.DictionaryPageHeader())
+		}
+
 		for {
 			// TODO: think about empty column chunk with 0 pages
 			rgPages = append(rgPages, cr.PageHeader())
