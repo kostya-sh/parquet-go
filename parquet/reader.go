@@ -28,6 +28,7 @@ type ColumnChunkReader struct {
 	err            error
 	chunkMeta      *parquetformat.ColumnMetaData
 	page           *parquetformat.PageHeader
+	dictPage       *parquetformat.PageHeader
 	readPageValues int
 	pageNumValues  int
 
@@ -225,7 +226,7 @@ func (cr *ColumnChunkReader) newDictValuesDecoder(dictEncoding parquetformat.Enc
 }
 
 // TODO: maybe return 3 byte slices from this method: r, d, v
-func (cr *ColumnChunkReader) readPageData(ph parquetformat.PageHeader) (data []byte, err error) {
+func (cr *ColumnChunkReader) readPageData(ph *parquetformat.PageHeader) (data []byte, err error) {
 	dph2 := ph.DataPageHeaderV2
 	levelsSize := int32(0)
 	if ph.Type == parquetformat.PageType_DATA_PAGE_V2 && dph2.IsCompressed {
@@ -275,12 +276,14 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 		return err
 	}
 
-	ph := parquetformat.PageHeader{}
+	ph := &parquetformat.PageHeader{}
 	if err := ph.Read(cr.reader); err != nil {
 		return err
 	}
 
 	if first && ph.Type == parquetformat.PageType_DICTIONARY_PAGE {
+		cr.dictPage = ph
+
 		dph := ph.DictionaryPageHeader
 		if dph == nil {
 			return fmt.Errorf("null DictionaryPageHeader in %+v", ph)
@@ -303,6 +306,7 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 		}
 		cr.dictValuesDecoder = d
 
+		ph = &parquetformat.PageHeader{}
 		if err = ph.Read(cr.reader); err != nil {
 			return err
 		}
@@ -413,7 +417,7 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 		return err
 	}
 
-	cr.page = &ph
+	cr.page = ph
 	cr.readPageValues = 0
 	cr.pageNumValues = numValues
 
@@ -500,6 +504,12 @@ func (cr *ColumnChunkReader) SkipPage() error {
 // currently being read.
 func (cr *ColumnChunkReader) PageHeader() *parquetformat.PageHeader {
 	return cr.page
+}
+
+// DictionaryPageHeader returns a DICTIONARY_PAGE page header if the column
+// chunk has one, otherwise return nil.
+func (cr *ColumnChunkReader) DictionaryPageHeader() *parquetformat.PageHeader {
+	return cr.dictPage
 }
 
 type constDecoder struct {

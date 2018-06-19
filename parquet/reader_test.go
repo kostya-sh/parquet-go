@@ -3,6 +3,8 @@ package parquet
 import (
 	"reflect"
 	"testing"
+
+	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
 type cell struct {
@@ -157,21 +159,31 @@ func TestColumnReaderDicByteArray(t *testing.T) {
 }
 
 func TestSkipPage(t *testing.T) {
-	f, err := OpenFile("testdata/Booleans.parquet")
+	f, err := OpenFile("testdata/ByteArrays.parquet")
 	if err != nil {
 		t.Errorf("failed to open file: %s", err)
 		return
 	}
 	defer f.Close()
 
-	cr, err := f.NewReader(f.Schema.Columns()[0], 0)
+	cr, err := f.NewReader(f.Schema.Columns()[3], 0)
 	if err != nil {
 		t.Errorf("failed to create column reader: %s", err)
 		return
 	}
 
 	if cr.PageHeader() == nil {
-		t.Errorf("PageHeader is null")
+		t.Errorf("PageHeader is nil")
+		return
+	}
+
+	dph := cr.DictionaryPageHeader()
+	if dph == nil {
+		t.Errorf("DictionaryPageHeader is nil")
+		return
+	}
+	if dph.Type != parquetformat.PageType_DICTIONARY_PAGE {
+		t.Errorf("DictionaryPageHeader type is %s", dph.Type)
 	}
 
 	err = cr.SkipPage()
@@ -180,6 +192,6 @@ func TestSkipPage(t *testing.T) {
 	}
 
 	if ph := cr.PageHeader(); ph != nil {
-		t.Errorf("PageHeader is not null at the end of the chunk: %v", ph)
+		t.Errorf("PageHeader is not nil at the end of the chunk: %v", ph)
 	}
 }
