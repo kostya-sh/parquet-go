@@ -116,6 +116,8 @@ func (cr *ColumnChunkReader) newValuesDecoder(pageEncoding parquetformat.Encodin
 		switch pageEncoding {
 		case parquetformat.Encoding_PLAIN:
 			return &byteArrayPlainDecoder{length: int(*cr.col.schemaElement.TypeLength)}, nil
+		case parquetformat.Encoding_RLE_DICTIONARY:
+			return cr.dictValuesDecoder, nil
 		}
 
 	case parquetformat.Type_FLOAT:
@@ -177,6 +179,13 @@ func (cr *ColumnChunkReader) newDictValuesDecoder(dictEncoding parquetformat.Enc
 		case parquetformat.Encoding_PLAIN:
 			return &byteArrayDictDecoder{
 				dictDecoder: dictDecoder{vd: &byteArrayPlainDecoder{}},
+			}, nil
+		}
+	case parquetformat.Type_FIXED_LEN_BYTE_ARRAY:
+		switch dictEncoding {
+		case parquetformat.Encoding_PLAIN:
+			return &byteArrayDictDecoder{
+				dictDecoder: dictDecoder{vd: &byteArrayPlainDecoder{length: int(*cr.col.schemaElement.TypeLength)}},
 			}, nil
 		}
 
