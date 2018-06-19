@@ -56,9 +56,13 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 			typ, chunk.MetaData.Type)
 	}
 
+	offset := chunk.MetaData.DataPageOffset
+	if chunk.MetaData.DictionaryPageOffset != nil {
+		offset = *chunk.MetaData.DictionaryPageOffset
+	}
 	cr := &ColumnChunkReader{
 		col:       col,
-		reader:    &countingReader{rs: r, offset: chunk.MetaData.DataPageOffset},
+		reader:    &countingReader{rs: r, offset: offset},
 		meta:      meta,
 		chunkMeta: chunk.MetaData,
 	}
@@ -317,6 +321,12 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 		}
 		cr.dictValuesDecoder = d
 
+		if cr.chunkMeta.DictionaryPageOffset != nil {
+			cr.reader.offset = cr.chunkMeta.DataPageOffset
+			if _, err = cr.reader.SeekToOffset(); err != nil {
+				return err
+			}
+		}
 		ph = &parquetformat.PageHeader{}
 		if err = ph.Read(cr.reader); err != nil {
 			return err
