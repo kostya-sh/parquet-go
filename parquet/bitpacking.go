@@ -106,7 +106,16 @@ func unpack8int32_4(data []byte) (a [8]int32) {
 }
 
 func unpack8int32_5(data []byte) (a [8]int32) {
-	panic("nyi")
+	// 11100000 32222211 44443333 66555554 77777666
+	a[0] = int32((data[0] >> 0) & 31)
+	a[1] = int32((data[0]>>5)&31 | (data[1]<<3)&31)
+	a[2] = int32((data[1] >> 2) & 31)
+	a[3] = int32((data[1]>>7)&31 | (data[2]<<1)&31)
+	a[4] = int32((data[2]>>4)&31 | (data[3]<<4)&31)
+	a[5] = int32((data[3] >> 1) & 31)
+	a[6] = int32((data[3]>>6)&31 | (data[4]<<2)&31)
+	a[7] = int32((data[4] >> 3) & 31)
+	return
 }
 
 func unpack8int32_6(data []byte) (a [8]int32) {

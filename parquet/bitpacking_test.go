@@ -32,6 +32,12 @@ var unpack8int32Tests = []struct {
 	{4, []byte{0x67, 0x45, 0x23, 0x01}, [8]int32{7, 6, 5, 4, 3, 2, 1, 0}},
 	{4, []byte{0xEF, 0xCD, 0xAB, 0x89}, [8]int32{15, 14, 13, 12, 11, 10, 9, 8}},
 
+	// bit width = 5
+	{5, []byte{0x00, 0x00, 0x00, 0x00, 0x00}, [8]int32{0, 0, 0, 0, 0, 0, 0, 0}},
+	{5, []byte{0x20, 0x88, 0x41, 0x8A, 0x39}, [8]int32{0, 1, 2, 3, 4, 5, 6, 7}},
+	{5, []byte{0xC7, 0x14, 0x32, 0x44, 0x00}, [8]int32{7, 6, 5, 4, 3, 2, 1, 0}},
+	{5, []byte{0xDF, 0x77, 0xBE, 0x75, 0xC6}, [8]int32{31, 30, 29, 28, 27, 26, 25, 24}},
+
 	// bit width = 8
 	{8, []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}, [8]int32{1, 2, 3, 4, 5, 6, 7, 8}},
 }
@@ -40,7 +46,7 @@ func TestUnpack8int32(t *testing.T) {
 	for _, test := range unpack8int32Tests {
 		unpacker := unpack8Int32FuncByWidth[test.width]
 		if got := unpacker(test.data); got != test.values {
-			t.Errorf("got %v, want %v", got, test.values)
+			t.Errorf("unpack for width %d: got %v, want %v", test.width, got, test.values)
 		}
 	}
 }
