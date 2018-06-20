@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"unicode/utf8"
+
 	"github.com/kostya-sh/parquet-go/parquet"
 )
 
@@ -13,8 +15,12 @@ var cmdCSV = &Command{
 	Help: "convert a parquet file (with no repeated fields) to CSV format",
 }
 
+var csvDelimiter string
+
 func init() {
 	cmdCSV.Run = runCSV
+
+	cmdCSV.Flag.StringVar(&csvDelimiter, "d", ",", "CSV field delimiter")
 }
 
 func readAll(f *parquet.File, col parquet.Column) (allValues []interface{}, err error) {
@@ -84,6 +90,7 @@ func runCSV(cmd *Command, args []string) error {
 	}
 
 	out := csv.NewWriter(os.Stdout)
+	out.Comma, _ = utf8.DecodeRuneInString(csvDelimiter)
 	for i := 0; i < count; i++ {
 		r := make([]string, len(cols), len(cols))
 		for j, _ := range cols {
