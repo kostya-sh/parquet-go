@@ -116,11 +116,14 @@ func (d *rle32Decoder) readRLERunValue() error {
 
 func (d *rle32Decoder) readBitPackedRun() error {
 	n := d.pos + d.bitWidth
+	var data []byte
 	if n > len(d.data) {
-		return fmt.Errorf("rle: cannot read bit-packed run (not enough data)")
+		data = make([]byte, d.bitWidth, d.bitWidth)
+		copy(data, d.data[d.pos:])
+	} else {
+		data = d.data[d.pos:n]
 	}
-	// TODO: remember unpack func in d
-	d.bpRun = d.bpUnpacker(d.data[d.pos:n])
+	d.bpRun = d.bpUnpacker(data)
 	d.pos = n
 	return nil
 }

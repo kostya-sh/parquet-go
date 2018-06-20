@@ -62,6 +62,14 @@ func TestRLEDecoder(t *testing.T) {
 			[]byte{7, 136, 70, 68, 35, 162, 17, 209, 136, 104},
 			[]int32{0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4},
 		},
+
+		// unpadded bit-packed encoding
+		// from github.com/Parquet/parquet-compatibility/parquet-testdata/impala/1.1.1-NONE/nation.impala.parquet
+		{
+			5,
+			[]byte{9, 32, 136, 65, 138, 57, 40, 169, 197, 154, 123, 48, 202, 73, 171, 189, 24},
+			[]int32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24},
+		},
 	}
 
 	for i, test := range tests {
