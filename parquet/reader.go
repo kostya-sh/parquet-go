@@ -483,7 +483,7 @@ func (cr *ColumnChunkReader) Read(values interface{}, dLevels []int, rLevels []i
 
 	// read values
 	nn := 0
-	for _, ld := range dLevels {
+	for _, ld := range dLevels[:n] {
 		if ld == cr.col.MaxD() {
 			nn++
 		}
