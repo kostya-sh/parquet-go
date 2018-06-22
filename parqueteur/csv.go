@@ -56,7 +56,7 @@ func readAll(f *parquet.File, col parquet.Column) (allValues []interface{}, err 
 
 func runCSV(cmd *Command, args []string) error {
 	if len(args) != 1 {
-		return fmt.Errorf("No files")
+		return fmt.Errorf("csv: no files")
 	}
 
 	f, err := parquet.OpenFile(args[0])
@@ -68,7 +68,7 @@ func runCSV(cmd *Command, args []string) error {
 	cols := f.Schema.Columns()
 	for _, col := range cols {
 		if col.MaxR() != 0 {
-			return fmt.Errorf("Column %s has repeated elements", col)
+			return fmt.Errorf("csv: column '%s' has repeated elements", col)
 		}
 	}
 
@@ -77,14 +77,14 @@ func runCSV(cmd *Command, args []string) error {
 	for i, col := range f.Schema.Columns() {
 		colsData[i], err = readAll(f, col)
 		if err != nil {
-			return fmt.Errorf("Failed to read column %s: %s", col, err)
+			return fmt.Errorf("csv: failed to read column '%s': %s", col, err)
 		}
 	}
 
 	count := len(colsData[0])
 	for i, colData := range colsData {
 		if len(colData) != count {
-			return fmt.Errorf("Wrong values count in column %s: expected %d but was %d",
+			return fmt.Errorf("csv: wrong values count in column '%s': expected %d but was %d",
 				cols[i], count, len(colData))
 		}
 	}
@@ -96,7 +96,7 @@ func runCSV(cmd *Command, args []string) error {
 		for j, _ := range cols {
 			r[j] = format(colsData[j][i])
 		}
-		if err := out.Write(r); err != nil {
+		if err = out.Write(r); err != nil {
 			return err
 		}
 	}
