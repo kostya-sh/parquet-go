@@ -103,49 +103,51 @@ func TestColumnReaderBoolean(t *testing.T) {
 }
 
 func TestColumnReaderByteArray(t *testing.T) {
-	for _, f := range [...]string{"ByteArrays", "ByteArrays_GZIP"} {
-		f = "testdata/" + f + ".parquet"
+	for _, fn := range [...]string{"ByteArrays", "ByteArrays_GZIP", "ByteArrays_V2", "ByteArrays_V2_GZIP"} {
+		path := "testdata/" + fn + ".parquet"
 
-		checkColumnReaderValues(t, f, 0, []cell{
-			{0, 0, []byte{'r', '1'}},
-			{0, 0, []byte{'r', '2'}},
-			{0, 0, []byte{'r', '3'}},
-			{0, 0, []byte{'r', '4'}},
-			{0, 0, []byte{'r', '5'}},
-			{0, 0, []byte{'r', '6'}},
+		t.Run(fn+"/Required", func(t *testing.T) {
+			checkColumnReaderValues(t, path, 0, []cell{
+				{0, 0, []byte{'r', '1'}},
+				{0, 0, []byte{'r', '2'}},
+				{0, 0, []byte{'r', '3'}},
+				{0, 0, []byte{'r', '4'}},
+				{0, 0, []byte{'r', '5'}},
+				{0, 0, []byte{'r', '6'}},
+			})
 		})
 
-		checkColumnReaderValues(t, f, 1, []cell{
-			{0, 0, nil},
-			{1, 0, []byte{'o', '2'}},
-			{1, 0, []byte{'o', '3'}},
-			{1, 0, []byte{'o', '4'}},
-			{0, 0, nil},
-			{1, 0, []byte{'o', '6'}},
+		t.Run(fn+"/Optional", func(t *testing.T) {
+			checkColumnReaderValues(t, path, 1, []cell{
+				{0, 0, nil},
+				{1, 0, []byte{'o', '2'}},
+				{1, 0, []byte{'o', '3'}},
+				{1, 0, []byte{'o', '4'}},
+				{0, 0, nil},
+				{1, 0, []byte{'o', '6'}},
+			})
 		})
 
-		checkColumnReaderValues(t, f, 2, []cell{
-			{0, 0, nil},
+		t.Run(fn+"/Repeated", func(t *testing.T) {
+			checkColumnReaderValues(t, path, 2, []cell{
+				{0, 0, nil},
 
-			{0, 0, nil},
+				{0, 0, nil},
 
-			{1, 0, []byte{'p', '3', '_', '1'}},
+				{1, 0, []byte{'p', '3', '_', '1'}},
 
-			{1, 0, []byte{'p', '4', '_', '1'}},
-			{1, 1, []byte{'p', '4', '_', '2'}},
-			{1, 1, []byte{'p', '4', '_', '3'}},
+				{1, 0, []byte{'p', '4', '_', '1'}},
+				{1, 1, []byte{'p', '4', '_', '2'}},
+				{1, 1, []byte{'p', '4', '_', '3'}},
 
-			{0, 0, nil},
+				{0, 0, nil},
 
-			{1, 0, []byte{'p', '6', '_', '1'}},
+				{1, 0, []byte{'p', '6', '_', '1'}},
+			})
 		})
-	}
-}
 
-func TestColumnReaderDicByteArray(t *testing.T) {
-	for _, f := range [...]string{"ByteArrays", "ByteArrays_GZIP", "ByteArrays_V2", "ByteArrays_V2_GZIP"} {
-		t.Run(f+"/Dict", func(t *testing.T) {
-			checkColumnReaderValues(t, "testdata/"+f+".parquet", 3, []cell{
+		t.Run(fn+"/Dict", func(t *testing.T) {
+			checkColumnReaderValues(t, path, 3, []cell{
 				{1, 0, []byte{'p', 'a', 'r', 'q', 'u', 'e', 't'}},
 				{1, 0, []byte{'g', 'o'}},
 				{1, 0, []byte{'p', 'a', 'r', 'q', 'u', 'e', 't'}},
