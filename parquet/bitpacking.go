@@ -1,5 +1,10 @@
 package parquet
 
+import (
+	"encoding/binary"
+	"math"
+)
+
 //go:generate go run bitpacking_gen.go
 
 // Encoding/decoding bit-packed int32
@@ -23,8 +28,21 @@ package parquet
 
 type unpack8int32Func func(data []byte) [8]int32
 
+func unpack8int32_0(data []byte) (a [8]int32) {
+	_ = a[7]
+	a[0] = 0
+	a[1] = 0
+	a[2] = 0
+	a[3] = 0
+	a[4] = 0
+	a[5] = 0
+	a[6] = 0
+	a[7] = 0
+	return
+}
+
 var unpack8Int32FuncByWidth = [33]unpack8int32Func{
-	nil, // no unpack function for width 0
+	unpack8int32_0,
 	unpack8int32_1,
 	unpack8int32_2,
 	unpack8int32_3,
@@ -88,4 +106,31 @@ func unpackLittleEndianInt32(bytes []byte) int32 {
 	default:
 		panic("invalid argument")
 	}
+}
+
+func zigZagVarInt32(bytes []byte) (int32, int) {
+	uv, n := binary.Uvarint(bytes)
+	if n <= 0 {
+		return 0, n
+	}
+	if uv > math.MaxUint32 {
+		return 0, -n
+	}
+
+	v := int32(uv / 2)
+	if uv%2 == 0 {
+		return v, n
+	}
+	return -v - 1, n
+}
+
+func varInt32(bytes []byte) (int32, int) {
+	uv, n := binary.Uvarint(bytes)
+	if n <= 0 {
+		return 0, n
+	}
+	if uv > math.MaxInt32 {
+		return 0, -n
+	}
+	return int32(uv), n
 }

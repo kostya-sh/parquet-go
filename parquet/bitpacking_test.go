@@ -58,3 +58,22 @@ func TestUnpackLittleEndingInt32(t *testing.T) {
 		}
 	}
 }
+
+func TestZigZagVarInt32(t *testing.T) {
+	tests := []struct {
+		bytes []byte
+		value int32
+	}{
+		{[]byte{0}, 0},
+		{[]byte{1}, -1},
+		{[]byte{2}, 1},
+		{[]byte{3}, -2},
+		{[]byte{4}, 2},
+		// TODO: more tests
+	}
+	for _, test := range tests {
+		if got, n := zigZagVarInt32(test.bytes); got != test.value || n != len(test.bytes) {
+			t.Errorf("zigZagVarInt32(%v)=%d, %d, want %d, %d", test.bytes, got, n, test.value, len(test.bytes))
+		}
+	}
+}
