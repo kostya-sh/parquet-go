@@ -1,10 +1,24 @@
 package parquet
 
+import "testing"
+
+func TestUnpack8int32(t *testing.T) {
+	for _, test := range unpack8int32Tests {
+		unpacker := unpack8Int32FuncByWidth[test.width]
+		if got := unpacker(test.data); got != test.values {
+			t.Errorf("unpack for width %d: got %v, want %v", test.width, got, test.values)
+		}
+	}
+}
+
 var unpack8int32Tests = []struct {
 	width  int
 	data   []byte
 	values [8]int32
 }{
+	// bit width = 0
+	{0, []byte{}, [8]int32{0, 0, 0, 0, 0, 0, 0, 0}},
+
 	// bit width = 1
 	{1, []byte{0x00}, [8]int32{0, 0, 0, 0, 0, 0, 0, 0}},
 	{1, []byte{0xFF}, [8]int32{1, 1, 1, 1, 1, 1, 1, 1}},

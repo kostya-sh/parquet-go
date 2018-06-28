@@ -5,15 +5,6 @@ import (
 	"testing"
 )
 
-func TestUnpack8int32(t *testing.T) {
-	for _, test := range unpack8int32Tests {
-		unpacker := unpack8Int32FuncByWidth[test.width]
-		if got := unpacker(test.data); got != test.values {
-			t.Errorf("unpack for width %d: got %v, want %v", test.width, got, test.values)
-		}
-	}
-}
-
 func TestBitWidth(t *testing.T) {
 	tests := []struct {
 		max   int

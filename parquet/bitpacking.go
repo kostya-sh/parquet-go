@@ -1,13 +1,8 @@
 package parquet
 
-import (
-	"encoding/binary"
-	"math"
-)
-
 //go:generate go run bitpacking_gen.go
 
-// Encoding/decoding bit-packed int32
+// Encoding/decoding bit-packed int32 and int64
 
 // The values are packed from the LSB of each byte to the MSB, though the order
 // of the bits in each value remains in the usual order of MSB to LSB.
@@ -29,7 +24,6 @@ import (
 type unpack8int32Func func(data []byte) [8]int32
 
 func unpack8int32_0(data []byte) (a [8]int32) {
-	_ = a[7]
 	a[0] = 0
 	a[1] = 0
 	a[2] = 0
@@ -77,60 +71,84 @@ var unpack8Int32FuncByWidth = [33]unpack8int32Func{
 	unpack8int32_32,
 }
 
-// bitWidth returns number of bits required to represent any number less or
-// equal to max.
-// TODO: maybe replace int with uint64, return result as well
-func bitWidth(max int) int {
-	if max < 0 {
-		panic("max should be >=0")
-	}
-	w := 0
-	for max != 0 {
-		w++
-		max >>= 1
-	}
-	return w
+type unpack8int64Func func(data []byte) [8]int64
+
+func unpack8int64_0(data []byte) (a [8]int64) {
+	a[0] = 0
+	a[1] = 0
+	a[2] = 0
+	a[3] = 0
+	a[4] = 0
+	a[5] = 0
+	a[6] = 0
+	a[7] = 0
+	return
 }
 
-// TODO: int32 or uint32?
-func unpackLittleEndianInt32(bytes []byte) int32 {
-	switch len(bytes) {
-	case 1:
-		return int32(bytes[0])
-	case 2:
-		return int32(bytes[0]) + int32(bytes[1])<<8
-	case 3:
-		return int32(bytes[0]) + int32(bytes[1])<<8 + int32(bytes[2])<<16
-	case 4:
-		return int32(bytes[0]) + int32(bytes[1])<<8 + int32(bytes[2])<<16 + int32(bytes[3])<<24
-	default:
-		panic("invalid argument")
-	}
-}
-
-func zigZagVarInt32(bytes []byte) (int32, int) {
-	uv, n := binary.Uvarint(bytes)
-	if n <= 0 {
-		return 0, n
-	}
-	if uv > math.MaxUint32 {
-		return 0, -n
-	}
-
-	v := int32(uv / 2)
-	if uv%2 == 0 {
-		return v, n
-	}
-	return -v - 1, n
-}
-
-func varInt32(bytes []byte) (int32, int) {
-	uv, n := binary.Uvarint(bytes)
-	if n <= 0 {
-		return 0, n
-	}
-	if uv > math.MaxInt32 {
-		return 0, -n
-	}
-	return int32(uv), n
+var unpack8Int64FuncByWidth = [65]unpack8int64Func{
+	unpack8int64_0,
+	unpack8int64_1,
+	unpack8int64_2,
+	unpack8int64_3,
+	unpack8int64_4,
+	unpack8int64_5,
+	unpack8int64_6,
+	unpack8int64_7,
+	unpack8int64_8,
+	unpack8int64_9,
+	unpack8int64_10,
+	unpack8int64_11,
+	unpack8int64_12,
+	unpack8int64_13,
+	unpack8int64_14,
+	unpack8int64_15,
+	unpack8int64_16,
+	unpack8int64_17,
+	unpack8int64_18,
+	unpack8int64_19,
+	unpack8int64_20,
+	unpack8int64_21,
+	unpack8int64_22,
+	unpack8int64_23,
+	unpack8int64_24,
+	unpack8int64_25,
+	unpack8int64_26,
+	unpack8int64_27,
+	unpack8int64_28,
+	unpack8int64_29,
+	unpack8int64_30,
+	unpack8int64_31,
+	unpack8int64_32,
+	unpack8int64_33,
+	unpack8int64_34,
+	unpack8int64_35,
+	unpack8int64_36,
+	unpack8int64_37,
+	unpack8int64_38,
+	unpack8int64_39,
+	unpack8int64_40,
+	unpack8int64_41,
+	unpack8int64_42,
+	unpack8int64_43,
+	unpack8int64_44,
+	unpack8int64_45,
+	unpack8int64_46,
+	unpack8int64_47,
+	unpack8int64_48,
+	unpack8int64_49,
+	unpack8int64_50,
+	unpack8int64_51,
+	unpack8int64_52,
+	unpack8int64_53,
+	unpack8int64_54,
+	unpack8int64_55,
+	unpack8int64_56,
+	unpack8int64_57,
+	unpack8int64_58,
+	unpack8int64_59,
+	unpack8int64_60,
+	unpack8int64_61,
+	unpack8int64_62,
+	unpack8int64_63,
+	unpack8int64_64,
 }
