@@ -103,7 +103,15 @@ func TestColumnReaderBoolean(t *testing.T) {
 }
 
 func TestColumnReaderByteArray(t *testing.T) {
-	for _, fn := range [...]string{"ByteArrays", "ByteArrays_GZIP", "ByteArrays_V2", "ByteArrays_V2_GZIP"} {
+	testFiles := [...]string{
+		"ByteArrays",
+		"ByteArrays_GZIP",
+		"ByteArrays_V2",
+		"ByteArrays_V2_GZIP",
+		"ByteArrays_V2_SNAPPY",
+	}
+
+	for _, fn := range testFiles {
 		path := "testdata/" + fn + ".parquet"
 
 		t.Run(fn+"/Required", func(t *testing.T) {

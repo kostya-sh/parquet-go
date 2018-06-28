@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/golang/snappy"
 	"github.com/kostya-sh/parquet-go/parquetformat"
 )
 
@@ -267,20 +268,31 @@ func (cr *ColumnChunkReader) readPageData(ph *parquetformat.PageHeader) (data []
 
 	r := io.LimitReader(cr.reader, int64(ph.CompressedPageSize-levelsSize))
 
-	switch codec := cr.chunkMeta.Codec; codec {
+	codec := cr.chunkMeta.Codec
+	switch codec {
+	case parquetformat.CompressionCodec_SNAPPY:
+		// decompress after reading:
+		// parquet uses snappy block encoding (snappy.Reader is for streaming encoing)
 	case parquetformat.CompressionCodec_UNCOMPRESSED:
+		// do nothing
 	case parquetformat.CompressionCodec_GZIP:
 		r, err = gzip.NewReader(r)
+		if err != nil {
+			return nil, err
+		}
 	default:
 		return nil, fmt.Errorf("unsupported compression codec: %s", codec)
-	}
-	if err != nil {
-		return nil, err
 	}
 
 	valuesData, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
+	}
+	if codec == parquetformat.CompressionCodec_SNAPPY {
+		valuesData, err = snappy.Decode(nil, valuesData)
+		if err != nil {
+			return nil, err
+		}
 	}
 	data = append(data, valuesData...)
 
