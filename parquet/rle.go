@@ -41,9 +41,6 @@ type rle32Decoder struct {
 
 // newRLE32Decoder creates a new RLE decoder with bit-width w
 func newRLE32Decoder(w int) *rle32Decoder {
-	if w <= 0 || w > 32 {
-		panic("invalid width value")
-	}
 	d := rle32Decoder{
 		bitWidth:   w,
 		byteWidth:  (w + 7) / 8,

@@ -17,12 +17,12 @@ type dictDecoder struct {
 }
 
 func (d *dictDecoder) init(data []byte, count int) error {
-	if len(data) < 3 {
+	if len(data) < 1 {
 		return fmt.Errorf("dict: not enough data")
 	}
 	d.data = data
 	w := int(data[0])
-	if w <= 0 || w > 32 {
+	if w < 0 || w > 32 {
 		return fmt.Errorf("invalid bit width: %d", w)
 	}
 	d.keysDecoder = newRLE32Decoder(w)
@@ -31,6 +31,9 @@ func (d *dictDecoder) init(data []byte, count int) error {
 }
 
 func (d *dictDecoder) initValues(values interface{}, dictData []byte) error {
+	if d.numValues == 0 {
+		return nil
+	}
 	if err := d.vd.init(dictData, d.numValues); err != nil {
 		return err
 	}

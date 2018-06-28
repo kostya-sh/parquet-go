@@ -323,8 +323,8 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 		if dph == nil {
 			return fmt.Errorf("null DictionaryPageHeader in %+v", ph)
 		}
-		if count := dph.NumValues; count <= 0 {
-			return fmt.Errorf("non-positive NumValues in DICTIONARY_PAGE: %d", count)
+		if count := dph.NumValues; count < 0 {
+			return fmt.Errorf("negative NumValues in DICTIONARY_PAGE: %d", count)
 		}
 
 		dictData, err := cr.readPageData(ph)
@@ -508,9 +508,11 @@ func (cr *ColumnChunkReader) Read(values interface{}, dLevels []int, rLevels []i
 			nn++
 		}
 	}
-	_, err = cr.valuesDecoder.decode(reflect.ValueOf(values).Slice(0, nn).Interface())
-	if err != nil {
-		return n, fmt.Errorf("failed to read values: %s", err)
+	if nn != 0 {
+		_, err = cr.valuesDecoder.decode(reflect.ValueOf(values).Slice(0, nn).Interface())
+		if err != nil {
+			return n, fmt.Errorf("failed to read values: %s", err)
+		}
 	}
 
 	// advance to the next page if necessary

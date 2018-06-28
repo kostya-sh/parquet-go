@@ -14,9 +14,6 @@ type booleanPlainDecoder struct {
 }
 
 func (d *booleanPlainDecoder) init(data []byte, count int) error {
-	if count > len(data)*8 { // TODO: think overflow (*8)
-		return fmt.Errorf("not enough data (%d bytes) for %d values", len(data), count)
-	}
 	d.data = data
 	d.count = count
 	d.i = 0
