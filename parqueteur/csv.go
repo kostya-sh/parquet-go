@@ -16,11 +16,14 @@ var cmdCSV = &Command{
 }
 
 var csvDelimiter string
+var csvHeader bool
 
 func init() {
 	cmdCSV.Run = runCSV
 
 	cmdCSV.Flag.StringVar(&csvDelimiter, "d", ",", "CSV field delimiter")
+	cmdCSV.Flag.BoolVar(&csvHeader, "H", false, "Include header row")
+
 }
 
 func readAll(f *parquet.File, col parquet.Column) (allValues []interface{}, err error) {
@@ -91,6 +94,15 @@ func runCSV(cmd *Command, args []string) error {
 
 	out := csv.NewWriter(os.Stdout)
 	out.Comma, _ = utf8.DecodeRuneInString(csvDelimiter)
+	if csvHeader {
+		r := make([]string, len(cols), len(cols))
+		for i, col := range cols {
+			r[i] = col.String()
+		}
+		if err = out.Write(r); err != nil {
+			return err
+		}
+	}
 	for i := 0; i < count; i++ {
 		r := make([]string, len(cols), len(cols))
 		for j, _ := range cols {
