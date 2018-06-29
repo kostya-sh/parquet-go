@@ -52,6 +52,18 @@ func zigZagVarInt32(bytes []byte) (int32, int) {
 	return -v - 1, n
 }
 
+func zigZagVarInt64(bytes []byte) (int64, int) {
+	uv, n := binary.Uvarint(bytes)
+	if n <= 0 {
+		return 0, n
+	}
+	v := int64(uv / 2)
+	if uv%2 == 0 {
+		return v, n
+	}
+	return -v - 1, n
+}
+
 func varInt32(bytes []byte) (int32, int) {
 	uv, n := binary.Uvarint(bytes)
 	if n <= 0 {

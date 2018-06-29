@@ -161,6 +161,8 @@ func (cr *ColumnChunkReader) newValuesDecoder(pageEncoding parquetformat.Encodin
 		switch pageEncoding {
 		case parquetformat.Encoding_PLAIN:
 			return &int64PlainDecoder{}, nil
+		case parquetformat.Encoding_DELTA_BINARY_PACKED:
+			return &int64DeltaBinaryPackedDecoder{}, nil
 		case parquetformat.Encoding_RLE_DICTIONARY:
 			return cr.dictValuesDecoder, nil
 		}
