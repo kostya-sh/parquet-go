@@ -468,17 +468,20 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 }
 
 // Read reads up to len(dLevels) values into values and corresponding definition
-// and repetition levels into d and r respectfully. Panics if len(dLevels) !=
-// len(rLevels). It returns the number of values read and any errors
-// encountered.
+// and repetition levels into dLevels and rLevels respectfully. Panics if
+// len(dLevels) != len(rLevels) != len(values). It returns the number of values
+// read (including nulls) and any errors encountered.
 //
-// Note that after Read values contain only non-null values that could be less
-// than n.
+// Note that after Read values contain only non-null values. Number of these
+// values could be less than n.
 //
-// When there is not enough values in the current page to fill values Read
+// values must be a slice of interface{} or type that corresponds to the column
+// type (such as []int32 for INT32 column).
+//
+// When there is not enough values in the current page to fill dLevels Read
 // doesn't advance to the next page and returns the number of values read.  If
-// this page was last page in its column chunk it returns EndOfColumnChunk
-// error.
+// this page was the last page in its column chunk and there is no more data to
+// read it returns EndOfChunk error.
 func (cr *ColumnChunkReader) Read(values interface{}, dLevels []int, rLevels []int) (n int, err error) {
 	if lv := reflect.ValueOf(values).Len(); lv != len(dLevels) || lv != len(rLevels) {
 		panic("incorrect arguments (len)")
