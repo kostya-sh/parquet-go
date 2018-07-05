@@ -524,7 +524,9 @@ func (cr *ColumnChunkReader) Read(values interface{}, dLevels []int, rLevels []i
 	}
 	if cr.readPageValues == cr.pageNumValues {
 		// skipping a page at the end is the same as reading the next one
-		cr.SkipPage()
+		// ignore the returned error as it will be remembered in cr.err
+		// and returned on the next call to Read()
+		_ = cr.SkipPage()
 	}
 
 	return n, nil
@@ -535,18 +537,26 @@ func (cr *ColumnChunkReader) Read(values interface{}, dLevels []int, rLevels []i
 //
 // Returns EndOfChunk if no more data available
 func (cr *ColumnChunkReader) SkipPage() error {
+	if cr.err != nil {
+		return cr.err
+	}
 	if cr.reader.n == cr.chunkMeta.TotalCompressedSize { // TODO: maybe use chunkMeta.NumValues
 		cr.err = EndOfChunk
-		cr.page = nil
 	} else {
 		// TODO: read data lazily only if Read is called
 		cr.err = cr.readPage(false)
+	}
+	if cr.err != nil {
+		cr.page = nil
 	}
 	return cr.err
 }
 
 // PageHeader returns PageHeader of a page that is about to be read or
 // currently being read.
+//
+// If there was an error reading last page (including EndOfChunk) PageHeder
+// returns nil.
 func (cr *ColumnChunkReader) PageHeader() *parquetformat.PageHeader {
 	return cr.page
 }
