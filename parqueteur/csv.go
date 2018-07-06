@@ -29,8 +29,8 @@ func init() {
 func readAll(f *parquet.File, col parquet.Column) (allValues []interface{}, err error) {
 	const batch = 16
 	values := make([]interface{}, batch, batch)
-	dLevels := make([]int, batch, batch)
-	rLevels := make([]int, batch, batch)
+	dLevels := make([]uint16, batch, batch)
+	rLevels := make([]uint16, batch, batch)
 	var n int
 	for rg, _ := range f.MetaData.RowGroups {
 		cr, err := f.NewReader(col, rg)

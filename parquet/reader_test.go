@@ -8,8 +8,8 @@ import (
 )
 
 type cell struct {
-	d int
-	r int
+	d uint16
+	r uint16
 	v interface{}
 }
 
@@ -34,8 +34,8 @@ func checkColumnReaderValues(t *testing.T, path string, c int, expected []cell) 
 	for {
 		vals := make([]interface{}, 3, 3)
 
-		d := make([]int, 3, 3)
-		r := make([]int, 3, 3)
+		d := make([]uint16, 3, 3)
+		r := make([]uint16, 3, 3)
 		n, err := cr.Read(vals, d, r)
 		if err == EndOfChunk {
 			break

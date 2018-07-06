@@ -74,10 +74,10 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 		// TODO: also check that len(Path) = maxD
 		// For data that is required, the definition levels are not encoded and
 		// always have the value of the max definition level.
-		cr.dDecoder = &constDecoder{value: col.maxD}
+		cr.dDecoder = &constDecoder{value: int(col.maxD)}
 		// TODO: document level ranges
 	} else {
-		cr.dDecoder = newRLE32Decoder(bitWidth(col.maxD))
+		cr.dDecoder = newRLE32Decoder(bitWidth16(col.maxD))
 	}
 	if !nested && repType != parquetformat.FieldRepetitionType_REPEATED {
 		// TODO: I think we need to check all schemaElements in the path (confirm if above)
@@ -86,7 +86,7 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 		// If the column is not nested the repetition levels are not encoded and
 		// always have the value of 1
 	} else {
-		cr.rDecoder = newRLE32Decoder(bitWidth(col.maxR))
+		cr.rDecoder = newRLE32Decoder(bitWidth16(col.maxR))
 	}
 
 	cr.err = cr.readPage(true)
@@ -482,7 +482,7 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 // doesn't advance to the next page and returns the number of values read.  If
 // this page was the last page in its column chunk and there is no more data to
 // read it returns EndOfChunk error.
-func (cr *ColumnChunkReader) Read(values interface{}, dLevels []int, rLevels []int) (n int, err error) {
+func (cr *ColumnChunkReader) Read(values interface{}, dLevels []uint16, rLevels []uint16) (n int, err error) {
 	if lv := reflect.ValueOf(values).Len(); lv != len(dLevels) || lv != len(rLevels) {
 		panic("incorrect arguments (len)")
 	}
@@ -492,11 +492,11 @@ func (cr *ColumnChunkReader) Read(values interface{}, dLevels []int, rLevels []i
 	}
 
 	// read levels
-	nd, err := cr.dDecoder.decode(dLevels)
+	nd, err := decodeLevels(cr.dDecoder, dLevels)
 	if err != nil {
 		return n, fmt.Errorf("failed to read definition levels: %s", err)
 	}
-	nr, err := cr.rDecoder.decode(rLevels)
+	nr, err := decodeLevels(cr.rDecoder, rLevels)
 	if err != nil {
 		return n, fmt.Errorf("failed to read repetition levels: %s", err)
 	}
@@ -568,6 +568,16 @@ func (cr *ColumnChunkReader) PageHeader() *parquetformat.PageHeader {
 // chunk has one, otherwise return nil.
 func (cr *ColumnChunkReader) DictionaryPageHeader() *parquetformat.PageHeader {
 	return cr.dictPage
+}
+
+// TODO: decode levels to []uint16 directly
+func decodeLevels(d levelsDecoder, dst []uint16) (int, error) {
+	dstInt := make([]int, len(dst), len(dst))
+	n, err := d.decode(dstInt)
+	for i := 0; i < n; i++ {
+		dst[i] = uint16(dstInt[i])
+	}
+	return n, err
 }
 
 type constDecoder struct {

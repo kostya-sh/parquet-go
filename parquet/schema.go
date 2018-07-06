@@ -29,8 +29,8 @@ type Schema struct {
 type Column struct {
 	index         int
 	name          string
-	maxD          int
-	maxR          int
+	maxD          uint16
+	maxR          uint16
 	schemaElement *parquetformat.SchemaElement
 }
 
@@ -41,11 +41,11 @@ func (col Column) Index() int {
 	return col.index
 }
 
-func (col Column) MaxD() int {
+func (col Column) MaxD() uint16 {
 	return col.maxD
 }
 
-func (col Column) MaxR() int {
+func (col Column) MaxR() uint16 {
 	return col.maxR
 }
 
@@ -210,7 +210,7 @@ func (g *group) collectColumns() []Column {
 		switch c := child.(type) {
 		case *primitive:
 			s := c.schemaElement
-			var d, r int
+			var d, r uint16
 			if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
 				d = 1
 			}
@@ -222,10 +222,10 @@ func (g *group) collectColumns() []Column {
 			s := c.schemaElement
 			for _, col := range c.collectColumns() {
 				if *s.RepetitionType != parquetformat.FieldRepetitionType_REQUIRED {
-					col.maxD++
+					col.maxD++ // TODO: handle overflow
 				}
 				if *s.RepetitionType == parquetformat.FieldRepetitionType_REPEATED {
-					col.maxR++
+					col.maxR++ // TODO: handle overflow
 				}
 				col.name = s.Name + "." + col.name
 				cols = append(cols, col)

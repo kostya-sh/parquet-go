@@ -5,10 +5,9 @@ import (
 	"math"
 )
 
-// bitWidth returns number of bits required to represent any number less or
+// bitWidth16 returns number of bits required to represent any number less or
 // equal to max.
-// TODO: maybe replace int with uint64, return result as well
-func bitWidth(max int) int {
+func bitWidth16(max uint16) int {
 	if max < 0 {
 		panic("max should be >=0")
 	}
