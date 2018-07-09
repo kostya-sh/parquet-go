@@ -20,31 +20,18 @@ func bitWidth16(max uint16) int {
 }
 
 func zigZagVarInt32(bytes []byte) (int32, int) {
-	uv, n := binary.Uvarint(bytes)
+	v, n := binary.Varint(bytes)
 	if n <= 0 {
 		return 0, n
 	}
-	if uv > math.MaxUint32 {
+	if v > math.MaxInt32 || v < math.MinInt32 {
 		return 0, -n
 	}
-
-	v := int32(uv / 2)
-	if uv%2 == 0 {
-		return v, n
-	}
-	return -v - 1, n
+	return int32(v), n
 }
 
 func zigZagVarInt64(bytes []byte) (int64, int) {
-	uv, n := binary.Uvarint(bytes)
-	if n <= 0 {
-		return 0, n
-	}
-	v := int64(uv / 2)
-	if uv%2 == 0 {
-		return v, n
-	}
-	return -v - 1, n
+	return binary.Varint(bytes)
 }
 
 func varInt32(bytes []byte) (int32, int) {
