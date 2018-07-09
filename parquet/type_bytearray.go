@@ -14,7 +14,7 @@ type byteArrayPlainDecoder struct {
 	pos int
 }
 
-func (d *byteArrayPlainDecoder) init(data []byte, count int) error {
+func (d *byteArrayPlainDecoder) init(data []byte) error {
 	d.data = data
 	d.pos = 0
 	return nil
@@ -39,7 +39,7 @@ func (d *byteArrayPlainDecoder) next() (value []byte, err error) {
 	return value, err
 }
 
-func (d *byteArrayPlainDecoder) decode(slice interface{}) (n int, err error) {
+func (d *byteArrayPlainDecoder) decode(slice interface{}) error {
 	// TODO: support string
 	switch buf := slice.(type) {
 	case [][]byte:
@@ -51,28 +51,29 @@ func (d *byteArrayPlainDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *byteArrayPlainDecoder) decodeByteSlice(buf [][]byte) (n int, err error) {
+func (d *byteArrayPlainDecoder) decodeByteSlice(buf [][]byte) error {
 	i := 0
 	for i < len(buf) && d.pos < len(d.data) {
-		buf[i], err = d.next()
+		v, err := d.next()
 		if err != nil {
 			break
 		}
+		buf[i] = v
 		i++
 	}
 	if i == 0 {
-		err = fmt.Errorf("bytearray/plain: no more data")
+		return fmt.Errorf("bytearray/plain: no more data")
 	}
-	return i, err
+	return nil
 }
 
-func (d *byteArrayPlainDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *byteArrayPlainDecoder) decodeE(buf []interface{}) error {
 	b := make([][]byte, len(buf), len(buf))
-	n, err = d.decodeByteSlice(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeByteSlice(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }
 
 type byteArrayDictDecoder struct {
@@ -87,7 +88,7 @@ func (d *byteArrayDictDecoder) initValues(dictData []byte, count int) error {
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
-func (d *byteArrayDictDecoder) decode(slice interface{}) (n int, err error) {
+func (d *byteArrayDictDecoder) decode(slice interface{}) error {
 	// TODO: support string
 	switch buf := slice.(type) {
 	case [][]byte:
@@ -99,24 +100,24 @@ func (d *byteArrayDictDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *byteArrayDictDecoder) decodeByteSlice(buf [][]byte) (n int, err error) {
+func (d *byteArrayDictDecoder) decodeByteSlice(buf [][]byte) error {
 	keys, err := d.decodeKeys(len(buf))
 	if err != nil {
-		return 0, err
+		return err
 	}
 	for i, k := range keys {
 		buf[i] = d.values[k]
 	}
-	return len(keys), nil
+	return nil
 }
 
-func (d *byteArrayDictDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *byteArrayDictDecoder) decodeE(buf []interface{}) error {
 	b := make([][]byte, len(buf), len(buf))
-	n, err = d.decodeByteSlice(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeByteSlice(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }
 
 type byteArrayDeltaLengthDecoder struct {
@@ -127,21 +128,18 @@ type byteArrayDeltaLengthDecoder struct {
 	pos int
 }
 
-func (d *byteArrayDeltaLengthDecoder) init(data []byte, count int) error {
+func (d *byteArrayDeltaLengthDecoder) init(data []byte) error {
 	d.data = data
 
 	lensDecoder := int32DeltaBinaryPackedDecoder{}
-	if err := lensDecoder.init(data, count); err != nil {
+	if err := lensDecoder.init(data); err != nil {
 		return err
 	}
 
 	d.lens = make([]int32, lensDecoder.numValues, lensDecoder.numValues)
-	n, err := lensDecoder.decodeInt32(d.lens)
+	err := lensDecoder.decodeInt32(d.lens)
 	if err != nil {
 		return err
-	}
-	if n != len(d.lens) {
-		return fmt.Errorf("bytearray/deltalength: faield to read all lengtgs")
 	}
 	d.pos = lensDecoder.pos
 	d.i = 0
@@ -161,7 +159,7 @@ func (d *byteArrayDeltaLengthDecoder) next() (value []byte, err error) {
 	return value, err
 }
 
-func (d *byteArrayDeltaLengthDecoder) decode(slice interface{}) (n int, err error) {
+func (d *byteArrayDeltaLengthDecoder) decode(slice interface{}) error {
 	// TODO: support string
 	switch buf := slice.(type) {
 	case [][]byte:
@@ -173,28 +171,29 @@ func (d *byteArrayDeltaLengthDecoder) decode(slice interface{}) (n int, err erro
 	}
 }
 
-func (d *byteArrayDeltaLengthDecoder) decodeByteSlice(buf [][]byte) (n int, err error) {
+func (d *byteArrayDeltaLengthDecoder) decodeByteSlice(buf [][]byte) error {
 	i := 0
 	for i < len(buf) && d.i < len(d.lens) {
-		buf[i], err = d.next()
+		v, err := d.next()
 		if err != nil {
 			break
 		}
+		buf[i] = v
 		i++
 	}
 	if i == 0 {
-		err = fmt.Errorf("bytearray/plain: no more data")
+		return fmt.Errorf("bytearray/plain: no more data")
 	}
-	return i, err
+	return nil
 }
 
-func (d *byteArrayDeltaLengthDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *byteArrayDeltaLengthDecoder) decodeE(buf []interface{}) error {
 	b := make([][]byte, len(buf), len(buf))
-	n, err = d.decodeByteSlice(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeByteSlice(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }
 
 type byteArrayDeltaDecoder struct {
@@ -205,22 +204,17 @@ type byteArrayDeltaDecoder struct {
 	value []byte
 }
 
-func (d *byteArrayDeltaDecoder) init(data []byte, count int) error {
+func (d *byteArrayDeltaDecoder) init(data []byte) error {
 	lensDecoder := int32DeltaBinaryPackedDecoder{}
-	if err := lensDecoder.init(data, count); err != nil {
+	if err := lensDecoder.init(data); err != nil {
 		return err
 	}
 
 	d.prefixLens = make([]int32, lensDecoder.numValues, lensDecoder.numValues)
-	n, err := lensDecoder.decodeInt32(d.prefixLens)
-	if err != nil {
+	if err := lensDecoder.decodeInt32(d.prefixLens); err != nil {
 		return err
 	}
-	if n != len(d.prefixLens) {
-		return fmt.Errorf("bytearray/delta: faield to read all prefix lengths")
-	}
-
-	if err := d.suffixDecoder.init(data[lensDecoder.pos:], count); err != nil {
+	if err := d.suffixDecoder.init(data[lensDecoder.pos:]); err != nil {
 		return err
 	}
 
@@ -233,7 +227,7 @@ func (d *byteArrayDeltaDecoder) init(data []byte, count int) error {
 	return nil
 }
 
-func (d *byteArrayDeltaDecoder) decode(slice interface{}) (n int, err error) {
+func (d *byteArrayDeltaDecoder) decode(slice interface{}) error {
 	// TODO: support string
 	switch buf := slice.(type) {
 	case [][]byte:
@@ -245,7 +239,7 @@ func (d *byteArrayDeltaDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *byteArrayDeltaDecoder) decodeByteSlice(buf [][]byte) (n int, err error) {
+func (d *byteArrayDeltaDecoder) decodeByteSlice(buf [][]byte) error {
 	i := 0
 	for i < len(buf) && d.suffixDecoder.i < len(d.prefixLens) {
 		prefixLen := int(d.prefixLens[d.suffixDecoder.i])
@@ -261,16 +255,16 @@ func (d *byteArrayDeltaDecoder) decodeByteSlice(buf [][]byte) (n int, err error)
 		i++
 	}
 	if i == 0 {
-		err = fmt.Errorf("bytearray/delta: no more data")
+		return fmt.Errorf("bytearray/delta: no more data")
 	}
-	return i, err
+	return nil
 }
 
-func (d *byteArrayDeltaDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *byteArrayDeltaDecoder) decodeE(buf []interface{}) error {
 	b := make([][]byte, len(buf), len(buf))
-	n, err = d.decodeByteSlice(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeByteSlice(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }

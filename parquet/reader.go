@@ -74,14 +74,14 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 		// TODO: also check that len(Path) = maxD
 		// For data that is required, the definition levels are not encoded and
 		// always have the value of the max definition level.
-		cr.dDecoder = &constDecoder{value: int(col.maxD)}
+		cr.dDecoder = constDecoder(col.maxD)
 		// TODO: document level ranges
 	} else {
 		cr.dDecoder = newRLE32Decoder(bitWidth16(col.maxD))
 	}
 	if !nested && repType != parquetformat.FieldRepetitionType_REPEATED {
 		// TODO: I think we need to check all schemaElements in the path (confirm if above)
-		cr.rDecoder = &constDecoder{value: 0}
+		cr.rDecoder = constDecoder(0)
 		// TODO: clarify the following comment from parquet-format/README:
 		// If the column is not nested the repetition levels are not encoded and
 		// always have the value of 1
@@ -402,7 +402,7 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 	pos := 0
 	if dph != nil {
 		// TODO: it looks like parquetformat README is incorrect: first R then D
-		if _, isConst := cr.rDecoder.(*constDecoder); !isConst {
+		if _, isConst := cr.rDecoder.(constDecoder); !isConst {
 			if enc := dph.RepetitionLevelEncoding; enc != parquetformat.Encoding_RLE {
 				return fmt.Errorf("%s RepetitionLevelEncoding is not supported", enc)
 			}
@@ -410,12 +410,10 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 			// TODO: error handing
 			n := int(binary.LittleEndian.Uint32(data[:4]))
 			pos += 4
-			cr.rDecoder.init(data[pos:pos+n], numValues)
+			cr.rDecoder.init(data[pos : pos+n])
 			pos += n
-		} else {
-			cr.rDecoder.init(nil, numValues)
 		}
-		if _, isConst := cr.dDecoder.(*constDecoder); !isConst {
+		if _, isConst := cr.dDecoder.(constDecoder); !isConst {
 			if enc := dph.DefinitionLevelEncoding; enc != parquetformat.Encoding_RLE {
 				return fmt.Errorf("%s DefinitionLevelEncoding is not supported", enc)
 			}
@@ -423,40 +421,36 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 			// TODO: error handing
 			n := int(binary.LittleEndian.Uint32(data[pos : pos+4]))
 			pos += 4
-			cr.dDecoder.init(data[pos:pos+n], numValues)
+			cr.dDecoder.init(data[pos : pos+n])
 			pos += n
-		} else {
-			cr.dDecoder.init(nil, numValues)
 		}
 	} else {
-		if _, isConst := cr.rDecoder.(*constDecoder); !isConst {
+		if _, isConst := cr.rDecoder.(constDecoder); !isConst {
 			n := int(dph2.RepetitionLevelsByteLength)
 			if n <= 0 {
 				return fmt.Errorf("non-positive RepetitionLevelsByteLength")
 			}
-			cr.rDecoder.init(data[pos:pos+n], numValues)
+			cr.rDecoder.init(data[pos : pos+n])
 			pos += n
 		} else {
 			if dph2.RepetitionLevelsByteLength != 0 {
 				return fmt.Errorf("RepetitionLevelsByteLength != 0 for column with no r levels")
 			}
-			cr.rDecoder.init(nil, numValues)
 		}
-		if _, isConst := cr.dDecoder.(*constDecoder); !isConst {
+		if _, isConst := cr.dDecoder.(constDecoder); !isConst {
 			n := int(dph2.DefinitionLevelsByteLength)
 			if n <= 0 {
 				return fmt.Errorf("non-positive DefinitionLevelsByteLength")
 			}
-			cr.dDecoder.init(data[pos:pos+n], numValues)
+			cr.dDecoder.init(data[pos : pos+n])
 			pos += n
 		} else {
 			if dph2.DefinitionLevelsByteLength != 0 {
 				return fmt.Errorf("DefinitionLevelsByteLength != 0 for column with no r levels")
 			}
-			cr.dDecoder.init(nil, numValues)
 		}
 	}
-	if err := cr.valuesDecoder.init(data[pos:], numValues); err != nil {
+	if err := cr.valuesDecoder.init(data[pos:]); err != nil {
 		return err
 	}
 
@@ -492,36 +486,33 @@ func (cr *ColumnChunkReader) Read(values interface{}, dLevels []uint16, rLevels 
 	}
 
 	// read levels
-	nd, err := decodeLevels(cr.dDecoder, dLevels)
-	if err != nil {
+	batchSize := len(dLevels)
+	if rem := cr.pageNumValues - cr.readPageValues; rem < batchSize {
+		batchSize = rem
+	}
+	if err := cr.dDecoder.decodeLevels(dLevels[:batchSize]); err != nil {
 		return n, fmt.Errorf("failed to read definition levels: %s", err)
 	}
-	nr, err := decodeLevels(cr.rDecoder, rLevels)
-	if err != nil {
+	if err := cr.rDecoder.decodeLevels(rLevels[:batchSize]); err != nil {
 		return n, fmt.Errorf("failed to read repetition levels: %s", err)
 	}
-	if nd != nr {
-		return n, fmt.Errorf("counts mismatch, #d = %d, #r = %d",
-			nd, nr)
-	}
-	n = nd
 
 	// read values
-	nn := 0
-	for _, ld := range dLevels[:n] {
+	nn := 0 // number of non-null values
+	for _, ld := range dLevels[:batchSize] {
 		if ld == cr.col.MaxD() {
 			nn++
 		}
 	}
 	if nn != 0 {
-		_, err = cr.valuesDecoder.decode(reflect.ValueOf(values).Slice(0, nn).Interface())
+		err = cr.valuesDecoder.decode(reflect.ValueOf(values).Slice(0, nn).Interface())
 		if err != nil {
 			return n, fmt.Errorf("failed to read values: %s", err)
 		}
 	}
 
 	// advance to the next page if necessary
-	cr.readPageValues += n
+	cr.readPageValues += batchSize
 	if cr.readPageValues > cr.pageNumValues {
 		panic("something wrong (read to many values)")
 	}
@@ -532,7 +523,7 @@ func (cr *ColumnChunkReader) Read(values interface{}, dLevels []uint16, rLevels 
 		_ = cr.SkipPage()
 	}
 
-	return n, nil
+	return batchSize, nil
 }
 
 // SkipPage positions cr at the beginning of the next page skipping all values
@@ -570,37 +561,16 @@ func (cr *ColumnChunkReader) DictionaryPageHeader() *parquetformat.PageHeader {
 	return cr.dictPage
 }
 
-// TODO: decode levels to []uint16 directly
-func decodeLevels(d levelsDecoder, dst []uint16) (int, error) {
-	dstInt := make([]int, len(dst), len(dst))
-	n, err := d.decode(dstInt)
-	for i := 0; i < n; i++ {
-		dst[i] = uint16(dstInt[i])
-	}
-	return n, err
+type constDecoder uint16
+
+func (d constDecoder) init(_ []byte) {
 }
 
-type constDecoder struct {
-	value int
-	count int
-	i     int
-}
-
-func (d *constDecoder) init(_ []byte, count int) {
-	d.count = count
-	d.i = 0
-}
-
-func (d *constDecoder) decode(levels []int) (n int, err error) {
-	n = len(levels)
-	if d.count-d.i < n {
-		n = d.count - d.i
+func (d constDecoder) decodeLevels(dst []uint16) error {
+	for i := 0; i < len(dst); i++ {
+		dst[i] = uint16(d)
 	}
-	for i := 0; i < n; i++ {
-		levels[i] = d.value
-	}
-	d.i += n
-	return n, nil
+	return nil
 }
 
 type countingReader struct {

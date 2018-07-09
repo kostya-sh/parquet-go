@@ -12,7 +12,7 @@ type int96PlainDecoder struct {
 	pos int
 }
 
-func (d *int96PlainDecoder) init(data []byte, count int) error {
+func (d *int96PlainDecoder) init(data []byte) error {
 	d.data = data
 	d.pos = 0
 	return nil
@@ -27,7 +27,7 @@ func (d *int96PlainDecoder) next() (value Int96, err error) {
 	return value, err
 }
 
-func (d *int96PlainDecoder) decode(slice interface{}) (n int, err error) {
+func (d *int96PlainDecoder) decode(slice interface{}) error {
 	// TODO: support string
 	switch buf := slice.(type) {
 	case []Int96:
@@ -39,28 +39,29 @@ func (d *int96PlainDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *int96PlainDecoder) decodeInt96(buf []Int96) (n int, err error) {
+func (d *int96PlainDecoder) decodeInt96(buf []Int96) error {
 	i := 0
 	for i < len(buf) && d.pos < len(d.data) {
-		buf[i], err = d.next()
+		v, err := d.next()
 		if err != nil {
 			break
 		}
+		buf[i] = v
 		i++
 	}
 	if i == 0 {
-		err = fmt.Errorf("bytearray/plain: no more data")
+		return fmt.Errorf("bytearray/plain: no more data")
 	}
-	return i, err
+	return nil
 }
 
-func (d *int96PlainDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *int96PlainDecoder) decodeE(buf []interface{}) error {
 	b := make([]Int96, len(buf), len(buf))
-	n, err = d.decodeInt96(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeInt96(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }
 
 type int96DictDecoder struct {
@@ -75,7 +76,7 @@ func (d *int96DictDecoder) initValues(dictData []byte, count int) error {
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
-func (d *int96DictDecoder) decode(slice interface{}) (n int, err error) {
+func (d *int96DictDecoder) decode(slice interface{}) error {
 	switch buf := slice.(type) {
 	case []Int96:
 		return d.decodeInt96(buf)
@@ -86,22 +87,22 @@ func (d *int96DictDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *int96DictDecoder) decodeInt96(buf []Int96) (n int, err error) {
+func (d *int96DictDecoder) decodeInt96(buf []Int96) error {
 	keys, err := d.decodeKeys(len(buf))
 	if err != nil {
-		return 0, err
+		return err
 	}
 	for i, k := range keys {
 		buf[i] = d.values[k]
 	}
-	return len(keys), nil
+	return nil
 }
 
-func (d *int96DictDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *int96DictDecoder) decodeE(buf []interface{}) error {
 	b := make([]Int96, len(buf), len(buf))
-	n, err = d.decodeInt96(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeInt96(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }

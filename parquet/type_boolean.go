@@ -6,21 +6,19 @@ import (
 )
 
 type booleanPlainDecoder struct {
-	count int
-	data  []byte
+	data []byte
 
 	i      int
 	values [8]int32
 }
 
-func (d *booleanPlainDecoder) init(data []byte, count int) error {
+func (d *booleanPlainDecoder) init(data []byte) error {
 	d.data = data
-	d.count = count
 	d.i = 0
 	return nil
 }
 
-func (d *booleanPlainDecoder) decode(slice interface{}) (n int, err error) {
+func (d *booleanPlainDecoder) decode(slice interface{}) error {
 	switch buf := slice.(type) {
 	case []bool:
 		return d.decodeBool(buf)
@@ -31,9 +29,9 @@ func (d *booleanPlainDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *booleanPlainDecoder) decodeBool(buf []bool) (n int, err error) {
+func (d *booleanPlainDecoder) decodeBool(buf []bool) error {
 	i := 0
-	for i < len(buf) && d.i < d.count {
+	for i < len(buf) && d.i/8 < len(d.data) {
 		if d.i%8 == 0 {
 			d.values = unpack8int32_1(d.data[d.i/8 : d.i/8+1])
 		}
@@ -41,26 +39,26 @@ func (d *booleanPlainDecoder) decodeBool(buf []bool) (n int, err error) {
 		d.i++
 		i++
 	}
-	if i == 0 {
-		err = fmt.Errorf("boolean/plain: no more data")
+	if i != len(buf) {
+		return fmt.Errorf("boolean/plain: no more data")
 	}
-	return i, err
+	return nil
 }
 
-func (d *booleanPlainDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *booleanPlainDecoder) decodeE(buf []interface{}) error {
 	b := make([]bool, len(buf), len(buf))
-	n, err = d.decodeBool(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeBool(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }
 
 type booleanRLEDecoder struct {
 	rle *rle32Decoder
 }
 
-func (d *booleanRLEDecoder) init(data []byte, count int) error {
+func (d *booleanRLEDecoder) init(data []byte) error {
 	if len(data) <= 4 {
 		return fmt.Errorf("boolean/rle: not enough data")
 	}
@@ -69,11 +67,11 @@ func (d *booleanRLEDecoder) init(data []byte, count int) error {
 		return fmt.Errorf("boolean/rle: invalid data length")
 	}
 	d.rle = newRLE32Decoder(1)
-	d.rle.init(data[4:n+4], count)
+	d.rle.init(data[4 : n+4]) // TODO: overflow?
 	return nil
 }
 
-func (d *booleanRLEDecoder) decode(slice interface{}) (n int, err error) {
+func (d *booleanRLEDecoder) decode(slice interface{}) error {
 	switch buf := slice.(type) {
 	case []bool:
 		return d.decodeBool(buf)
@@ -84,30 +82,23 @@ func (d *booleanRLEDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *booleanRLEDecoder) decodeBool(buf []bool) (n int, err error) {
-	n = len(buf)
-	if d.rle.count-d.rle.i < n {
-		n = d.rle.count - d.rle.i
-	}
-	if n == 0 {
-		return 0, fmt.Errorf("boolean/rle: no more data")
-	}
-	for i := 0; i < n; i++ {
+func (d *booleanRLEDecoder) decodeBool(buf []bool) error {
+	for i := 0; i < len(buf); i++ {
 		b, err := d.rle.next()
 		if err != nil {
-			return i, err
+			return err
 		}
 		d.rle.i++
 		buf[i] = b == 1
 	}
-	return n, nil
+	return nil
 }
 
-func (d *booleanRLEDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *booleanRLEDecoder) decodeE(buf []interface{}) error {
 	b := make([]bool, len(buf), len(buf))
-	n, err = d.decodeBool(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeBool(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }

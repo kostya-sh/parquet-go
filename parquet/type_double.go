@@ -12,13 +12,13 @@ type doublePlainDecoder struct {
 	pos int
 }
 
-func (d *doublePlainDecoder) init(data []byte, count int) error {
+func (d *doublePlainDecoder) init(data []byte) error {
 	d.data = data
 	d.pos = 0
 	return nil
 }
 
-func (d *doublePlainDecoder) decode(slice interface{}) (n int, err error) {
+func (d *doublePlainDecoder) decode(slice interface{}) error {
 	switch buf := slice.(type) {
 	case []float64:
 		return d.decodeFloat64(buf)
@@ -29,29 +29,29 @@ func (d *doublePlainDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *doublePlainDecoder) decodeFloat64(buf []float64) (n int, err error) {
+func (d *doublePlainDecoder) decodeFloat64(buf []float64) error {
 	i := 0
 	for i < len(buf) && d.pos < len(d.data) {
 		if d.pos+8 > len(d.data) {
-			err = fmt.Errorf("double/plain: not enough data")
+			return fmt.Errorf("double/plain: not enough data")
 		}
 		buf[i] = math.Float64frombits(binary.LittleEndian.Uint64(d.data[d.pos:]))
 		d.pos += 8
 		i++
 	}
 	if i == 0 {
-		err = fmt.Errorf("double/plain: no more data")
+		return fmt.Errorf("double/plain: no more data")
 	}
-	return i, err
+	return nil
 }
 
-func (d *doublePlainDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *doublePlainDecoder) decodeE(buf []interface{}) error {
 	b := make([]float64, len(buf), len(buf))
-	n, err = d.decodeFloat64(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeFloat64(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }
 
 type doubleDictDecoder struct {
@@ -66,7 +66,7 @@ func (d *doubleDictDecoder) initValues(dictData []byte, count int) error {
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
-func (d *doubleDictDecoder) decode(slice interface{}) (n int, err error) {
+func (d *doubleDictDecoder) decode(slice interface{}) error {
 	switch buf := slice.(type) {
 	case []float64:
 		return d.decodeFloat64(buf)
@@ -77,22 +77,22 @@ func (d *doubleDictDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *doubleDictDecoder) decodeFloat64(buf []float64) (n int, err error) {
+func (d *doubleDictDecoder) decodeFloat64(buf []float64) error {
 	keys, err := d.decodeKeys(len(buf))
 	if err != nil {
-		return 0, err
+		return err
 	}
 	for i, k := range keys {
 		buf[i] = d.values[k]
 	}
-	return len(keys), nil
+	return nil
 }
 
-func (d *doubleDictDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *doubleDictDecoder) decodeE(buf []interface{}) error {
 	b := make([]float64, len(buf), len(buf))
-	n, err = d.decodeFloat64(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeFloat64(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }

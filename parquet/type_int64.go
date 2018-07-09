@@ -11,13 +11,13 @@ type int64PlainDecoder struct {
 	pos int
 }
 
-func (d *int64PlainDecoder) init(data []byte, count int) error {
+func (d *int64PlainDecoder) init(data []byte) error {
 	d.data = data
 	d.pos = 0
 	return nil
 }
 
-func (d *int64PlainDecoder) decode(slice interface{}) (n int, err error) {
+func (d *int64PlainDecoder) decode(slice interface{}) error {
 	switch buf := slice.(type) {
 	case []int64:
 		return d.decodeInt64(buf)
@@ -28,29 +28,29 @@ func (d *int64PlainDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *int64PlainDecoder) decodeInt64(buf []int64) (n int, err error) {
+func (d *int64PlainDecoder) decodeInt64(buf []int64) error {
 	i := 0
 	for i < len(buf) && d.pos < len(d.data) {
 		if d.pos+8 > len(d.data) {
-			err = fmt.Errorf("int64/plain: not enough data")
+			return fmt.Errorf("int64/plain: not enough data")
 		}
 		buf[i] = int64(binary.LittleEndian.Uint64(d.data[d.pos:]))
 		d.pos += 8
 		i++
 	}
 	if i == 0 {
-		err = fmt.Errorf("int64/plain: no more data")
+		return fmt.Errorf("int64/plain: no more data")
 	}
-	return i, err
+	return nil
 }
 
-func (d *int64PlainDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *int64PlainDecoder) decodeE(buf []interface{}) error {
 	b := make([]int64, len(buf), len(buf))
-	n, err = d.decodeInt64(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeInt64(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }
 
 type int64DictDecoder struct {
@@ -65,7 +65,7 @@ func (d *int64DictDecoder) initValues(dictData []byte, count int) error {
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
-func (d *int64DictDecoder) decode(slice interface{}) (n int, err error) {
+func (d *int64DictDecoder) decode(slice interface{}) error {
 	switch buf := slice.(type) {
 	case []int64:
 		return d.decodeInt64(buf)
@@ -76,24 +76,24 @@ func (d *int64DictDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *int64DictDecoder) decodeInt64(buf []int64) (n int, err error) {
+func (d *int64DictDecoder) decodeInt64(buf []int64) error {
 	keys, err := d.decodeKeys(len(buf))
 	if err != nil {
-		return 0, err
+		return err
 	}
 	for i, k := range keys {
 		buf[i] = d.values[k]
 	}
-	return len(keys), nil
+	return nil
 }
 
-func (d *int64DictDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *int64DictDecoder) decodeE(buf []interface{}) error {
 	b := make([]int64, len(buf), len(buf))
-	n, err = d.decodeInt64(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeInt64(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }
 
 type int64DeltaBinaryPackedDecoder struct {
@@ -117,7 +117,7 @@ type int64DeltaBinaryPackedDecoder struct {
 	miniBlockValues [8]int64
 }
 
-func (d *int64DeltaBinaryPackedDecoder) init(data []byte, count int) error {
+func (d *int64DeltaBinaryPackedDecoder) init(data []byte) error {
 	d.data = data
 
 	d.pos = 0
@@ -193,7 +193,7 @@ func (d *int64DeltaBinaryPackedDecoder) readBlockHeader() error {
 	return nil
 }
 
-func (d *int64DeltaBinaryPackedDecoder) decode(slice interface{}) (n int, err error) {
+func (d *int64DeltaBinaryPackedDecoder) decode(slice interface{}) error {
 	switch buf := slice.(type) {
 	case []int64:
 		return d.decodeInt64(buf)
@@ -204,14 +204,16 @@ func (d *int64DeltaBinaryPackedDecoder) decode(slice interface{}) (n int, err er
 	}
 }
 
-func (d *int64DeltaBinaryPackedDecoder) decodeInt64(buf []int64) (n int, err error) {
+func (d *int64DeltaBinaryPackedDecoder) decodeInt64(buf []int64) error {
+	n := 0
+	var err error
 	for n < len(buf) && d.i < int(d.numValues) {
 		if d.i%8 == 0 {
 			if d.i%int(d.miniBlockSize) == 0 {
 				if d.miniBlock >= int(d.miniBlocks) {
 					err = d.readBlockHeader()
 					if err != nil {
-						return n, err
+						return err
 					}
 				}
 
@@ -222,7 +224,7 @@ func (d *int64DeltaBinaryPackedDecoder) decodeInt64(buf []int64) (n int, err err
 			}
 			w := int(d.miniBlockWidth)
 			if d.pos+w > len(d.data) {
-				return n, fmt.Errorf("int64/delta: not enough data")
+				return fmt.Errorf("int64/delta: not enough data")
 			}
 			d.miniBlockValues = d.unpacker(d.data[d.pos : d.pos+w]) // TODO: validate w
 			d.miniBlockPos += w
@@ -238,17 +240,17 @@ func (d *int64DeltaBinaryPackedDecoder) decodeInt64(buf []int64) (n int, err err
 
 	}
 	if n == 0 {
-		return 0, fmt.Errorf("int64/delta: no more data")
+		return fmt.Errorf("int64/delta: no more data")
 	}
 
-	return n, nil
+	return nil
 }
 
-func (d *int64DeltaBinaryPackedDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *int64DeltaBinaryPackedDecoder) decodeE(buf []interface{}) error {
 	b := make([]int64, len(buf), len(buf))
-	n, err = d.decodeInt64(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeInt64(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }

@@ -12,13 +12,13 @@ type floatPlainDecoder struct {
 	pos int
 }
 
-func (d *floatPlainDecoder) init(data []byte, count int) error {
+func (d *floatPlainDecoder) init(data []byte) error {
 	d.data = data
 	d.pos = 0
 	return nil
 }
 
-func (d *floatPlainDecoder) decode(slice interface{}) (n int, err error) {
+func (d *floatPlainDecoder) decode(slice interface{}) error {
 	switch buf := slice.(type) {
 	case []float32:
 		return d.decodeFloat32(buf)
@@ -29,29 +29,29 @@ func (d *floatPlainDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *floatPlainDecoder) decodeFloat32(buf []float32) (n int, err error) {
+func (d *floatPlainDecoder) decodeFloat32(buf []float32) error {
 	i := 0
 	for i < len(buf) && d.pos < len(d.data) {
 		if d.pos+4 > len(d.data) {
-			err = fmt.Errorf("float/plain: not enough data")
+			return fmt.Errorf("float/plain: not enough data")
 		}
 		buf[i] = math.Float32frombits(binary.LittleEndian.Uint32(d.data[d.pos:]))
 		d.pos += 4
 		i++
 	}
 	if i == 0 {
-		err = fmt.Errorf("float/plain: no more data")
+		return fmt.Errorf("float/plain: no more data")
 	}
-	return i, err
+	return nil
 }
 
-func (d *floatPlainDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *floatPlainDecoder) decodeE(buf []interface{}) error {
 	b := make([]float32, len(buf), len(buf))
-	n, err = d.decodeFloat32(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeFloat32(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }
 
 type floatDictDecoder struct {
@@ -66,7 +66,7 @@ func (d *floatDictDecoder) initValues(dictData []byte, count int) error {
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
-func (d *floatDictDecoder) decode(slice interface{}) (n int, err error) {
+func (d *floatDictDecoder) decode(slice interface{}) error {
 	switch buf := slice.(type) {
 	case []float32:
 		return d.decodeFloat32(buf)
@@ -77,22 +77,22 @@ func (d *floatDictDecoder) decode(slice interface{}) (n int, err error) {
 	}
 }
 
-func (d *floatDictDecoder) decodeFloat32(buf []float32) (n int, err error) {
+func (d *floatDictDecoder) decodeFloat32(buf []float32) error {
 	keys, err := d.decodeKeys(len(buf))
 	if err != nil {
-		return 0, err
+		return err
 	}
 	for i, k := range keys {
 		buf[i] = d.values[k]
 	}
-	return len(keys), nil
+	return nil
 }
 
-func (d *floatDictDecoder) decodeE(buf []interface{}) (n int, err error) {
+func (d *floatDictDecoder) decodeE(buf []interface{}) error {
 	b := make([]float32, len(buf), len(buf))
-	n, err = d.decodeFloat32(b)
-	for i := 0; i < n; i++ {
+	err := d.decodeFloat32(b)
+	for i := 0; i < len(buf); i++ {
 		buf[i] = b[i]
 	}
-	return n, err
+	return err
 }

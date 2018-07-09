@@ -8,7 +8,7 @@ import (
 
 func rle32DecodeAll(w int, data []byte, count int) (a []int32, err error) {
 	d := newRLE32Decoder(w)
-	d.init(data, count)
+	d.init(data)
 	for i := 0; i < count; i++ {
 		var next int32
 		next, err = d.next()

@@ -24,10 +24,9 @@ type rle32Decoder struct {
 	byteWidth  int
 	bpUnpacker unpack8int32Func
 
-	data  []byte
-	count int
-	i     int
-	pos   int
+	data []byte
+	i    int
+	pos  int
 
 	// rle
 	rleCount uint32
@@ -49,30 +48,13 @@ func newRLE32Decoder(w int) *rle32Decoder {
 	return &d
 }
 
-func (d *rle32Decoder) init(data []byte, count int) {
+func (d *rle32Decoder) init(data []byte) {
 	d.data = data
-	d.count = count
 	d.pos = 0
 	d.i = 0
 	d.bpCount = 0
 	d.bpRunPos = 0
 	d.rleCount = 0
-}
-
-func (d *rle32Decoder) decode(levels []int) (n int, err error) {
-	n = len(levels)
-	if d.count-d.i < n {
-		n = d.count - d.i
-	}
-	for i := 0; i < n; i++ {
-		k, err := d.next()
-		if err != nil {
-			return i, err
-		}
-		d.i++
-		levels[i] = int(k)
-	}
-	return n, nil
 }
 
 func (d *rle32Decoder) next() (next int32, err error) {
@@ -99,6 +81,17 @@ func (d *rle32Decoder) next() (next int32, err error) {
 	}
 
 	return
+}
+
+func (d *rle32Decoder) decodeLevels(dst []uint16) error {
+	for i := 0; i < len(dst); i++ {
+		v, err := d.next()
+		if err != nil {
+			return err
+		}
+		dst[i] = uint16(v)
+	}
+	return nil
 }
 
 func (d *rle32Decoder) readRLERunValue() error {
