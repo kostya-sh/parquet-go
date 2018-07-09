@@ -1,35 +1,8 @@
 package parquet
 
 import (
-	"math"
 	"testing"
 )
-
-func TestBitWidth16(t *testing.T) {
-	tests := []struct {
-		max   uint16
-		width int
-	}{
-		{0, 0},
-		{1, 1},
-		{2, 2},
-		{3, 2},
-		{4, 3},
-		{5, 3},
-		{6, 3},
-		{7, 3},
-		{8, 4},
-		{9, 4},
-		{257, 9},
-		{math.MaxInt16, 15},
-		{math.MaxUint16, 16},
-	}
-	for _, test := range tests {
-		if got := bitWidth16(test.max); got != test.width {
-			t.Errorf("bitWidth16(%d)=%d, want %d", test.max, got, test.width)
-		}
-	}
-}
 
 func TestZigZagVarInt32(t *testing.T) {
 	tests := []struct {

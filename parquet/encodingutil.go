@@ -5,20 +5,6 @@ import (
 	"math"
 )
 
-// bitWidth16 returns number of bits required to represent any number less or
-// equal to max.
-func bitWidth16(max uint16) int {
-	if max < 0 {
-		panic("max should be >=0")
-	}
-	w := 0
-	for max != 0 {
-		w++
-		max >>= 1
-	}
-	return w
-}
-
 func zigZagVarInt32(bytes []byte) (int32, int) {
 	v, n := binary.Varint(bytes)
 	if n <= 0 {

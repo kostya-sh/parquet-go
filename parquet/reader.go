@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/bits"
 	"reflect"
 	"strings"
 
@@ -77,7 +78,7 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 		cr.dDecoder = constDecoder(col.maxD)
 		// TODO: document level ranges
 	} else {
-		cr.dDecoder = newRLE32Decoder(bitWidth16(col.maxD))
+		cr.dDecoder = newRLE32Decoder(bits.Len16(col.maxD))
 	}
 	if !nested && repType != parquetformat.FieldRepetitionType_REPEATED {
 		// TODO: I think we need to check all schemaElements in the path (confirm if above)
@@ -86,7 +87,7 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 		// If the column is not nested the repetition levels are not encoded and
 		// always have the value of 1
 	} else {
-		cr.rDecoder = newRLE32Decoder(bitWidth16(col.maxR))
+		cr.rDecoder = newRLE32Decoder(bits.Len16(col.maxR))
 	}
 
 	cr.err = cr.readPage(true)
