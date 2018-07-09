@@ -99,9 +99,24 @@ func (d *rle32Decoder) readRLERunValue() error {
 	if n > len(d.data) {
 		return fmt.Errorf("rle: cannot read run value (not enough data)")
 	}
-	d.rleValue = unpackLittleEndianInt32(d.data[d.pos:n])
+	d.rleValue = decodeRLEValue(d.data[d.pos:n])
 	d.pos = n
 	return nil
+}
+
+func decodeRLEValue(bytes []byte) int32 {
+	switch len(bytes) {
+	case 1:
+		return int32(bytes[0])
+	case 2:
+		return int32(bytes[0]) + int32(bytes[1])<<8
+	case 3:
+		return int32(bytes[0]) + int32(bytes[1])<<8 + int32(bytes[2])<<16
+	case 4:
+		return int32(bytes[0]) + int32(bytes[1])<<8 + int32(bytes[2])<<16 + int32(bytes[3])<<24
+	default:
+		panic("invalid argument")
+	}
 }
 
 func (d *rle32Decoder) readBitPackedRun() error {

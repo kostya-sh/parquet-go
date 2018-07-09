@@ -91,4 +91,24 @@ func TestRLEDecoder(t *testing.T) {
 	}
 }
 
-// TODO: tests for bogus data
+func TestDecodeRLEValue(t *testing.T) {
+	tests := []struct {
+		bytes []byte
+		value int32
+	}{
+		{[]byte{0}, 0},
+		{[]byte{1}, 1},
+		{[]byte{199}, 199},
+		{[]byte{0x12, 0x34}, 0x3412},
+		{[]byte{0x12, 0x34, 0x56}, 0x563412},
+		{[]byte{0x12, 0x34, 0x56, 0x78}, 0x78563412},
+		{[]byte{0xFF, 0xFF, 0xFF, 0x7F}, 2147483647},
+		{[]byte{0xFF, 0xFF, 0xFF, 0xFF}, -1},
+		{[]byte{0x00, 0x00, 0x00, 0x80}, -2147483648},
+	}
+	for _, test := range tests {
+		if got := decodeRLEValue(test.bytes); got != test.value {
+			t.Errorf("decodeRLEValue(%v)=%d, want %d", test.bytes, got, test.value)
+		}
+	}
+}

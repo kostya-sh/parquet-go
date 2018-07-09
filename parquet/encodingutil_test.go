@@ -31,25 +31,6 @@ func TestBitWidth16(t *testing.T) {
 	}
 }
 
-func TestUnpackLittleEndingInt32(t *testing.T) {
-	tests := []struct {
-		bytes []byte
-		n     int32
-	}{
-		{[]byte{0}, 0},
-		{[]byte{1}, 1},
-		{[]byte{199}, 199},
-		{[]byte{0x12, 0x34}, 0x3412},
-		{[]byte{0x12, 0x34, 0x56}, 0x563412},
-		{[]byte{0x12, 0x34, 0x56, 0x78}, 0x78563412},
-	}
-	for _, test := range tests {
-		if got := unpackLittleEndianInt32(test.bytes); got != test.n {
-			t.Errorf("unpackLittleEndianInt32(%v)=%d, want %d", test.bytes, got, test.n)
-		}
-	}
-}
-
 func TestZigZagVarInt32(t *testing.T) {
 	tests := []struct {
 		bytes []byte
