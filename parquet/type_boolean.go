@@ -55,7 +55,7 @@ func (d *booleanPlainDecoder) decodeE(buf []interface{}) error {
 }
 
 type booleanRLEDecoder struct {
-	rle *rle32Decoder
+	rle *rleDecoder
 }
 
 func (d *booleanRLEDecoder) init(data []byte) error {
@@ -66,7 +66,7 @@ func (d *booleanRLEDecoder) init(data []byte) error {
 	if n < 1 || n > len(data)-4 {
 		return fmt.Errorf("boolean/rle: invalid data length")
 	}
-	d.rle = newRLE32Decoder(1)
+	d.rle = newRLEDecoder(1)
 	d.rle.init(data[4 : n+4]) // TODO: overflow?
 	return nil
 }
@@ -88,7 +88,6 @@ func (d *booleanRLEDecoder) decodeBool(buf []bool) error {
 		if err != nil {
 			return err
 		}
-		d.rle.i++
 		buf[i] = b == 1
 	}
 	return nil

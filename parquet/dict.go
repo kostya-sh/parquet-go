@@ -13,7 +13,7 @@ type dictDecoder struct {
 	values interface{}
 	ind    []int32
 
-	keysDecoder *rle32Decoder
+	keysDecoder *rleDecoder
 }
 
 func (d *dictDecoder) init(data []byte) error {
@@ -25,7 +25,7 @@ func (d *dictDecoder) init(data []byte) error {
 	if w < 0 || w > 32 {
 		return fmt.Errorf("invalid bit width: %d", w)
 	}
-	d.keysDecoder = newRLE32Decoder(w)
+	d.keysDecoder = newRLEDecoder(w)
 	d.keysDecoder.init(data[1:])
 	return nil
 }

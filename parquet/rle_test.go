@@ -6,18 +6,18 @@ import (
 	"testing"
 )
 
-func rle32DecodeAll(w int, data []byte, count int) (a []int32, err error) {
-	d := newRLE32Decoder(w)
+func rleDecodeAll(w int, data []byte, count int) (a []int32, err error) {
+	d := newRLEDecoder(w)
 	d.init(data)
 	for i := 0; i < count; i++ {
-		var next int32
-		next, err = d.next()
+		var v int32
+		v, err = d.next()
 		if err != nil {
-			return
+			return a, err
 		}
-		a = append(a, next)
+		a = append(a, v)
 	}
-	return
+	return a, nil
 }
 
 func repeatInt32(count int, value int32) (a []int32) {
@@ -73,7 +73,7 @@ func TestRLEDecoder(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		values, err := rle32DecodeAll(test.width, test.data, len(test.values))
+		values, err := rleDecodeAll(test.width, test.data, len(test.values))
 		if err != nil {
 			t.Errorf("test %d. unexpected error: %s", i, err)
 		}
@@ -82,11 +82,37 @@ func TestRLEDecoder(t *testing.T) {
 		}
 
 		// make sure that reading past data returns error
-		values, err = rle32DecodeAll(test.width, test.data, math.MaxInt32)
+		values, err = rleDecodeAll(test.width, test.data, math.MaxInt32)
 		if err == nil {
 			t.Errorf("test %d. error expected attempting to read too many values", i)
 		} else {
 			t.Logf("test %d: %s", i, err)
+		}
+	}
+}
+
+func TestRLEDecoderErrors(t *testing.T) {
+	var tests = []struct {
+		width int
+		data  []byte
+		count int
+	}{
+		// empty data
+		{1, []byte{}, 1},
+
+		// Single RLE run: 1-bit per value, 10 x 2: 2 is 2 bit, not 1
+		{1, []byte{0x14, 0x02}, 10},
+
+		// Empty bit-packhed run
+		// "slice bounds out of range" found with go-fuzz
+		{1, []byte{0x09}, 16},
+	}
+
+	for i, test := range tests {
+		a, err := rleDecodeAll(test.width, test.data, test.count)
+		if err == nil {
+			t.Errorf("test %d (width %d): error wanted when decoding %v, got %v",
+				i, test.width, test.data, a)
 		}
 	}
 }
