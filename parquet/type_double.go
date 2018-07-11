@@ -2,9 +2,29 @@ package parquet
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"math"
 )
+
+type doubleDecoder interface {
+	decodeFloat64(dst []float64) error
+}
+
+func decodeDouble(d doubleDecoder, dst interface{}) error {
+	switch dst := dst.(type) {
+	case []float64:
+		return d.decodeFloat64(dst)
+	case []interface{}:
+		b := make([]float64, len(dst), len(dst))
+		err := d.decodeFloat64(b)
+		for i := 0; i < len(dst); i++ {
+			dst[i] = b[i]
+		}
+		return err
+	default:
+		panic("invalid argument")
+	}
+}
 
 type doublePlainDecoder struct {
 	data []byte
@@ -18,40 +38,22 @@ func (d *doublePlainDecoder) init(data []byte) error {
 	return nil
 }
 
-func (d *doublePlainDecoder) decode(slice interface{}) error {
-	switch buf := slice.(type) {
-	case []float64:
-		return d.decodeFloat64(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
+func (d *doublePlainDecoder) decode(dst interface{}) error {
+	return decodeDouble(d, dst)
 }
 
-func (d *doublePlainDecoder) decodeFloat64(buf []float64) error {
-	i := 0
-	for i < len(buf) && d.pos < len(d.data) {
-		if d.pos+8 > len(d.data) {
-			return fmt.Errorf("double/plain: not enough data")
+func (d *doublePlainDecoder) decodeFloat64(dst []float64) error {
+	for i := 0; i < len(dst); i++ {
+		if d.pos >= len(d.data) {
+			return errNED
 		}
-		buf[i] = math.Float64frombits(binary.LittleEndian.Uint64(d.data[d.pos:]))
+		if uint(d.pos+8) > uint(len(d.data)) {
+			return errors.New("double/plain: not enough bytes to decode a double number")
+		}
+		dst[i] = math.Float64frombits(binary.LittleEndian.Uint64(d.data[d.pos:]))
 		d.pos += 8
-		i++
-	}
-	if i == 0 {
-		return fmt.Errorf("double/plain: no more data")
 	}
 	return nil
-}
-
-func (d *doublePlainDecoder) decodeE(buf []interface{}) error {
-	b := make([]float64, len(buf), len(buf))
-	err := d.decodeFloat64(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
 
 type doubleDictDecoder struct {
@@ -66,33 +68,17 @@ func (d *doubleDictDecoder) initValues(dictData []byte, count int) error {
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
-func (d *doubleDictDecoder) decode(slice interface{}) error {
-	switch buf := slice.(type) {
-	case []float64:
-		return d.decodeFloat64(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
+func (d *doubleDictDecoder) decode(dst interface{}) error {
+	return decodeDouble(d, dst)
 }
 
-func (d *doubleDictDecoder) decodeFloat64(buf []float64) error {
-	keys, err := d.decodeKeys(len(buf))
+func (d *doubleDictDecoder) decodeFloat64(dst []float64) error {
+	keys, err := d.decodeKeys(len(dst))
 	if err != nil {
 		return err
 	}
 	for i, k := range keys {
-		buf[i] = d.values[k]
+		dst[i] = d.values[k]
 	}
 	return nil
-}
-
-func (d *doubleDictDecoder) decodeE(buf []interface{}) error {
-	b := make([]float64, len(buf), len(buf))
-	err := d.decodeFloat64(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
