@@ -5,6 +5,26 @@ import (
 	"fmt"
 )
 
+type byteArrayDecoder interface {
+	decodeByteSlice(dst [][]byte) error
+}
+
+func decodeByteArray(d byteArrayDecoder, dst interface{}) error {
+	switch dst := dst.(type) {
+	case [][]byte:
+		return d.decodeByteSlice(dst)
+	case []interface{}:
+		b := make([][]byte, len(dst), len(dst))
+		err := d.decodeByteSlice(b)
+		for i := 0; i < len(dst); i++ {
+			dst[i] = b[i]
+		}
+		return err
+	default:
+		panic("invalid argument")
+	}
+}
+
 type byteArrayPlainDecoder struct {
 	// length > 0 for FIXED_BYTE_ARRAY type
 	length int
@@ -39,41 +59,24 @@ func (d *byteArrayPlainDecoder) next() (value []byte, err error) {
 	return value, err
 }
 
-func (d *byteArrayPlainDecoder) decode(slice interface{}) error {
-	// TODO: support string
-	switch buf := slice.(type) {
-	case [][]byte:
-		return d.decodeByteSlice(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
+func (d *byteArrayPlainDecoder) decode(dst interface{}) error {
+	return decodeByteArray(d, dst)
 }
 
-func (d *byteArrayPlainDecoder) decodeByteSlice(buf [][]byte) error {
+func (d *byteArrayPlainDecoder) decodeByteSlice(dst [][]byte) error {
 	i := 0
-	for i < len(buf) && d.pos < len(d.data) {
+	for i < len(dst) && d.pos < len(d.data) {
 		v, err := d.next()
 		if err != nil {
 			break
 		}
-		buf[i] = v
+		dst[i] = v
 		i++
 	}
 	if i == 0 {
 		return fmt.Errorf("bytearray/plain: no more data")
 	}
 	return nil
-}
-
-func (d *byteArrayPlainDecoder) decodeE(buf []interface{}) error {
-	b := make([][]byte, len(buf), len(buf))
-	err := d.decodeByteSlice(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
 
 type byteArrayDictDecoder struct {
@@ -88,36 +91,19 @@ func (d *byteArrayDictDecoder) initValues(dictData []byte, count int) error {
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
-func (d *byteArrayDictDecoder) decode(slice interface{}) error {
-	// TODO: support string
-	switch buf := slice.(type) {
-	case [][]byte:
-		return d.decodeByteSlice(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
+func (d *byteArrayDictDecoder) decode(dst interface{}) error {
+	return decodeByteArray(d, dst)
 }
 
-func (d *byteArrayDictDecoder) decodeByteSlice(buf [][]byte) error {
-	keys, err := d.decodeKeys(len(buf))
+func (d *byteArrayDictDecoder) decodeByteSlice(dst [][]byte) error {
+	keys, err := d.decodeKeys(len(dst))
 	if err != nil {
 		return err
 	}
 	for i, k := range keys {
-		buf[i] = d.values[k]
+		dst[i] = d.values[k]
 	}
 	return nil
-}
-
-func (d *byteArrayDictDecoder) decodeE(buf []interface{}) error {
-	b := make([][]byte, len(buf), len(buf))
-	err := d.decodeByteSlice(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
 
 type byteArrayDeltaLengthDecoder struct {
@@ -146,6 +132,10 @@ func (d *byteArrayDeltaLengthDecoder) init(data []byte) error {
 	return nil
 }
 
+func (d *byteArrayDeltaLengthDecoder) decode(dst interface{}) error {
+	return decodeByteArray(d, dst)
+}
+
 func (d *byteArrayDeltaLengthDecoder) next() (value []byte, err error) {
 	size := int(d.lens[d.i])
 	if d.pos > len(d.data)-size {
@@ -159,41 +149,20 @@ func (d *byteArrayDeltaLengthDecoder) next() (value []byte, err error) {
 	return value, err
 }
 
-func (d *byteArrayDeltaLengthDecoder) decode(slice interface{}) error {
-	// TODO: support string
-	switch buf := slice.(type) {
-	case [][]byte:
-		return d.decodeByteSlice(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
-}
-
-func (d *byteArrayDeltaLengthDecoder) decodeByteSlice(buf [][]byte) error {
+func (d *byteArrayDeltaLengthDecoder) decodeByteSlice(dst [][]byte) error {
 	i := 0
-	for i < len(buf) && d.i < len(d.lens) {
+	for i < len(dst) && d.i < len(d.lens) {
 		v, err := d.next()
 		if err != nil {
 			break
 		}
-		buf[i] = v
+		dst[i] = v
 		i++
 	}
 	if i == 0 {
 		return fmt.Errorf("bytearray/plain: no more data")
 	}
 	return nil
-}
-
-func (d *byteArrayDeltaLengthDecoder) decodeE(buf []interface{}) error {
-	b := make([][]byte, len(buf), len(buf))
-	err := d.decodeByteSlice(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
 
 type byteArrayDeltaDecoder struct {
@@ -227,21 +196,13 @@ func (d *byteArrayDeltaDecoder) init(data []byte) error {
 	return nil
 }
 
-func (d *byteArrayDeltaDecoder) decode(slice interface{}) error {
-	// TODO: support string
-	switch buf := slice.(type) {
-	case [][]byte:
-		return d.decodeByteSlice(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
+func (d *byteArrayDeltaDecoder) decode(dst interface{}) error {
+	return decodeByteArray(d, dst)
 }
 
-func (d *byteArrayDeltaDecoder) decodeByteSlice(buf [][]byte) error {
+func (d *byteArrayDeltaDecoder) decodeByteSlice(dst [][]byte) error {
 	i := 0
-	for i < len(buf) && d.suffixDecoder.i < len(d.prefixLens) {
+	for i < len(dst) && d.suffixDecoder.i < len(d.prefixLens) {
 		prefixLen := int(d.prefixLens[d.suffixDecoder.i])
 		suffix, err := d.suffixDecoder.next()
 		if err != nil {
@@ -251,20 +212,11 @@ func (d *byteArrayDeltaDecoder) decodeByteSlice(buf [][]byte) error {
 		value = append(value, d.value[:prefixLen]...)
 		value = append(value, suffix...)
 		d.value = value
-		buf[i] = value
+		dst[i] = value
 		i++
 	}
 	if i == 0 {
 		return fmt.Errorf("bytearray/delta: no more data")
 	}
 	return nil
-}
-
-func (d *byteArrayDeltaDecoder) decodeE(buf []interface{}) error {
-	b := make([][]byte, len(buf), len(buf))
-	err := d.decodeByteSlice(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
