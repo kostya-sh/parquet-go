@@ -2,8 +2,29 @@ package parquet
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 )
+
+type int32Decoder interface {
+	decodeInt32(dst []int32) error
+}
+
+func decodeInt32(d int32Decoder, dst interface{}) error {
+	switch dst := dst.(type) {
+	case []int32:
+		return d.decodeInt32(dst)
+	case []interface{}:
+		b := make([]int32, len(dst), len(dst))
+		err := d.decodeInt32(b)
+		for i := 0; i < len(dst); i++ {
+			dst[i] = b[i]
+		}
+		return err
+	default:
+		panic("invalid argument")
+	}
+}
 
 type int32PlainDecoder struct {
 	data []byte
@@ -17,40 +38,22 @@ func (d *int32PlainDecoder) init(data []byte) error {
 	return nil
 }
 
-func (d *int32PlainDecoder) decode(slice interface{}) error {
-	switch buf := slice.(type) {
-	case []int32:
-		return d.decodeInt32(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
+func (d *int32PlainDecoder) decode(dst interface{}) error {
+	return decodeInt32(d, dst)
 }
 
-func (d *int32PlainDecoder) decodeInt32(buf []int32) error {
-	i := 0
-	for i < len(buf) && d.pos < len(d.data) {
-		if d.pos+4 > len(d.data) {
-			return fmt.Errorf("int32/plain: not enough data")
+func (d *int32PlainDecoder) decodeInt32(dst []int32) error {
+	for i := 0; i < len(dst); i++ {
+		if d.pos >= len(d.data) {
+			return errNED
 		}
-		buf[i] = int32(binary.LittleEndian.Uint32(d.data[d.pos:]))
+		if uint(d.pos+4) > uint(len(d.data)) {
+			return errors.New("int32/plain: not enough bytes to decode an int32 number")
+		}
+		dst[i] = int32(binary.LittleEndian.Uint32(d.data[d.pos:]))
 		d.pos += 4
-		i++
-	}
-	if i == 0 {
-		return fmt.Errorf("int32/plain: no more data")
 	}
 	return nil
-}
-
-func (d *int32PlainDecoder) decodeE(buf []interface{}) error {
-	b := make([]int32, len(buf), len(buf))
-	err := d.decodeInt32(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
 
 type int32DictDecoder struct {
@@ -65,35 +68,19 @@ func (d *int32DictDecoder) initValues(dictData []byte, count int) error {
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
-func (d *int32DictDecoder) decode(slice interface{}) error {
-	switch buf := slice.(type) {
-	case []int32:
-		return d.decodeInt32(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
+func (d *int32DictDecoder) decode(dst interface{}) error {
+	return decodeInt32(d, dst)
 }
 
-func (d *int32DictDecoder) decodeInt32(buf []int32) error {
-	keys, err := d.decodeKeys(len(buf))
+func (d *int32DictDecoder) decodeInt32(dst []int32) error {
+	keys, err := d.decodeKeys(len(dst))
 	if err != nil {
 		return err
 	}
 	for i, k := range keys {
-		buf[i] = d.values[k]
+		dst[i] = d.values[k]
 	}
 	return nil
-}
-
-func (d *int32DictDecoder) decodeE(buf []interface{}) error {
-	b := make([]int32, len(buf), len(buf))
-	err := d.decodeInt32(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
 
 type int32DeltaBinaryPackedDecoder struct {
@@ -131,6 +118,10 @@ func (d *int32DeltaBinaryPackedDecoder) init(data []byte) error {
 	}
 
 	return nil
+}
+
+func (d *int32DeltaBinaryPackedDecoder) decode(dst interface{}) error {
+	return decodeInt32(d, dst)
 }
 
 // page-header := <block size in values> <number of miniblocks in a block> <total value count> <first value>
@@ -193,21 +184,10 @@ func (d *int32DeltaBinaryPackedDecoder) readBlockHeader() error {
 	return nil
 }
 
-func (d *int32DeltaBinaryPackedDecoder) decode(slice interface{}) error {
-	switch buf := slice.(type) {
-	case []int32:
-		return d.decodeInt32(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
-}
-
-func (d *int32DeltaBinaryPackedDecoder) decodeInt32(buf []int32) error {
+func (d *int32DeltaBinaryPackedDecoder) decodeInt32(dst []int32) error {
 	n := 0
 	var err error
-	for n < len(buf) && d.i < int(d.numValues) {
+	for n < len(dst) && d.i < int(d.numValues) {
 		if d.i%8 == 0 {
 			if d.i%int(d.miniBlockSize) == 0 {
 				if d.miniBlock >= int(d.miniBlocks) {
@@ -233,7 +213,7 @@ func (d *int32DeltaBinaryPackedDecoder) decodeInt32(buf []int32) error {
 				d.pos += int(d.miniBlockSize)/8*w - d.miniBlockPos
 			}
 		}
-		buf[n] = d.value
+		dst[n] = d.value
 		d.value += d.miniBlockValues[d.i%8] + d.minDelta
 		d.i++
 		n++
@@ -244,13 +224,4 @@ func (d *int32DeltaBinaryPackedDecoder) decodeInt32(buf []int32) error {
 	}
 
 	return nil
-}
-
-func (d *int32DeltaBinaryPackedDecoder) decodeE(buf []interface{}) error {
-	b := make([]int32, len(buf), len(buf))
-	err := d.decodeInt32(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }

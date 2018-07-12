@@ -1,10 +1,31 @@
 package parquet
 
 import (
+	"errors"
 	"fmt"
 )
 
 type Int96 [12]byte
+
+type int96Decoder interface {
+	decodeInt96(dst []Int96) error
+}
+
+func decodeInt96(d int96Decoder, dst interface{}) error {
+	switch dst := dst.(type) {
+	case []Int96:
+		return d.decodeInt96(dst)
+	case []interface{}:
+		b := make([]Int96, len(dst), len(dst))
+		err := d.decodeInt96(b)
+		for i := 0; i < len(dst); i++ {
+			dst[i] = b[i]
+		}
+		return err
+	default:
+		panic("invalid argument")
+	}
+}
 
 type int96PlainDecoder struct {
 	data []byte
@@ -18,6 +39,10 @@ func (d *int96PlainDecoder) init(data []byte) error {
 	return nil
 }
 
+func (d *int96PlainDecoder) decode(dst interface{}) error {
+	return decodeInt96(d, dst)
+}
+
 func (d *int96PlainDecoder) next() (value Int96, err error) {
 	if d.pos > len(d.data)-12 {
 		return value, fmt.Errorf("int96/plain: not enough data")
@@ -27,41 +52,17 @@ func (d *int96PlainDecoder) next() (value Int96, err error) {
 	return value, err
 }
 
-func (d *int96PlainDecoder) decode(slice interface{}) error {
-	// TODO: support string
-	switch buf := slice.(type) {
-	case []Int96:
-		return d.decodeInt96(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
-}
-
-func (d *int96PlainDecoder) decodeInt96(buf []Int96) error {
-	i := 0
-	for i < len(buf) && d.pos < len(d.data) {
-		v, err := d.next()
-		if err != nil {
-			break
+func (d *int96PlainDecoder) decodeInt96(dst []Int96) error {
+	for i := 0; i < len(dst); i++ {
+		if d.pos >= len(d.data) {
+			return errNED
 		}
-		buf[i] = v
-		i++
-	}
-	if i == 0 {
-		return fmt.Errorf("bytearray/plain: no more data")
+		if copy(dst[i][:12], d.data[d.pos:]) != 12 {
+			return errors.New("int96/plain: not enough bytes to decode an Int96 value")
+		}
+		d.pos += 12
 	}
 	return nil
-}
-
-func (d *int96PlainDecoder) decodeE(buf []interface{}) error {
-	b := make([]Int96, len(buf), len(buf))
-	err := d.decodeInt96(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
 
 type int96DictDecoder struct {
@@ -76,33 +77,17 @@ func (d *int96DictDecoder) initValues(dictData []byte, count int) error {
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
-func (d *int96DictDecoder) decode(slice interface{}) error {
-	switch buf := slice.(type) {
-	case []Int96:
-		return d.decodeInt96(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
+func (d *int96DictDecoder) decode(dst interface{}) error {
+	return decodeInt96(d, dst)
 }
 
-func (d *int96DictDecoder) decodeInt96(buf []Int96) error {
-	keys, err := d.decodeKeys(len(buf))
+func (d *int96DictDecoder) decodeInt96(dst []Int96) error {
+	keys, err := d.decodeKeys(len(dst))
 	if err != nil {
 		return err
 	}
 	for i, k := range keys {
-		buf[i] = d.values[k]
+		dst[i] = d.values[k]
 	}
 	return nil
-}
-
-func (d *int96DictDecoder) decodeE(buf []interface{}) error {
-	b := make([]Int96, len(buf), len(buf))
-	err := d.decodeInt96(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }

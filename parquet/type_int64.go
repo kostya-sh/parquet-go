@@ -2,8 +2,29 @@ package parquet
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 )
+
+type int64Decoder interface {
+	decodeInt64(dst []int64) error
+}
+
+func decodeInt64(d int64Decoder, dst interface{}) error {
+	switch dst := dst.(type) {
+	case []int64:
+		return d.decodeInt64(dst)
+	case []interface{}:
+		b := make([]int64, len(dst), len(dst))
+		err := d.decodeInt64(b)
+		for i := 0; i < len(dst); i++ {
+			dst[i] = b[i]
+		}
+		return err
+	default:
+		panic("invalid argument")
+	}
+}
 
 type int64PlainDecoder struct {
 	data []byte
@@ -17,40 +38,22 @@ func (d *int64PlainDecoder) init(data []byte) error {
 	return nil
 }
 
-func (d *int64PlainDecoder) decode(slice interface{}) error {
-	switch buf := slice.(type) {
-	case []int64:
-		return d.decodeInt64(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
+func (d *int64PlainDecoder) decode(dst interface{}) error {
+	return decodeInt64(d, dst)
 }
 
-func (d *int64PlainDecoder) decodeInt64(buf []int64) error {
-	i := 0
-	for i < len(buf) && d.pos < len(d.data) {
-		if d.pos+8 > len(d.data) {
-			return fmt.Errorf("int64/plain: not enough data")
+func (d *int64PlainDecoder) decodeInt64(dst []int64) error {
+	for i := 0; i < len(dst); i++ {
+		if d.pos >= len(d.data) {
+			return errNED
 		}
-		buf[i] = int64(binary.LittleEndian.Uint64(d.data[d.pos:]))
+		if uint(d.pos+8) > uint(len(d.data)) {
+			return errors.New("int64/plain: not enough bytes to decode an int64 number")
+		}
+		dst[i] = int64(binary.LittleEndian.Uint64(d.data[d.pos:]))
 		d.pos += 8
-		i++
-	}
-	if i == 0 {
-		return fmt.Errorf("int64/plain: no more data")
 	}
 	return nil
-}
-
-func (d *int64PlainDecoder) decodeE(buf []interface{}) error {
-	b := make([]int64, len(buf), len(buf))
-	err := d.decodeInt64(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
 
 type int64DictDecoder struct {
@@ -65,35 +68,19 @@ func (d *int64DictDecoder) initValues(dictData []byte, count int) error {
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
-func (d *int64DictDecoder) decode(slice interface{}) error {
-	switch buf := slice.(type) {
-	case []int64:
-		return d.decodeInt64(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
+func (d *int64DictDecoder) decode(dst interface{}) error {
+	return decodeInt64(d, dst)
 }
 
-func (d *int64DictDecoder) decodeInt64(buf []int64) error {
-	keys, err := d.decodeKeys(len(buf))
+func (d *int64DictDecoder) decodeInt64(dst []int64) error {
+	keys, err := d.decodeKeys(len(dst))
 	if err != nil {
 		return err
 	}
 	for i, k := range keys {
-		buf[i] = d.values[k]
+		dst[i] = d.values[k]
 	}
 	return nil
-}
-
-func (d *int64DictDecoder) decodeE(buf []interface{}) error {
-	b := make([]int64, len(buf), len(buf))
-	err := d.decodeInt64(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
 
 type int64DeltaBinaryPackedDecoder struct {
@@ -131,6 +118,10 @@ func (d *int64DeltaBinaryPackedDecoder) init(data []byte) error {
 	}
 
 	return nil
+}
+
+func (d *int64DeltaBinaryPackedDecoder) decode(dst interface{}) error {
+	return decodeInt64(d, dst)
 }
 
 // page-header := <block size in values> <number of miniblocks in a block> <total value count> <first value>
@@ -193,21 +184,10 @@ func (d *int64DeltaBinaryPackedDecoder) readBlockHeader() error {
 	return nil
 }
 
-func (d *int64DeltaBinaryPackedDecoder) decode(slice interface{}) error {
-	switch buf := slice.(type) {
-	case []int64:
-		return d.decodeInt64(buf)
-	case []interface{}:
-		return d.decodeE(buf)
-	default:
-		panic("invalid argument")
-	}
-}
-
-func (d *int64DeltaBinaryPackedDecoder) decodeInt64(buf []int64) error {
+func (d *int64DeltaBinaryPackedDecoder) decodeInt64(dst []int64) error {
 	n := 0
 	var err error
-	for n < len(buf) && d.i < int(d.numValues) {
+	for n < len(dst) && d.i < int(d.numValues) {
 		if d.i%8 == 0 {
 			if d.i%int(d.miniBlockSize) == 0 {
 				if d.miniBlock >= int(d.miniBlocks) {
@@ -233,7 +213,7 @@ func (d *int64DeltaBinaryPackedDecoder) decodeInt64(buf []int64) error {
 				d.pos += int(d.miniBlockSize)/8*w - d.miniBlockPos
 			}
 		}
-		buf[n] = d.value
+		dst[n] = d.value
 		d.value += d.miniBlockValues[d.i%8] + d.minDelta
 		d.i++
 		n++
@@ -244,13 +224,4 @@ func (d *int64DeltaBinaryPackedDecoder) decodeInt64(buf []int64) error {
 	}
 
 	return nil
-}
-
-func (d *int64DeltaBinaryPackedDecoder) decodeE(buf []interface{}) error {
-	b := make([]int64, len(buf), len(buf))
-	err := d.decodeInt64(b)
-	for i := 0; i < len(buf); i++ {
-		buf[i] = b[i]
-	}
-	return err
 }
