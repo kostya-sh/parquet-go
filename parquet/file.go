@@ -11,7 +11,9 @@ import (
 type File struct {
 	MetaData *parquetformat.FileMetaData
 	Schema   Schema
-	reader   io.ReadSeeker
+
+	ownReader bool
+	reader    io.ReadSeeker
 }
 
 func OpenFile(path string) (*File, error) {
@@ -20,14 +22,23 @@ func OpenFile(path string) (*File, error) {
 		return nil, fmt.Errorf("parquet: failed to open file: %s", err)
 	}
 
-	meta, err := ReadFileMetaData(r)
+	f, err := FileFromReader(r)
 	if err != nil {
 		_ = r.Close()
+		return nil, err
+	}
+	f.ownReader = true
+
+	return f, nil
+}
+
+func FileFromReader(r io.ReadSeeker) (*File, error) {
+	meta, err := ReadFileMetaData(r)
+	if err != nil {
 		return nil, fmt.Errorf("parquet: failed to read metadata: %s", err)
 	}
 	schema, err := MakeSchema(meta)
 	if err != nil {
-		_ = r.Close()
 		return nil, fmt.Errorf("parquet: failed to parse schema: %s", err)
 	}
 
@@ -53,6 +64,9 @@ func (f File) NewReader(col Column, rg int) (*ColumnChunkReader, error) {
 }
 
 func (f *File) Close() error {
+	if !f.ownReader {
+		return nil
+	}
 	if c, ok := f.reader.(io.Closer); ok {
 		return c.Close()
 	}
