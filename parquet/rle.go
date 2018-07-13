@@ -45,7 +45,9 @@ type rleDecoder struct {
 
 // newRLEDecoder creates a new RLE decoder with bit-width w
 func newRLEDecoder(w int) *rleDecoder {
-	// TODO: support w = 0 or not (used in dict.go:28)
+	if w <= 0 || w > 32 {
+		panic(fmt.Sprintf("invalid bitwidth: %d", w))
+	}
 	return &rleDecoder{
 		bitWidth:     w,
 		rleValueSize: (w + 7) / 8,
