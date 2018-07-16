@@ -205,3 +205,53 @@ func TestSkipPage(t *testing.T) {
 		t.Errorf("PageHeader is not nil at the end of the chunk: %v", ph)
 	}
 }
+
+func readAllColumnValues(f *File, col Column) error {
+	const batch = 237
+	values := make([]interface{}, batch, batch)
+	dLevels := make([]uint16, batch, batch)
+	rLevels := make([]uint16, batch, batch)
+	for rg, _ := range f.MetaData.RowGroups {
+		cr, err := f.NewReader(col, rg)
+		if err != nil {
+			return err
+		}
+		for err == nil {
+			_, err = cr.Read(values, dLevels, rLevels)
+		}
+		if err != EndOfChunk {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestInvalidData(t *testing.T) {
+	invalidFiles := []string{
+		"NegativePageNumValues.parquet",
+	}
+
+	for _, fn := range invalidFiles {
+		f, err := OpenFile("testdata/invalid/" + fn)
+		if err != nil {
+			t.Errorf("Unable to read file %s: %s", fn, err)
+			continue
+		}
+
+		failed := false
+		for _, col := range f.Schema.Columns() {
+			err = readAllColumnValues(f, col)
+			if err != nil {
+				t.Logf("%s: error reading column %s: %s", fn, col, err)
+				failed = true
+			}
+		}
+
+		if !failed {
+			t.Errorf("Error expected when reading %s", fn)
+		}
+
+		_ = f.Close()
+	}
+
+}

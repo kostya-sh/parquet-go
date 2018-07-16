@@ -382,6 +382,10 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 		return fmt.Errorf("DATA_PAGE or DATA_PAGE_V2 type expected, but was %s", ph.Type)
 	}
 
+	if numValues < 0 {
+		return fmt.Errorf("negative page NumValues")
+	}
+
 	switch valuesEncoding {
 	case parquetformat.Encoding_PLAIN_DICTIONARY, parquetformat.Encoding_RLE_DICTIONARY:
 		if cr.dictValuesDecoder == nil {
