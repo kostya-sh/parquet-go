@@ -229,6 +229,7 @@ func readAllColumnValues(f *File, col Column) error {
 func TestInvalidData(t *testing.T) {
 	invalidFiles := []string{
 		"NegativePageNumValues.parquet",
+		"InvalidLevelsDataLen.parquet",
 	}
 
 	for _, fn := range invalidFiles {

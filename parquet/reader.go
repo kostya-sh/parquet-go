@@ -252,24 +252,11 @@ func (cr *ColumnChunkReader) newDictValuesDecoder(dictEncoding parquetformat.Enc
 	return nil, fmt.Errorf("unsupported encoding for %s dictionary page: %s", typ, dictEncoding)
 }
 
-// TODO: maybe return 3 byte slices from this method: r, d, v
-func (cr *ColumnChunkReader) readPageData(ph *parquetformat.PageHeader) (data []byte, err error) {
-	dph2 := ph.DataPageHeaderV2
-	levelsSize := int32(0)
-	if ph.Type == parquetformat.PageType_DATA_PAGE_V2 && dph2.IsCompressed {
-		levelsSize = dph2.RepetitionLevelsByteLength + dph2.DefinitionLevelsByteLength
-		r := io.LimitReader(cr.reader, int64(levelsSize))
-		data, err = ioutil.ReadAll(r)
-		if err != nil {
-			return nil, err
-		}
-		if int32(len(data)) != levelsSize {
-			return nil, fmt.Errorf("unable to read levels data fully: got %d bytes, expected %d",
-				len(data), levelsSize)
-		}
+func (cr *ColumnChunkReader) readPageData(compressedSize int32, uncompressedSize int32) (data []byte, err error) {
+	if compressedSize < 0 || uncompressedSize < 0 {
+		return nil, errors.New("invalid page data size")
 	}
-
-	r := io.LimitReader(cr.reader, int64(ph.CompressedPageSize-levelsSize))
+	r := io.LimitReader(cr.reader, int64(compressedSize))
 
 	codec := cr.chunkMeta.Codec
 	switch codec {
@@ -287,26 +274,105 @@ func (cr *ColumnChunkReader) readPageData(ph *parquetformat.PageHeader) (data []
 		return nil, fmt.Errorf("unsupported compression codec: %s", codec)
 	}
 
-	valuesData, err := ioutil.ReadAll(r)
+	data, err = ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
+	if cr.reader.n > cr.chunkMeta.TotalCompressedSize {
+		return nil, errors.New("over-read")
+	}
 	if codec == parquetformat.CompressionCodec_SNAPPY {
-		valuesData, err = snappy.Decode(nil, valuesData)
+		data, err = snappy.Decode(nil, data)
 		if err != nil {
 			return nil, err
 		}
 	}
-	data = append(data, valuesData...)
-
-	if int32(len(data)) != ph.UncompressedPageSize {
-		return nil, fmt.Errorf("unable to read page fully: got %d bytes, expected %d",
-			len(data), ph.UncompressedPageSize)
-	}
-	if cr.reader.n > cr.chunkMeta.TotalCompressedSize {
-		return nil, fmt.Errorf("over-read")
+	if len(data) != int(uncompressedSize) {
+		return nil, errors.New("page data after uncompression is incomplete")
 	}
 	return data, nil
+}
+
+func (cr *ColumnChunkReader) readPageDataV1(ph *parquetformat.PageHeader, dph *parquetformat.DataPageHeader) (valuesData, dData, rData []byte, err error) {
+	data, err := cr.readPageData(ph.CompressedPageSize, ph.UncompressedPageSize)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// TODO: it looks like parquetformat README is incorrect: first R then D
+	if _, isConst := cr.rDecoder.(constDecoder); !isConst {
+		if enc := dph.RepetitionLevelEncoding; enc != parquetformat.Encoding_RLE {
+			return nil, nil, nil, fmt.Errorf("%s RepetitionLevelEncoding is not supported", enc)
+		}
+		if len(data) < 4 {
+			return nil, nil, nil, errors.New("not enough data to read repetition levels")
+		}
+		n := int(binary.LittleEndian.Uint32(data[:4]))
+		if n < 0 || uint(n+4) > uint(len(data)) {
+			return nil, nil, nil, errors.New("invalid repetition levels data length")
+		}
+		rData = data[4 : 4+n]
+		data = data[4+n:]
+	}
+	if _, isConst := cr.dDecoder.(constDecoder); !isConst {
+		if enc := dph.DefinitionLevelEncoding; enc != parquetformat.Encoding_RLE {
+			return nil, nil, nil, fmt.Errorf("%s DefinitionLevelEncoding is not supported", enc)
+		}
+		if len(data) < 4 {
+			return nil, nil, nil, errors.New("not enough data to read definition levels")
+		}
+		n := int(binary.LittleEndian.Uint32(data[:4]))
+		if n < 0 || uint(n+4) > uint(len(data)) {
+			return nil, nil, nil, errors.New("invalid definition levels data length")
+		}
+		dData = data[4 : 4+n]
+		data = data[4+n:]
+	}
+
+	return data, dData, rData, nil
+}
+
+func (cr *ColumnChunkReader) readPageDataV2(ph *parquetformat.PageHeader, dph *parquetformat.DataPageHeaderV2) (valuesData, dData, rData []byte, err error) {
+	if dph.RepetitionLevelsByteLength < 0 {
+		return nil, nil, nil, fmt.Errorf("invalid RepetitionLevelsByteLength")
+	}
+	if dph.DefinitionLevelsByteLength < 0 {
+		return nil, nil, nil, fmt.Errorf("invalid DefinitionLevelsByteLength")
+	}
+
+	levelsSize := dph.RepetitionLevelsByteLength + dph.DefinitionLevelsByteLength
+	r := io.LimitReader(cr.reader, int64(levelsSize))
+	levelsData, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if len(levelsData) != int(levelsSize) {
+		return nil, nil, nil, errors.New("unable to read all levels data")
+	}
+	if _, isConst := cr.rDecoder.(constDecoder); !isConst {
+		n := int(dph.RepetitionLevelsByteLength)
+		rData = levelsData[:n]
+		levelsData = levelsData[n:]
+	} else {
+		if dph.RepetitionLevelsByteLength != 0 {
+			return nil, nil, nil, fmt.Errorf("RepetitionLevelsByteLength != 0 for column with no r levels")
+		}
+	}
+	if _, isConst := cr.dDecoder.(constDecoder); !isConst {
+		dData = levelsData
+	} else {
+		if dph.DefinitionLevelsByteLength != 0 {
+			return nil, nil, nil, fmt.Errorf("DefinitionLevelsByteLength != 0 for column with no r levels")
+		}
+	}
+
+	valuesData, err = cr.readPageData(ph.CompressedPageSize-levelsSize, ph.UncompressedPageSize-levelsSize)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return valuesData, dData, rData, nil
 }
 
 func (cr *ColumnChunkReader) readPage(first bool) error {
@@ -330,7 +396,7 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 			return fmt.Errorf("negative NumValues in DICTIONARY_PAGE: %d", count)
 		}
 
-		dictData, err := cr.readPageData(ph)
+		dictData, err := cr.readPageData(ph.CompressedPageSize, ph.UncompressedPageSize)
 		if err != nil {
 			return err
 		}
@@ -399,63 +465,23 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 		return err
 	}
 
-	data, err := cr.readPageData(ph)
+	var valuesData, dData, rData []byte
+	if dph != nil {
+		valuesData, dData, rData, err = cr.readPageDataV1(ph, dph)
+	} else {
+		valuesData, dData, rData, err = cr.readPageDataV2(ph, dph2)
+	}
 	if err != nil {
 		return err
 	}
 
-	pos := 0
-	if dph != nil {
-		// TODO: it looks like parquetformat README is incorrect: first R then D
-		if _, isConst := cr.rDecoder.(constDecoder); !isConst {
-			if enc := dph.RepetitionLevelEncoding; enc != parquetformat.Encoding_RLE {
-				return fmt.Errorf("%s RepetitionLevelEncoding is not supported", enc)
-			}
-			// TODO: uint32 -> int overflow
-			// TODO: error handing
-			n := int(binary.LittleEndian.Uint32(data[:4]))
-			pos += 4
-			cr.rDecoder.init(data[pos : pos+n])
-			pos += n
-		}
-		if _, isConst := cr.dDecoder.(constDecoder); !isConst {
-			if enc := dph.DefinitionLevelEncoding; enc != parquetformat.Encoding_RLE {
-				return fmt.Errorf("%s DefinitionLevelEncoding is not supported", enc)
-			}
-			// TODO: uint32 -> int overflow
-			// TODO: error handing
-			n := int(binary.LittleEndian.Uint32(data[pos : pos+4]))
-			pos += 4
-			cr.dDecoder.init(data[pos : pos+n])
-			pos += n
-		}
-	} else {
-		if _, isConst := cr.rDecoder.(constDecoder); !isConst {
-			n := int(dph2.RepetitionLevelsByteLength)
-			if n <= 0 {
-				return fmt.Errorf("non-positive RepetitionLevelsByteLength")
-			}
-			cr.rDecoder.init(data[pos : pos+n])
-			pos += n
-		} else {
-			if dph2.RepetitionLevelsByteLength != 0 {
-				return fmt.Errorf("RepetitionLevelsByteLength != 0 for column with no r levels")
-			}
-		}
-		if _, isConst := cr.dDecoder.(constDecoder); !isConst {
-			n := int(dph2.DefinitionLevelsByteLength)
-			if n <= 0 {
-				return fmt.Errorf("non-positive DefinitionLevelsByteLength")
-			}
-			cr.dDecoder.init(data[pos : pos+n])
-			pos += n
-		} else {
-			if dph2.DefinitionLevelsByteLength != 0 {
-				return fmt.Errorf("DefinitionLevelsByteLength != 0 for column with no r levels")
-			}
-		}
+	if dData != nil {
+		cr.dDecoder.init(dData)
 	}
-	if err := cr.valuesDecoder.init(data[pos:]); err != nil {
+	if rData != nil {
+		cr.rDecoder.init(rData)
+	}
+	if err := cr.valuesDecoder.init(valuesData); err != nil {
 		return err
 	}
 
