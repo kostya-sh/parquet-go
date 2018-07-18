@@ -130,15 +130,21 @@ func (d *int64DeltaBinaryPackedDecoder) readPageHeader() error {
 
 	d.blockSize, n = varInt32(d.data[d.pos:])
 	if n <= 0 {
-		return fmt.Errorf("int64/delta: failed to read block size")
+		return errors.New("int64/delta: failed to read block size")
 	}
-	d.pos += n
+	if d.blockSize <= 0 {
+		return errors.New("int64/delta: invalid block size")
+	}
+	d.pos += n // TODO: overflow (and below)
 
 	d.miniBlocks, n = varInt32(d.data[d.pos:])
 	if n <= 0 {
-		return fmt.Errorf("int64/delta: failed to read number of mini blocks")
+		return errors.New("int64/delta: failed to read number of mini blocks")
 	}
-	// TODO: valdiate d.miniBlocks
+	if d.miniBlocks <= 0 || d.miniBlocks > d.blockSize {
+		return errors.New("int64/delta: invalid number of miniblocks in a block")
+	}
+	// TODO: valdiate max d.miniBlocks (?)
 	// TODO: do not allocate if not necessary
 	d.miniBlockWidths = make([]byte, d.miniBlocks, d.miniBlocks)
 	d.pos += n
@@ -168,14 +174,18 @@ func (d *int64DeltaBinaryPackedDecoder) readBlockHeader() error {
 
 	d.minDelta, n = zigZagVarInt64(d.data[d.pos:])
 	if n <= 0 {
-		return fmt.Errorf("int64/delta: failed to read min delta")
+		return errors.New("int64/delta: failed to read min delta")
 	}
 	d.pos += n
 
 	n = copy(d.miniBlockWidths, d.data[d.pos:])
-	// TODO: validate <= 32
 	if n != len(d.miniBlockWidths) {
-		return fmt.Errorf("int64/delta: failed to read all bitwidths of miniblocks")
+		return errors.New("int64/delta: failed to read all miniblock bit widths")
+	}
+	for _, w := range d.miniBlockWidths {
+		if w < 0 || w > 64 {
+			return errors.New("int64/delta: invalid miniblock bit width")
+		}
 	}
 	d.pos += n
 

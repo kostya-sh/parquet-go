@@ -132,3 +132,31 @@ func TestInt32DeltaBianryPackedDecoder(t *testing.T) {
 				int32(127), int32(119), int32(139), int32(114), int32(108),
 			}}})
 }
+
+func TestInt32DeltaBianryPackedErrors(t *testing.T) {
+	tests := [][]byte{
+		// invalid number of miniblocks
+		[]byte("\x01\x0200000"),
+
+		// invalid miniblock bit width value
+		[]byte("0\a\xb50000000000"),
+
+		// invalid number of miniblocks
+		[]byte("0\x00"),
+	}
+
+	d := &int32DeltaBinaryPackedDecoder{}
+
+	for i, data := range tests {
+		if err := d.init(data); err != nil {
+			t.Logf("test %d: error in init: %s", i, err)
+			continue
+		}
+
+		if err := d.decode(make([]int32, 1000, 1000)); err == nil || err == errNED {
+			t.Errorf("test %d, error is expected", i)
+		} else {
+			t.Logf("test %d: error in decode: %s", i, err)
+		}
+	}
+}
