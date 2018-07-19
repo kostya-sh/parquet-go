@@ -86,15 +86,13 @@ func (d *int32DictDecoder) decodeInt32(dst []int32) error {
 type int32DeltaBinaryPackedDecoder struct {
 	data []byte
 
-	blockSize     int32
-	miniBlocks    int32
+	numMiniBlocks int32
 	miniBlockSize int32
 	numValues     int32
 
 	minDelta        int32
-	miniBlockWidths []byte
+	miniBlockWidths []uint8
 
-	pos             int
 	i               int
 	value           int32
 	miniBlock       int
@@ -107,7 +105,6 @@ type int32DeltaBinaryPackedDecoder struct {
 func (d *int32DeltaBinaryPackedDecoder) init(data []byte) error {
 	d.data = data
 
-	d.pos = 0
 	d.i = 0
 
 	if err := d.readPageHeader(); err != nil {
@@ -126,42 +123,44 @@ func (d *int32DeltaBinaryPackedDecoder) decode(dst interface{}) error {
 
 // page-header := <block size in values> <number of miniblocks in a block> <total value count> <first value>
 func (d *int32DeltaBinaryPackedDecoder) readPageHeader() error {
-	var n int
-
-	d.blockSize, n = varInt32(d.data[d.pos:])
+	blockSize, n := varInt32(d.data)
 	if n <= 0 {
 		return errors.New("int32/delta: failed to read block size")
 	}
-	if d.blockSize <= 0 {
+	if blockSize <= 0 {
+		// TODO: maybe validate blockSize % 8 = 0
 		return errors.New("int32/delta: invalid block size")
 	}
-	d.pos += n // TODO: overflow (and below)
+	d.data = d.data[n:]
 
-	d.miniBlocks, n = varInt32(d.data[d.pos:])
+	d.numMiniBlocks, n = varInt32(d.data)
 	if n <= 0 {
 		return errors.New("int32/delta: failed to read number of mini blocks")
 	}
-	if d.miniBlocks <= 0 || d.miniBlocks > d.blockSize {
-		return errors.New("int32/delta: invalid number of miniblocks in a block")
+	if d.numMiniBlocks <= 0 || d.numMiniBlocks > blockSize || blockSize%d.numMiniBlocks != 0 {
+		// TODO: maybe blockSize/8 % d.numMiniBlocks = 0
+		return errors.New("int32/delta: invalid number of mini blocks")
 	}
-	// TODO: valdiate max d.miniBlocks (?)
-	// TODO: do not allocate if not necessary
-	d.miniBlockWidths = make([]byte, d.miniBlocks, d.miniBlocks)
-	d.pos += n
+	d.data = d.data[n:]
 
-	d.miniBlockSize = d.blockSize / d.miniBlocks // TODO: rounding
-
-	d.numValues, n = varInt32(d.data[d.pos:])
+	d.numValues, n = varInt32(d.data)
 	if n <= 0 {
 		return fmt.Errorf("int32/delta: failed to read total value count")
 	}
-	d.pos += n
-
-	d.value, n = zigZagVarInt32(d.data[d.pos:])
-	if n <= 0 {
-		return fmt.Errorf("delta: failed to read first value")
+	if d.numValues < 0 {
+		return errors.New("int32/delta: invalid total value count")
 	}
-	d.pos += n
+	d.data = d.data[n:]
+
+	d.value, n = zigZagVarInt32(d.data)
+	if n <= 0 {
+		return errors.New("int32/delta: failed to read first value")
+	}
+	d.data = d.data[n:]
+
+	// TODO: re-use if possible
+	d.miniBlockWidths = make([]byte, d.numMiniBlocks, d.numMiniBlocks)
+	d.miniBlockSize = blockSize / d.numMiniBlocks
 
 	return nil
 }
@@ -172,22 +171,24 @@ func (d *int32DeltaBinaryPackedDecoder) readPageHeader() error {
 func (d *int32DeltaBinaryPackedDecoder) readBlockHeader() error {
 	var n int
 
-	d.minDelta, n = zigZagVarInt32(d.data[d.pos:])
+	d.minDelta, n = zigZagVarInt32(d.data)
 	if n <= 0 {
 		return errors.New("int32/delta: failed to read min delta")
 	}
-	d.pos += n
+	d.data = d.data[n:]
 
-	n = copy(d.miniBlockWidths, d.data[d.pos:])
-	if n != len(d.miniBlockWidths) {
-		return errors.New("int32/delta: failed to read all miniblock bit widths")
+	n = len(d.miniBlockWidths)
+	if len(d.data) < n {
+		return errors.New("int32/delta: not enough data to read all miniblock bit widths")
 	}
-	for _, w := range d.miniBlockWidths {
+	for i := 0; i < n; i++ {
+		w := uint8(d.data[i])
 		if w < 0 || w > 32 {
 			return errors.New("int32/delta: invalid miniblock bit width")
 		}
+		d.miniBlockWidths[i] = w
 	}
-	d.pos += n
+	d.data = d.data[n:]
 
 	d.miniBlock = 0
 
@@ -195,14 +196,14 @@ func (d *int32DeltaBinaryPackedDecoder) readBlockHeader() error {
 }
 
 func (d *int32DeltaBinaryPackedDecoder) decodeInt32(dst []int32) error {
-	n := 0
-	var err error
-	for n < len(dst) && d.i < int(d.numValues) {
+	for i := 0; i < len(dst); i++ {
+		if d.i >= int(d.numValues) {
+			return errNED
+		}
 		if d.i%8 == 0 {
 			if d.i%int(d.miniBlockSize) == 0 {
-				if d.miniBlock >= int(d.miniBlocks) {
-					err = d.readBlockHeader()
-					if err != nil {
+				if d.miniBlock >= int(d.numMiniBlocks) {
+					if err := d.readBlockHeader(); err != nil {
 						return err
 					}
 				}
@@ -212,25 +213,24 @@ func (d *int32DeltaBinaryPackedDecoder) decodeInt32(dst []int32) error {
 				d.miniBlockPos = 0
 				d.miniBlock++
 			}
-			w := int(d.miniBlockWidth)
-			if d.pos+w > len(d.data) {
-				return fmt.Errorf("int32/delta: not enough data")
+
+			// read next 8 values
+			w := d.miniBlockWidth
+			if w > len(d.data) {
+				return errors.New("int32/delta: not enough data to read 8 values")
 			}
-			d.miniBlockValues = d.unpacker(d.data[d.pos : d.pos+w]) // TODO: validate w
+			d.miniBlockValues = d.unpacker(d.data[:w])
 			d.miniBlockPos += w
-			d.pos += w
+			d.data = d.data[w:]
 			if d.i+8 >= int(d.numValues) {
-				d.pos += int(d.miniBlockSize)/8*w - d.miniBlockPos
+				// make sure that all data is consumed
+				// this is needed for byte array decoders
+				d.data = d.data[int(d.miniBlockSize)/8*w-d.miniBlockPos:]
 			}
 		}
-		dst[n] = d.value
+		dst[i] = d.value
 		d.value += d.miniBlockValues[d.i%8] + d.minDelta
 		d.i++
-		n++
-
-	}
-	if n == 0 {
-		return fmt.Errorf("int32/delta: no more data")
 	}
 
 	return nil

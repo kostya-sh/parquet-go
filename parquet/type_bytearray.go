@@ -115,8 +115,6 @@ type byteArrayDeltaLengthDecoder struct {
 }
 
 func (d *byteArrayDeltaLengthDecoder) init(data []byte) error {
-	d.data = data
-
 	lensDecoder := int32DeltaBinaryPackedDecoder{}
 	if err := lensDecoder.init(data); err != nil {
 		return err
@@ -127,7 +125,9 @@ func (d *byteArrayDeltaLengthDecoder) init(data []byte) error {
 	if err != nil {
 		return err
 	}
-	d.pos = lensDecoder.pos
+
+	d.data = lensDecoder.data
+	d.pos = 0
 	d.i = 0
 	return nil
 }
@@ -183,7 +183,7 @@ func (d *byteArrayDeltaDecoder) init(data []byte) error {
 	if err := lensDecoder.decodeInt32(d.prefixLens); err != nil {
 		return err
 	}
-	if err := d.suffixDecoder.init(data[lensDecoder.pos:]); err != nil {
+	if err := d.suffixDecoder.init(lensDecoder.data); err != nil {
 		return err
 	}
 
