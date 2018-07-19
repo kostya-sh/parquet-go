@@ -28,13 +28,10 @@ func decodeInt64(d int64Decoder, dst interface{}) error {
 
 type int64PlainDecoder struct {
 	data []byte
-
-	pos int
 }
 
 func (d *int64PlainDecoder) init(data []byte) error {
 	d.data = data
-	d.pos = 0
 	return nil
 }
 
@@ -44,14 +41,14 @@ func (d *int64PlainDecoder) decode(dst interface{}) error {
 
 func (d *int64PlainDecoder) decodeInt64(dst []int64) error {
 	for i := 0; i < len(dst); i++ {
-		if d.pos >= len(d.data) {
+		if len(d.data) == 0 {
 			return errNED
 		}
-		if uint(d.pos+8) > uint(len(d.data)) {
+		if len(d.data) < 8 {
 			return errors.New("int64/plain: not enough bytes to decode an int64 number")
 		}
-		dst[i] = int64(binary.LittleEndian.Uint64(d.data[d.pos:]))
-		d.pos += 8
+		dst[i] = int64(binary.LittleEndian.Uint64(d.data))
+		d.data = d.data[8:]
 	}
 	return nil
 }

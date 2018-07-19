@@ -29,7 +29,6 @@ func decodeBoolean(d booleanDecoder, dst interface{}) error {
 type booleanPlainDecoder struct {
 	data []byte
 
-	pos    int
 	i      uint8
 	values [8]int32
 }
@@ -37,7 +36,6 @@ type booleanPlainDecoder struct {
 func (d *booleanPlainDecoder) init(data []byte) error {
 	d.data = data
 	d.i = 0
-	d.pos = 0
 	return nil
 }
 
@@ -48,12 +46,11 @@ func (d *booleanPlainDecoder) decode(dst interface{}) error {
 func (d *booleanPlainDecoder) decodeBool(dst []bool) error {
 	for i := 0; i < len(dst); i++ {
 		if d.i == 0 {
-			pos := d.pos + 1
-			if uint(pos) > uint(len(d.data)) {
+			if len(d.data) == 0 {
 				return errNED
 			}
-			d.values = unpack8int32_1(d.data[d.pos:pos])
-			d.pos = pos
+			d.values = unpack8int32_1(d.data[:1])
+			d.data = d.data[1:]
 		}
 		dst[i] = d.values[d.i] == 1
 		d.i = (d.i + 1) % 8

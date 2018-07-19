@@ -28,13 +28,10 @@ func decodeInt32(d int32Decoder, dst interface{}) error {
 
 type int32PlainDecoder struct {
 	data []byte
-
-	pos int
 }
 
 func (d *int32PlainDecoder) init(data []byte) error {
 	d.data = data
-	d.pos = 0
 	return nil
 }
 
@@ -44,14 +41,14 @@ func (d *int32PlainDecoder) decode(dst interface{}) error {
 
 func (d *int32PlainDecoder) decodeInt32(dst []int32) error {
 	for i := 0; i < len(dst); i++ {
-		if d.pos >= len(d.data) {
+		if len(d.data) == 0 {
 			return errNED
 		}
-		if uint(d.pos+4) > uint(len(d.data)) {
+		if len(d.data) < 4 {
 			return errors.New("int32/plain: not enough bytes to decode an int32 number")
 		}
-		dst[i] = int32(binary.LittleEndian.Uint32(d.data[d.pos:]))
-		d.pos += 4
+		dst[i] = int32(binary.LittleEndian.Uint32(d.data))
+		d.data = d.data[4:]
 	}
 	return nil
 }

@@ -28,13 +28,10 @@ func decodeDouble(d doubleDecoder, dst interface{}) error {
 
 type doublePlainDecoder struct {
 	data []byte
-
-	pos int
 }
 
 func (d *doublePlainDecoder) init(data []byte) error {
 	d.data = data
-	d.pos = 0
 	return nil
 }
 
@@ -44,14 +41,14 @@ func (d *doublePlainDecoder) decode(dst interface{}) error {
 
 func (d *doublePlainDecoder) decodeFloat64(dst []float64) error {
 	for i := 0; i < len(dst); i++ {
-		if d.pos >= len(d.data) {
+		if len(d.data) == 0 {
 			return errNED
 		}
-		if uint(d.pos+8) > uint(len(d.data)) {
+		if len(d.data) < 8 {
 			return errors.New("double/plain: not enough bytes to decode a double number")
 		}
-		dst[i] = math.Float64frombits(binary.LittleEndian.Uint64(d.data[d.pos:]))
-		d.pos += 8
+		dst[i] = math.Float64frombits(binary.LittleEndian.Uint64(d.data))
+		d.data = d.data[8:]
 	}
 	return nil
 }

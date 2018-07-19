@@ -28,13 +28,10 @@ func decodeFloat(d floatDecoder, dst interface{}) error {
 
 type floatPlainDecoder struct {
 	data []byte
-
-	pos int
 }
 
 func (d *floatPlainDecoder) init(data []byte) error {
 	d.data = data
-	d.pos = 0
 	return nil
 }
 
@@ -44,14 +41,14 @@ func (d *floatPlainDecoder) decode(dst interface{}) error {
 
 func (d *floatPlainDecoder) decodeFloat32(dst []float32) error {
 	for i := 0; i < len(dst); i++ {
-		if d.pos >= len(d.data) {
+		if len(d.data) == 0 {
 			return errNED
 		}
-		if uint(d.pos+4) > uint(len(d.data)) {
+		if len(d.data) < 4 {
 			return errors.New("float/plain: not enough bytes to decode a float number")
 		}
-		dst[i] = math.Float32frombits(binary.LittleEndian.Uint32(d.data[d.pos:]))
-		d.pos += 4
+		dst[i] = math.Float32frombits(binary.LittleEndian.Uint32(d.data))
+		d.data = d.data[4:]
 	}
 	return nil
 }

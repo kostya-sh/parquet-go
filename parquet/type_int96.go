@@ -2,7 +2,6 @@ package parquet
 
 import (
 	"errors"
-	"fmt"
 )
 
 type Int96 [12]byte
@@ -29,13 +28,10 @@ func decodeInt96(d int96Decoder, dst interface{}) error {
 
 type int96PlainDecoder struct {
 	data []byte
-
-	pos int
 }
 
 func (d *int96PlainDecoder) init(data []byte) error {
 	d.data = data
-	d.pos = 0
 	return nil
 }
 
@@ -43,24 +39,15 @@ func (d *int96PlainDecoder) decode(dst interface{}) error {
 	return decodeInt96(d, dst)
 }
 
-func (d *int96PlainDecoder) next() (value Int96, err error) {
-	if d.pos > len(d.data)-12 {
-		return value, fmt.Errorf("int96/plain: not enough data")
-	}
-	copy(value[:12], d.data[d.pos:d.pos+12])
-	d.pos += 12
-	return value, err
-}
-
 func (d *int96PlainDecoder) decodeInt96(dst []Int96) error {
 	for i := 0; i < len(dst); i++ {
-		if d.pos >= len(d.data) {
+		if len(d.data) == 0 {
 			return errNED
 		}
-		if copy(dst[i][:12], d.data[d.pos:]) != 12 {
+		if copy(dst[i][:12], d.data) != 12 {
 			return errors.New("int96/plain: not enough bytes to decode an Int96 value")
 		}
-		d.pos += 12
+		d.data = d.data[12:]
 	}
 	return nil
 }
