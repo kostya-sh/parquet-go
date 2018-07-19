@@ -48,8 +48,8 @@ func testValuesDecoder(t *testing.T, d valuesDecoder, tests []decoderTestCase) {
 
 		// make sure that reading past data returns error
 		err = d.decode(make([]interface{}, 1000, 1000))
-		if err == nil {
-			t.Errorf("error expected attempting to read too many values from %v", test.data)
+		if err != errNED {
+			t.Errorf("errNED expected attempting to read too many values from %v", test.data)
 		} else {
 			t.Logf("%v: %s", test.data, err)
 		}

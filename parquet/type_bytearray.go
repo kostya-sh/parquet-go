@@ -2,7 +2,7 @@ package parquet
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
 )
 
 type byteArrayDecoder interface {
@@ -30,32 +30,35 @@ type byteArrayPlainDecoder struct {
 	length int
 
 	data []byte
-
-	pos int
 }
 
 func (d *byteArrayPlainDecoder) init(data []byte) error {
 	d.data = data
-	d.pos = 0
 	return nil
 }
 
 func (d *byteArrayPlainDecoder) next() (value []byte, err error) {
+	if len(d.data) == 0 {
+		return nil, errNED
+	}
 	size := d.length
 	if d.length == 0 {
-		if d.pos > len(d.data)-4 {
-			return nil, fmt.Errorf("bytearray/plain: no more data")
+		if len(d.data) < 4 {
+			return nil, errors.New("bytearray/plain: not enough data to read length")
 		}
-		size = int(binary.LittleEndian.Uint32(d.data[d.pos:])) // TODO: think about int overflow here
-		d.pos += 4
+		size = int(int32(binary.LittleEndian.Uint32(d.data)))
+		if size < 0 {
+			return nil, errors.New("bytearray/plain: negative length")
+		}
+		d.data = d.data[4:]
 	}
-	if d.pos > len(d.data)-size {
-		return nil, fmt.Errorf("bytearray/plain: not enough data")
+	if len(d.data) < size {
+		return nil, errors.New("bytearray/plain: not enough data to read value")
 	}
 	// TODO: configure copy or not
 	value = make([]byte, size)
-	copy(value, d.data[d.pos:d.pos+size])
-	d.pos += size
+	copy(value, d.data)
+	d.data = d.data[size:]
 	return value, err
 }
 
@@ -64,17 +67,12 @@ func (d *byteArrayPlainDecoder) decode(dst interface{}) error {
 }
 
 func (d *byteArrayPlainDecoder) decodeByteSlice(dst [][]byte) error {
-	i := 0
-	for i < len(dst) && d.pos < len(d.data) {
+	for i := 0; i < len(dst); i++ {
 		v, err := d.next()
 		if err != nil {
-			break
+			return err
 		}
 		dst[i] = v
-		i++
-	}
-	if i == 0 {
-		return fmt.Errorf("bytearray/plain: no more data")
 	}
 	return nil
 }
@@ -110,8 +108,7 @@ type byteArrayDeltaLengthDecoder struct {
 	data []byte
 	lens []int32
 
-	i   int
-	pos int
+	i int
 }
 
 func (d *byteArrayDeltaLengthDecoder) init(data []byte) error {
@@ -127,7 +124,6 @@ func (d *byteArrayDeltaLengthDecoder) init(data []byte) error {
 	}
 
 	d.data = lensDecoder.data
-	d.pos = 0
 	d.i = 0
 	return nil
 }
@@ -137,30 +133,28 @@ func (d *byteArrayDeltaLengthDecoder) decode(dst interface{}) error {
 }
 
 func (d *byteArrayDeltaLengthDecoder) next() (value []byte, err error) {
+	if d.i >= len(d.lens) {
+		return nil, errNED
+	}
 	size := int(d.lens[d.i])
-	if d.pos > len(d.data)-size {
-		return nil, fmt.Errorf("bytearray/deltalength: not enough data")
+	if len(d.data) < size {
+		return nil, errors.New("bytearray/deltalength: not enough data to read value")
 	}
 	// TODO: configure copy or not
 	value = make([]byte, size)
-	copy(value, d.data[d.pos:d.pos+size])
-	d.pos += size
+	copy(value, d.data)
+	d.data = d.data[size:]
 	d.i++
 	return value, err
 }
 
 func (d *byteArrayDeltaLengthDecoder) decodeByteSlice(dst [][]byte) error {
-	i := 0
-	for i < len(dst) && d.i < len(d.lens) {
+	for i := 0; i < len(dst); i++ {
 		v, err := d.next()
 		if err != nil {
-			break
+			return err
 		}
 		dst[i] = v
-		i++
-	}
-	if i == 0 {
-		return fmt.Errorf("bytearray/plain: no more data")
 	}
 	return nil
 }
@@ -188,7 +182,7 @@ func (d *byteArrayDeltaDecoder) init(data []byte) error {
 	}
 
 	if len(d.prefixLens) != len(d.suffixDecoder.lens) {
-		return fmt.Errorf("bytearray/delta: different number of suffixes and prefixes")
+		return errors.New("bytearray/delta: different number of suffixes and prefixes")
 	}
 
 	d.value = make([]byte, 0)
@@ -201,22 +195,17 @@ func (d *byteArrayDeltaDecoder) decode(dst interface{}) error {
 }
 
 func (d *byteArrayDeltaDecoder) decodeByteSlice(dst [][]byte) error {
-	i := 0
-	for i < len(dst) && d.suffixDecoder.i < len(d.prefixLens) {
-		prefixLen := int(d.prefixLens[d.suffixDecoder.i])
+	for i := 0; i < len(dst); i++ {
 		suffix, err := d.suffixDecoder.next()
 		if err != nil {
-			break
+			return err
 		}
+		prefixLen := int(d.prefixLens[d.suffixDecoder.i-1])
 		value := make([]byte, 0, prefixLen+len(suffix))
 		value = append(value, d.value[:prefixLen]...)
 		value = append(value, suffix...)
 		d.value = value
 		dst[i] = value
-		i++
-	}
-	if i == 0 {
-		return fmt.Errorf("bytearray/delta: no more data")
 	}
 	return nil
 }
