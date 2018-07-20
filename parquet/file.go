@@ -16,6 +16,7 @@ type File struct {
 	reader    io.ReadSeeker
 }
 
+// OpenFile opens a parquet file for reading.
 func OpenFile(path string) (*File, error) {
 	r, err := os.Open(path)
 	if err != nil {
@@ -32,6 +33,7 @@ func OpenFile(path string) (*File, error) {
 	return f, nil
 }
 
+// FileFromReader creates parquet.File from io.ReadSeeker.
 func FileFromReader(r io.ReadSeeker) (*File, error) {
 	meta, err := ReadFileMetaData(r)
 	if err != nil {
@@ -63,6 +65,7 @@ func (f File) NewReader(col Column, rg int) (*ColumnChunkReader, error) {
 	return newColumnChunkReader(f.reader, f.MetaData, col, chunks[col.Index()])
 }
 
+// Close frees up all resources held by f.
 func (f *File) Close() error {
 	if !f.ownReader {
 		return nil

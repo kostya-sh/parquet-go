@@ -41,10 +41,15 @@ func (col Column) Index() int {
 	return col.index
 }
 
+// MaxD returns the maximum definition level for col.
+//
+// A read value is not null when its definition level equals to the maximum
+// definition level.
 func (col Column) MaxD() uint16 {
 	return col.maxD
 }
 
+// MaxR returns the maximum repetition level for col.
 func (col Column) MaxR() uint16 {
 	return col.maxR
 }
@@ -73,8 +78,8 @@ func MakeSchema(meta *parquetformat.FileMetaData) (Schema, error) {
 	return s, nil
 }
 
-// ColumnByName returns a ColumnSchema with the given name (individual elements
-// are separated with ".") or nil if such column does not exist in s.
+// ColumnByName returns a Column with the given name (individual elements are
+// separated with ".").
 func (s Schema) ColumnByName(name string) (col Column, found bool) {
 	for i := range s.columns {
 		if s.columns[i].name == name {
@@ -84,13 +89,12 @@ func (s Schema) ColumnByName(name string) (col Column, found bool) {
 	return Column{}, false
 }
 
-// ColumnByPath returns a ColumnSchema for the given path or or nil if such
-// column does not exist in s.
+// ColumnByPath returns a Column for the given path.
 func (s Schema) ColumnByPath(path []string) (col Column, found bool) {
 	return s.ColumnByName(strings.Join(path, "."))
 }
 
-// Columns returns ColumnSchemas for all columns defined in s.
+// Columns returns all columns defined in s.
 func (s Schema) Columns() []Column {
 	return s.columns
 }

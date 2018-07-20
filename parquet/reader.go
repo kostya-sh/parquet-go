@@ -497,11 +497,11 @@ func (cr *ColumnChunkReader) readPage(first bool) error {
 // len(dLevels) != len(rLevels) != len(values). It returns the number of values
 // read (including nulls) and any errors encountered.
 //
-// Note that after Read values contain only non-null values. Number of these
-// values could be less than n.
+// Note that after Read values slice contains only non-null values. Number of
+// these values could be less than n.
 //
 // values must be a slice of interface{} or type that corresponds to the column
-// type (such as []int32 for INT32 column).
+// type (such as []int32 for INT32 column or [][]byte for BYTE_ARRAY column).
 //
 // When there is not enough values in the current page to fill dLevels Read
 // doesn't advance to the next page and returns the number of values read.  If
@@ -580,14 +580,14 @@ func (cr *ColumnChunkReader) SkipPage() error {
 // PageHeader returns PageHeader of a page that is about to be read or
 // currently being read.
 //
-// If there was an error reading last page (including EndOfChunk) PageHeder
+// If there was an error reading the last page (including EndOfChunk) PageHeder
 // returns nil.
 func (cr *ColumnChunkReader) PageHeader() *parquetformat.PageHeader {
 	return cr.page
 }
 
 // DictionaryPageHeader returns a DICTIONARY_PAGE page header if the column
-// chunk has one, otherwise return nil.
+// chunk has one or nil otherwise.
 func (cr *ColumnChunkReader) DictionaryPageHeader() *parquetformat.PageHeader {
 	return cr.dictPage
 }
