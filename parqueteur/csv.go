@@ -27,10 +27,10 @@ func init() {
 }
 
 func readAll(f *parquet.File, col parquet.Column) (allValues []interface{}, err error) {
-	const batch = 16
-	values := make([]interface{}, batch, batch)
-	dLevels := make([]uint16, batch, batch)
-	rLevels := make([]uint16, batch, batch)
+	const batchSize = 1024
+	values := make([]interface{}, batchSize, batchSize)
+	dLevels := make([]uint16, batchSize, batchSize)
+	rLevels := make([]uint16, batchSize, batchSize)
 	var n int
 	for rg, _ := range f.MetaData.RowGroups {
 		cr, err := f.NewReader(col, rg)
@@ -77,7 +77,7 @@ func runCSV(cmd *Command, args []string) error {
 
 	// TODO: avoid reading everything to memory
 	var colsData = make([][]interface{}, len(cols), len(cols))
-	for i, col := range f.Schema.Columns() {
+	for i, col := range cols {
 		colsData[i], err = readAll(f, col)
 		if err != nil {
 			return fmt.Errorf("csv: failed to read column '%s': %s", col, err)
