@@ -54,6 +54,11 @@ func (col Column) MaxR() uint16 {
 	return col.maxR
 }
 
+// Type returns type of col values.
+func (col Column) Type() parquetformat.Type {
+	return *col.schemaElement.Type
+}
+
 func (col Column) String() string {
 	return col.name
 }
