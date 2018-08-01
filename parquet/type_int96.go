@@ -15,7 +15,7 @@ func decodeInt96(d int96Decoder, dst interface{}) error {
 	case []Int96:
 		return d.decodeInt96(dst)
 	case []interface{}:
-		b := make([]Int96, len(dst), len(dst))
+		b := make([]Int96, len(dst))
 		err := d.decodeInt96(b)
 		for i := 0; i < len(dst); i++ {
 			dst[i] = b[i]
@@ -60,7 +60,7 @@ type int96DictDecoder struct {
 
 func (d *int96DictDecoder) initValues(dictData []byte, count int) error {
 	d.numValues = count
-	d.values = make([]Int96, count, count)
+	d.values = make([]Int96, count)
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 

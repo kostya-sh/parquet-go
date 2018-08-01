@@ -15,7 +15,7 @@ func decodeDouble(d doubleDecoder, dst interface{}) error {
 	case []float64:
 		return d.decodeFloat64(dst)
 	case []interface{}:
-		b := make([]float64, len(dst), len(dst))
+		b := make([]float64, len(dst))
 		err := d.decodeFloat64(b)
 		for i := 0; i < len(dst); i++ {
 			dst[i] = b[i]
@@ -61,7 +61,7 @@ type doubleDictDecoder struct {
 
 func (d *doubleDictDecoder) initValues(dictData []byte, count int) error {
 	d.numValues = count
-	d.values = make([]float64, count, count)
+	d.values = make([]float64, count)
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 

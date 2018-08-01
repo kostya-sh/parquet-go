@@ -92,36 +92,36 @@ func NewColStrIter(f *parquet.File, col parquet.Column) *ColStrIter {
 	it := ColStrIter{
 		f:       f,
 		col:     col,
-		dLevels: make([]uint16, batchSize, batchSize),
-		rLevels: make([]uint16, batchSize, batchSize),
+		dLevels: make([]uint16, batchSize),
+		rLevels: make([]uint16, batchSize),
 	}
 	switch col.Type() {
 	case parquetformat.Type_BOOLEAN:
-		it.bools = make([]bool, batchSize, batchSize)
+		it.bools = make([]bool, batchSize)
 		it.stringFunc = it.boolStr
 		it.values = it.bools
 	case parquetformat.Type_INT32:
-		it.int32s = make([]int32, batchSize, batchSize)
+		it.int32s = make([]int32, batchSize)
 		it.stringFunc = it.int32Str
 		it.values = it.int32s
 	case parquetformat.Type_INT64:
-		it.int64s = make([]int64, batchSize, batchSize)
+		it.int64s = make([]int64, batchSize)
 		it.stringFunc = it.int64Str
 		it.values = it.int64s
 	case parquetformat.Type_INT96:
-		it.int96s = make([]parquet.Int96, batchSize, batchSize)
+		it.int96s = make([]parquet.Int96, batchSize)
 		it.stringFunc = it.int96Str
 		it.values = it.int96s
 	case parquetformat.Type_FLOAT:
-		it.float32s = make([]float32, batchSize, batchSize)
+		it.float32s = make([]float32, batchSize)
 		it.stringFunc = it.float32Str
 		it.values = it.float32s
 	case parquetformat.Type_DOUBLE:
-		it.float64s = make([]float64, batchSize, batchSize)
+		it.float64s = make([]float64, batchSize)
 		it.stringFunc = it.float64Str
 		it.values = it.float64s
 	case parquetformat.Type_BYTE_ARRAY, parquetformat.Type_FIXED_LEN_BYTE_ARRAY:
-		it.byteArrays = make([][]byte, batchSize, batchSize)
+		it.byteArrays = make([][]byte, batchSize)
 		it.stringFunc = it.byteArrayStr
 		it.values = it.byteArrays
 	default:
@@ -185,14 +185,14 @@ func runCSV(cmd *Command, args []string) error {
 		}
 	}
 
-	colIters := make([]*ColStrIter, n, n)
+	colIters := make([]*ColStrIter, n)
 	for i, col := range cols {
 		colIters[i] = NewColStrIter(f, col)
 	}
 
 	out := csv.NewWriter(os.Stdout)
 	out.Comma, _ = utf8.DecodeRuneInString(csvDelimiter)
-	r := make([]string, n, n)
+	r := make([]string, n)
 	if csvHeader {
 		for i, col := range cols {
 			r[i] = col.String()

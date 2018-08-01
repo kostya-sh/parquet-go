@@ -18,7 +18,7 @@ func decodeAllValues(d valuesDecoder, data []byte, count int) (a []interface{}, 
 
 	// read all data by calling decode() method multiple times
 	c := rand.Intn(4) + 1 // use random capacity in an attempt to increase test coverage
-	buf := make([]interface{}, c, c)
+	buf := make([]interface{}, c)
 	for count > 0 {
 		n := c
 		if count < n {
@@ -47,7 +47,7 @@ func testValuesDecoder(t *testing.T, d valuesDecoder, tests []decoderTestCase) {
 		}
 
 		// make sure that reading past data returns error
-		err = d.decode(make([]interface{}, 1000, 1000))
+		err = d.decode(make([]interface{}, 1000))
 		if err != errNED {
 			t.Errorf("errNED expected attempting to read too many values from %v", test.data)
 		} else {

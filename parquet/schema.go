@@ -155,7 +155,7 @@ func (g *group) create(schema []*parquetformat.SchemaElement, start int) (int, e
 	}
 
 	g.schemaElement = s // TODO: deep copy?
-	g.children = make([]schemaElement, *s.NumChildren, *s.NumChildren)
+	g.children = make([]schemaElement, *s.NumChildren)
 
 	i := start + 1
 	var err error

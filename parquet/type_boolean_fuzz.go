@@ -11,7 +11,7 @@ func fuzzBoolean(d valuesDecoder, data []byte) int {
 	if err != nil {
 		return 0
 	}
-	dst1 := make([]bool, maxSize, maxSize)
+	dst1 := make([]bool, maxSize)
 	err = d.decode(dst1)
 	if err != nil && err != errNED {
 		return 0
@@ -21,7 +21,7 @@ func fuzzBoolean(d valuesDecoder, data []byte) int {
 	if err != nil {
 		panic("unexpected error in the second init: " + err.Error())
 	}
-	dst2 := make([]interface{}, maxSize, maxSize)
+	dst2 := make([]interface{}, maxSize)
 	err = d.decode(dst2)
 	if err != nil && err != errNED {
 		return 0

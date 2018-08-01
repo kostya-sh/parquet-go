@@ -22,7 +22,7 @@ func ReadFileMetaData(r io.ReadSeeker) (*parquetformat.FileMetaData, error) {
 		return nil, fmt.Errorf("Error seeking to header: %s", err)
 	}
 
-	buf := make([]byte, 4, 4)
+	buf := make([]byte, 4)
 	// read and validate header
 	_, err = io.ReadFull(r, buf)
 	if err != nil {

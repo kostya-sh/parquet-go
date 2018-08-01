@@ -40,9 +40,9 @@ func runDump(cmd *Command, args []string) error {
 	}
 
 	const batch = 16
-	values := make([]interface{}, batch, batch)
-	dLevels := make([]uint16, batch, batch)
-	rLevels := make([]uint16, batch, batch)
+	values := make([]interface{}, batch)
+	dLevels := make([]uint16, batch)
+	rLevels := make([]uint16, batch)
 	var n int
 	for rg, _ := range f.MetaData.RowGroups {
 		cr, err := f.NewReader(col, rg)

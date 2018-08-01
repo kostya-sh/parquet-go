@@ -15,7 +15,7 @@ func decodeBoolean(d booleanDecoder, dst interface{}) error {
 	case []bool:
 		return d.decodeBool(dst)
 	case []interface{}:
-		b := make([]bool, len(dst), len(dst))
+		b := make([]bool, len(dst))
 		err := d.decodeBool(b)
 		for i := 0; i < len(dst); i++ {
 			dst[i] = b[i]

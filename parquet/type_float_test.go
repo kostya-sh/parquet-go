@@ -41,7 +41,7 @@ func TestEmptyFloatDictDecoder(t *testing.T) {
 	if err := d.init([]byte{0x00, 0x30}); err != nil {
 		t.Fatalf("error in init: %s", err)
 	}
-	if err := d.decode(make([]float32, 1, 1)); err == nil {
+	if err := d.decode(make([]float32, 1)); err == nil {
 		t.Errorf("error expected when decoding from a dictionary with no values")
 	}
 }

@@ -153,7 +153,7 @@ func TestInt32DeltaBianryPackedErrors(t *testing.T) {
 			continue
 		}
 
-		if err := d.decode(make([]int32, 1000, 1000)); err == nil || err == errNED {
+		if err := d.decode(make([]int32, 1000)); err == nil || err == errNED {
 			t.Errorf("test %d, error is expected", i)
 		} else {
 			t.Logf("test %d: error in decode: %s", i, err)

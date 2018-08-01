@@ -32,10 +32,10 @@ func checkColumnReaderValues(t *testing.T, path string, c int, expected []cell) 
 
 	k := 0
 	for {
-		vals := make([]interface{}, 3, 3)
+		vals := make([]interface{}, 3)
 
-		d := make([]uint16, 3, 3)
-		r := make([]uint16, 3, 3)
+		d := make([]uint16, 3)
+		r := make([]uint16, 3)
 		n, err := cr.Read(vals, d, r)
 		if err == EndOfChunk {
 			break
@@ -208,9 +208,9 @@ func TestSkipPage(t *testing.T) {
 
 func readAllColumnValues(f *File, col Column) error {
 	const batch = 237
-	values := make([]interface{}, batch, batch)
-	dLevels := make([]uint16, batch, batch)
-	rLevels := make([]uint16, batch, batch)
+	values := make([]interface{}, batch)
+	dLevels := make([]uint16, batch)
+	rLevels := make([]uint16, batch)
 	for rg, _ := range f.MetaData.RowGroups {
 		cr, err := f.NewReader(col, rg)
 		if err != nil {

@@ -15,7 +15,7 @@ func decodeInt32(d int32Decoder, dst interface{}) error {
 	case []int32:
 		return d.decodeInt32(dst)
 	case []interface{}:
-		b := make([]int32, len(dst), len(dst))
+		b := make([]int32, len(dst))
 		err := d.decodeInt32(b)
 		for i := 0; i < len(dst); i++ {
 			dst[i] = b[i]
@@ -61,7 +61,7 @@ type int32DictDecoder struct {
 
 func (d *int32DictDecoder) initValues(dictData []byte, count int) error {
 	d.numValues = count
-	d.values = make([]int32, count, count)
+	d.values = make([]int32, count)
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
@@ -156,7 +156,7 @@ func (d *int32DeltaBinaryPackedDecoder) readPageHeader() error {
 	d.data = d.data[n:]
 
 	// TODO: re-use if possible
-	d.miniBlockWidths = make([]byte, d.numMiniBlocks, d.numMiniBlocks)
+	d.miniBlockWidths = make([]byte, d.numMiniBlocks)
 	d.miniBlockSize = blockSize / d.numMiniBlocks
 
 	return nil

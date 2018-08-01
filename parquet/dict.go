@@ -56,7 +56,7 @@ func (d *dictDecoder) decodeKeys(n int) (keys []int32, err error) {
 		return nil, errors.New("dict: no values can be decoded from an empty dictionary")
 	}
 	if n > cap(d.ind) {
-		d.ind = make([]int32, n, n) // TODO: uint32
+		d.ind = make([]int32, n) // TODO: uint32
 	}
 	for i := 0; i < n; i++ {
 		k, err := d.keysDecoder.next()

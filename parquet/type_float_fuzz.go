@@ -15,7 +15,7 @@ func fuzzFloat(d valuesDecoder, data []byte, initCanFail bool) int {
 		}
 		panic("unexpected error in init")
 	}
-	dst1 := make([]float32, maxSize, maxSize)
+	dst1 := make([]float32, maxSize)
 	err = d.decode(dst1)
 	if err != nil && err != errNED {
 		return 0
@@ -25,7 +25,7 @@ func fuzzFloat(d valuesDecoder, data []byte, initCanFail bool) int {
 	if err != nil {
 		panic("unexpected error in the 2nd init")
 	}
-	dst2 := make([]interface{}, maxSize, maxSize)
+	dst2 := make([]interface{}, maxSize)
 	err = d.decode(dst2)
 	if err != nil && err != errNED {
 		return 0

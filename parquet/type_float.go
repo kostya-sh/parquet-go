@@ -15,7 +15,7 @@ func decodeFloat(d floatDecoder, dst interface{}) error {
 	case []float32:
 		return d.decodeFloat32(dst)
 	case []interface{}:
-		b := make([]float32, len(dst), len(dst))
+		b := make([]float32, len(dst))
 		err := d.decodeFloat32(b)
 		for i := 0; i < len(dst); i++ {
 			dst[i] = b[i]
@@ -61,7 +61,7 @@ type floatDictDecoder struct {
 
 func (d *floatDictDecoder) initValues(dictData []byte, count int) error {
 	d.numValues = count
-	d.values = make([]float32, count, count)
+	d.values = make([]float32, count)
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 

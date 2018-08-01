@@ -14,7 +14,7 @@ func decodeByteArray(d byteArrayDecoder, dst interface{}) error {
 	case [][]byte:
 		return d.decodeByteSlice(dst)
 	case []interface{}:
-		b := make([][]byte, len(dst), len(dst))
+		b := make([][]byte, len(dst))
 		err := d.decodeByteSlice(b)
 		for i := 0; i < len(dst); i++ {
 			dst[i] = b[i]
@@ -85,7 +85,7 @@ type byteArrayDictDecoder struct {
 
 func (d *byteArrayDictDecoder) initValues(dictData []byte, count int) error {
 	d.numValues = count
-	d.values = make([][]byte, count, count)
+	d.values = make([][]byte, count)
 	return d.dictDecoder.initValues(d.values, dictData)
 }
 
@@ -117,7 +117,7 @@ func (d *byteArrayDeltaLengthDecoder) init(data []byte) error {
 		return err
 	}
 
-	d.lens = make([]int32, lensDecoder.numValues, lensDecoder.numValues)
+	d.lens = make([]int32, lensDecoder.numValues)
 	err := lensDecoder.decodeInt32(d.lens)
 	if err != nil {
 		return err
@@ -173,7 +173,7 @@ func (d *byteArrayDeltaDecoder) init(data []byte) error {
 		return err
 	}
 
-	d.prefixLens = make([]int32, lensDecoder.numValues, lensDecoder.numValues)
+	d.prefixLens = make([]int32, lensDecoder.numValues)
 	if err := lensDecoder.decodeInt32(d.prefixLens); err != nil {
 		return err
 	}

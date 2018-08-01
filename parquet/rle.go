@@ -137,7 +137,7 @@ func (d *rleDecoder) readBitPackedRun() error {
 	var data []byte
 	if uint(pos) > uint(len(d.data)) {
 		// TODO: return errNED correctly in this case (if possible)
-		data = make([]byte, d.bitWidth, d.bitWidth)
+		data = make([]byte, d.bitWidth)
 		copy(data, d.data[d.pos:])
 	} else {
 		data = d.data[d.pos:pos]
