@@ -1,9 +1,10 @@
 language: go
 
 go:
-  - 1.5.2
-  - tip
+- tip
+- 1.11.x
+- 1.10.x
 
-script:
-  - go test -v ./...
-  - if [[ `go version` =~ go1.5 ]] ; then go tool vet parquet parqueteur ; fi
+matrix:
+  allow_failures:
+    - go: tip
