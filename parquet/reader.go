@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"math/bits"
 	"reflect"
-	"strings"
 
 	"github.com/golang/snappy"
 	"github.com/kostya-sh/parquet-go/parquetformat"
@@ -69,18 +68,16 @@ func newColumnChunkReader(r io.ReadSeeker, meta *parquetformat.FileMetaData, col
 		chunkMeta: chunk.MetaData,
 	}
 
-	nested := strings.IndexByte(col.name, '.') >= 0
-	repType := *col.schemaElement.RepetitionType
-	if !nested && repType == parquetformat.FieldRepetitionType_REQUIRED {
+	if col.maxD == 0 {
 		// TODO: also check that len(Path) = maxD
 		// For data that is required, the definition levels are not encoded and
 		// always have the value of the max definition level.
-		cr.dDecoder = constDecoder(col.maxD)
+		cr.dDecoder = constDecoder(0)
 		// TODO: document level ranges
 	} else {
 		cr.dDecoder = newRLEDecoder(bits.Len16(col.maxD))
 	}
-	if !nested && repType != parquetformat.FieldRepetitionType_REPEATED {
+	if col.maxR == 0 {
 		// TODO: I think we need to check all schemaElements in the path (confirm if above)
 		cr.rDecoder = constDecoder(0)
 		// TODO: clarify the following comment from parquet-format/README:
