@@ -45,18 +45,3 @@ func TestEmptyFloatDictDecoder(t *testing.T) {
 		t.Errorf("error expected when decoding from a dictionary with no values")
 	}
 }
-
-func TestFloatDictDecoderErrors(t *testing.T) {
-	d := &floatDictDecoder{
-		dictDecoder: dictDecoder{vd: &floatPlainDecoder{}},
-	}
-
-	if err := d.initValues([]byte{0x00, 0x00, 0x00, 0x00}, 1); err != nil {
-		t.Fatalf("Error in initValues: %s", err)
-	}
-
-	// test case found with go-fuzz
-	if err := d.init([]byte{0x00}); err == nil {
-		t.Errorf("error expected in init (bit width = 0 for non-empty dictionary)")
-	}
-}

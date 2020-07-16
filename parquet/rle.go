@@ -45,7 +45,7 @@ type rleDecoder struct {
 
 // newRLEDecoder creates a new RLE decoder with bit-width w
 func newRLEDecoder(w int) *rleDecoder {
-	if w <= 0 || w > 32 {
+	if w < 0 || w > 32 {
 		panic(fmt.Sprintf("invalid bitwidth: %d", w))
 	}
 	return &rleDecoder{
@@ -116,6 +116,8 @@ func (d *rleDecoder) readRLERunValue() error {
 
 func decodeRLEValue(bytes []byte) int32 {
 	switch len(bytes) {
+	case 0:
+		return 0
 	case 1:
 		return int32(bytes[0])
 	case 2:
