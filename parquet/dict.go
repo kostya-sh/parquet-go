@@ -28,12 +28,8 @@ func (d *dictDecoder) init(data []byte) error {
 	if w < 0 || w > 32 {
 		return errors.New("dict: invalid bit width")
 	}
-	if w != 0 {
-		d.keysDecoder = newRLEDecoder(w)
-		d.keysDecoder.init(data[1:])
-	} else if d.numValues != 0 {
-		return errors.New("dict: bit-width = 0 for non-empty dictionary")
-	}
+	d.keysDecoder = newRLEDecoder(w)
+	d.keysDecoder.init(data[1:])
 	return nil
 }
 

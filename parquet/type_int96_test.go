@@ -12,3 +12,27 @@ func TestInt96PlainDecoder(t *testing.T) {
 		},
 	})
 }
+
+func TestInt96DictDecoder(t *testing.T) {
+	d := &int96DictDecoder{
+		dictDecoder: dictDecoder{vd: &int96PlainDecoder{}},
+	}
+
+	ent := Int96{0x00, 0x58, 0x47, 0xf8, 0xd, 0x00, 0x00, 0x00, 0x6c, 0x75, 0x25, 0x00}
+	if err := d.initValues(ent[:], 1); err != nil {
+		t.Fatalf("error in initValues: %s", err)
+	}
+
+	if err := d.init([]byte{0x00, 0x98, 0x06}); err != nil {
+		t.Fatalf("error in init: %s", err)
+	}
+
+	dst := make([]Int96, 1)
+	if err := d.decode(dst); err != nil {
+		t.Fatalf("error in decode: %s", err)
+	}
+
+	if dst[0] != ent {
+		t.Fatalf("expected %v to equal %v", dst[0], ent)
+	}
+}
